@@ -10,26 +10,31 @@ FORCE_FALLBACK = os.environ.get("MCP_FORCE_FALLBACK") == "1"
 try:
     if not FORCE_FALLBACK:
         from pydantic import BaseModel as PydanticBase, Field as PydanticField, ConfigDict as PydanticConfigDict
+        from pydantic import ValidationError
         PYDANTIC_AVAILABLE = True
     else:
         PYDANTIC_AVAILABLE = False
 except ImportError:
     PYDANTIC_AVAILABLE = False
 
+# Custom exception to mimic Pydantic's ValidationError - defined outside the if/else block
+# so it's always available for import
+class ValidationError(Exception):
+    pass
+
 if PYDANTIC_AVAILABLE:
     # Use real Pydantic.
     McpPydanticBase = PydanticBase
     Field = PydanticField
     ConfigDict = PydanticConfigDict
+    # We imported ValidationError from pydantic above, don't need to redefine
 else:
     # Fallback implementation
     from dataclasses import dataclass
     from typing import Dict, Any, Optional, Set, Union
 
-    # Custom exception to mimic Pydantic's ValidationError
-    class ValidationError(Exception):
-        pass
-
+    # ValidationError is already defined above
+    
     class Field:
         """
         Minimal stand-in for pydantic.Field(...), tracking default and default_factory.
