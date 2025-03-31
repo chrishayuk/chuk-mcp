@@ -1,4 +1,4 @@
-# mcp_cli/config.py
+# chuk_mcp/config.py
 import json
 import logging
 

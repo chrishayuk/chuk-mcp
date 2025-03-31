@@ -1,10 +1,16 @@
+import os
+import pytest
+
 def test_mcp_pydantic_base_real_pydantic():
     """
     Test that mcp_pydantic_base uses real Pydantic if available.
     This confirms that we do NOT trigger the fallback logic.
     """
-    import sys
+    # Skip this test if fallback is forced.
+    if os.environ.get("MCP_FORCE_FALLBACK") == "1":
+        pytest.skip("MCP_FORCE_FALLBACK is set; skipping real Pydantic test.")
 
+    import sys
     assert "pydantic" in sys.modules, "Pydantic should be installed for this test."
 
     from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, Field, ConfigDict
@@ -25,4 +31,3 @@ def test_mcp_pydantic_base_real_pydantic():
     assert instance.model_dump() == {"x": 123}
     instance2 = RealPydanticModel.model_validate({"x": 456})
     assert instance2.x == 456
-    # And you might check the config dict's effect, etc. if relevant

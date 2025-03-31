@@ -1,6 +1,6 @@
 # tests/mcp/transport/stdio/test_stdio_server_parameters.py
 import pytest
-from pydantic import ValidationError
+from chuk_mcp.mcp_client.mcp_pydantic_base import ValidationError
 
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
