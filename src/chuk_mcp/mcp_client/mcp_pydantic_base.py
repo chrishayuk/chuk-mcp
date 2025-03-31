@@ -1,6 +1,8 @@
 # chuk_mcp/mcp_client/mcp_pydantic_base.py
 import os
 import json
+import inspect
+from typing import get_type_hints, get_origin, get_args, List, Dict, Optional, Union, Set, Any
 
 # Use fallback only if explicitly forced.
 FORCE_FALLBACK = os.environ.get("MCP_FORCE_FALLBACK") == "1"
@@ -88,7 +90,62 @@ else:
                         missing.append(field_name)
                 if missing:
                     raise ValidationError(f"Missing required fields: {', '.join(missing)}")
+            
+            # Perform type validation based on type hints
+            self._validate_types()
     
+        def _validate_types(self):
+            """Validate field types based on type annotations"""
+            annotations = get_type_hints(self.__class__)
+            
+            for field_name, expected_type in annotations.items():
+                # Skip validation if the field is not set
+                if field_name not in self.__dict__:
+                    continue
+                    
+                value = self.__dict__[field_name]
+                
+                # Skip validation for None values if the field is Optional
+                if value is None:
+                    origin = get_origin(expected_type)
+                    args = get_args(expected_type)
+                    if origin is Union and type(None) in args:
+                        continue
+                    # If the field is not Optional and the value is None, validation is handled elsewhere
+                    continue
+                
+                # Handle Optional types by extracting the actual type
+                origin = get_origin(expected_type)
+                args = get_args(expected_type)
+                
+                if origin is Union and type(None) in args:
+                    # It's an Optional type, extract the actual type(s)
+                    non_none_types = [t for t in args if t is not type(None)]
+                    if len(non_none_types) == 1:
+                        expected_type = non_none_types[0]
+                        origin = get_origin(expected_type)
+                        args = get_args(expected_type)
+                
+                # Handle List, Dict and other container types
+                if origin is list or origin is List:
+                    if not isinstance(value, list):
+                        raise ValidationError(f"{field_name} must be a list")
+                elif origin is dict or origin is Dict:
+                    if not isinstance(value, dict):
+                        raise ValidationError(f"{field_name} must be a dictionary")
+                elif expected_type is str or expected_type == str:
+                    if not isinstance(value, str):
+                        raise ValidationError(f"{field_name} must be a string")
+                elif expected_type is int or expected_type == int:
+                    if not isinstance(value, int):
+                        raise ValidationError(f"{field_name} must be an integer")
+                elif expected_type is float or expected_type == float:
+                    if not isinstance(value, (int, float)):
+                        raise ValidationError(f"{field_name} must be a number")
+                elif expected_type is bool or expected_type == bool:
+                    if not isinstance(value, bool):
+                        raise ValidationError(f"{field_name} must be a boolean")
+        
         def __init_subclass__(cls, **kwargs):
             super().__init_subclass__(**kwargs)
             cls.__model_fields__ = {}
