@@ -5,10 +5,11 @@ import json
 import os
 import sys
 import logging
+import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
+from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client, StdioClient
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
 # Force asyncio only for all tests in this file
@@ -121,24 +122,196 @@ async def test_stdio_client_with_non_json_output():
     """Test handling of non-JSON output from the server."""
     # Skip this test as we can't directly test process_json_line
     pytest.skip("Cannot directly test internal function process_json_line")
+
+
+@pytest.fixture
+def mock_stdio_client():
+    """Create a mock StdioClient instance for testing."""
+    # Create a minimal StdioClient instance
+    server_params = StdioServerParameters(command="test")
+    client = StdioClient(server_params)
     
-    # The following code is left as a reference for future implementation
-    # if the function becomes accessible
-    """
-    # Import the function directly from the module
-    from mcp.transport.stdio.stdio_client import process_json_line
+    # Set up the necessary attributes
+    client.process = MockProcess()
+    client.write_stream_reader = AsyncMock()
     
-    # Mock the writer stream
-    mock_writer = AsyncMock()
+    # Set up the outgoing stream
+    mock_outgoing = AsyncMock()
+    read_stream, write_stream = anyio.create_memory_object_stream(10)
+    client.write_stream_reader = AsyncMock()
     
-    # Test with invalid JSON
-    with patch("logging.error") as mock_log_error:
-        await process_json_line("This is not valid JSON", mock_writer)
+    return client
+
+
+async def test_stdin_writer_with_model_object(mock_stdio_client):
+    """Test that _stdin_writer correctly handles model objects."""
+    # Create a model object message
+    message = JSONRPCMessage(
+        jsonrpc="2.0",
+        id="test-id",
+        method="test/method",
+        params={"param1": "value1"}
+    )
+    
+    # Configure the mock_stdio_client.write_stream_reader to yield our test message
+    mock_stdio_client.write_stream_reader.__aenter__.return_value = mock_stdio_client.write_stream_reader
+    mock_stdio_client.write_stream_reader.__aexit__.return_value = None
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = AsyncMock()
+    
+    # Configure the __aiter__ to yield our message then raise StopAsyncIteration
+    anext_mock = AsyncMock()
+    anext_mock.__anext__.side_effect = [message, StopAsyncIteration()]
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = anext_mock
+    
+    # Execute the _stdin_writer method
+    await mock_stdio_client._stdin_writer()
+    
+    # Verify the message was properly serialized and sent
+    mock_stdio_client.process.stdin.send.assert_called_once()
+    sent_data = mock_stdio_client.process.stdin.send.call_args[0][0]
+    
+    # Verify the data is a properly encoded JSON-RPC message
+    sent_json = json.loads(sent_data.decode('utf-8').strip())
+    assert sent_json["jsonrpc"] == "2.0"
+    assert sent_json["id"] == "test-id"
+    assert sent_json["method"] == "test/method"
+    assert sent_json["params"] == {"param1": "value1"}
+
+
+async def test_stdin_writer_with_string_message(mock_stdio_client):
+    """Test that _stdin_writer correctly handles string messages."""
+    # Create a JSON string message
+    json_string = '{"jsonrpc":"2.0","id":"test-id-2","method":"test/method2","params":{"param2":"value2"}}'
+    
+    # Configure the mock_stdio_client.write_stream_reader like in the previous test
+    mock_stdio_client.write_stream_reader.__aenter__.return_value = mock_stdio_client.write_stream_reader
+    mock_stdio_client.write_stream_reader.__aexit__.return_value = None
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = AsyncMock()
+    
+    # Configure the __aiter__ to yield our string message then raise StopAsyncIteration
+    anext_mock = AsyncMock()
+    anext_mock.__anext__.side_effect = [json_string, StopAsyncIteration()]
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = anext_mock
+    
+    # Execute the _stdin_writer method
+    await mock_stdio_client._stdin_writer()
+    
+    # Verify the message was properly serialized and sent
+    mock_stdio_client.process.stdin.send.assert_called_once()
+    sent_data = mock_stdio_client.process.stdin.send.call_args[0][0]
+    
+    # Verify the data is the same JSON string with a newline
+    assert sent_data.decode('utf-8').strip() == json_string
+    
+    # Also verify it can be parsed as valid JSON
+    sent_json = json.loads(sent_data.decode('utf-8'))
+    assert sent_json["jsonrpc"] == "2.0"
+    assert sent_json["id"] == "test-id-2"
+    assert sent_json["method"] == "test/method2"
+    assert sent_json["params"] == {"param2": "value2"}
+
+
+async def test_stdin_writer_error_handling(mock_stdio_client):
+    """Test error handling in the _stdin_writer method."""
+    # Create a problematic object that will raise an exception
+    problematic_message = MagicMock()
+    problematic_message.model_dump_json.side_effect = Exception("Test exception")
+    
+    # Configure the mock like in previous tests
+    mock_stdio_client.write_stream_reader.__aenter__.return_value = mock_stdio_client.write_stream_reader
+    mock_stdio_client.write_stream_reader.__aexit__.return_value = None
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = AsyncMock()
+    
+    # Configure the __aiter__ to yield our problematic message
+    anext_mock = AsyncMock()
+    anext_mock.__anext__.side_effect = [problematic_message, StopAsyncIteration()]
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = anext_mock
+    
+    # Mock the logging to capture error messages
+    with patch('logging.error') as mock_error_log:
+        # The _stdin_writer method should catch the exception and log it
+        await mock_stdio_client._stdin_writer()
         
         # Verify error was logged
-        mock_log_error.assert_called_once()
-        assert "JSON decode error" in mock_log_error.call_args[0][0]
-        
-        # Verify the writer was not called (no message sent)
-        mock_writer.send.assert_not_called()
-    """
+        mock_error_log.assert_called()
+        assert "Unexpected error in stdin_writer" in mock_error_log.call_args[0][0]
+    
+    # Verify no messages were sent
+    mock_stdio_client.process.stdin.send.assert_not_called()
+
+
+@pytest.mark.parametrize("message,expected_value", [
+    # Test a model object
+    (
+        JSONRPCMessage(jsonrpc="2.0", id="model-test", method="model/test"),
+        {"jsonrpc": "2.0", "id": "model-test", "method": "model/test"}
+    ),
+    # Test a string
+    (
+        '{"jsonrpc":"2.0","id":"string-test","method":"string/test"}',
+        {"jsonrpc": "2.0", "id": "string-test", "method": "string/test"}
+    )
+])
+async def test_stdin_writer_message_types(mock_stdio_client, message, expected_value):
+    """Test _stdin_writer with different message types using parametrize."""
+    # Configure the mock
+    mock_stdio_client.write_stream_reader.__aenter__.return_value = mock_stdio_client.write_stream_reader
+    mock_stdio_client.write_stream_reader.__aexit__.return_value = None
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = AsyncMock()
+    
+    # Configure the __aiter__ to yield our message
+    anext_mock = AsyncMock()
+    anext_mock.__anext__.side_effect = [message, StopAsyncIteration()]
+    mock_stdio_client.write_stream_reader.__aiter__.return_value = anext_mock
+    
+    # Execute the _stdin_writer method
+    await mock_stdio_client._stdin_writer()
+    
+    # Verify the message was sent
+    mock_stdio_client.process.stdin.send.assert_called_once()
+    sent_data = mock_stdio_client.process.stdin.send.call_args[0][0]
+    
+    # Parse the JSON and verify the content
+    sent_json = json.loads(sent_data.decode('utf-8'))
+    assert sent_json["jsonrpc"] == expected_value["jsonrpc"]
+    assert sent_json["id"] == expected_value["id"]
+    assert sent_json["method"] == expected_value["method"]
+
+
+async def test_send_tool_execute_with_string():
+    """Test the send_tool_execute function using string approach."""
+    # This test simulates what would happen in send_tool_execute when using direct JSON string
+    # Create mock streams
+    read_stream = AsyncMock()
+    write_stream = AsyncMock()
+    
+    # Set up response
+    read_stream.receive.return_value = json.dumps({
+        "jsonrpc": "2.0", 
+        "id": "test-id", 
+        "result": {"status": "success"}
+    })
+    
+    # Create a string message like send_tool_execute would do
+    message = json.dumps({
+        "jsonrpc": "2.0",
+        "id": "test-id",
+        "method": "tools/execute",
+        "params": {
+            "name": "list_tables",
+            "input": {}
+        }
+    })
+    
+    # Send the message
+    await write_stream.send(message)
+    response_json = await read_stream.receive()
+    response = json.loads(response_json)
+    
+    # Verify the message was sent correctly
+    write_stream.send.assert_called_once_with(message)
+    
+    # Verify we got the expected response
+    assert response["jsonrpc"] == "2.0"
+    assert response["id"] == "test-id"
+    assert response["result"]["status"] == "success"

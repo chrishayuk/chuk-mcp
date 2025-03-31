@@ -71,7 +71,13 @@ class StdioClient:
         try:
             async with self.write_stream_reader:
                 async for message in self.write_stream_reader:
-                    json_str = message.model_dump_json(exclude_none=True)
+                    # Check if the message is already a string or needs conversion
+                    if isinstance(message, str):
+                        json_str = message
+                    else:
+                        # Assume it's a model object with model_dump_json method
+                        json_str = message.model_dump_json(exclude_none=True)
+                    
                     logging.debug(f"Sending: {json_str}")
                     await self.process.stdin.send((json_str + "\n").encode())
         except anyio.ClosedResourceError:
