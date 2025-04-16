@@ -1,11 +1,10 @@
-# chuk_mcp/mcp_client/transport/stdio/stdio_client.py
-# chuk_mcp/mcp_client/transport/stdio/stdio_client.py
+# src/chuk_mcp/mcp_client/transport/stdio/stdio_client.py
 import json
 import logging
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
@@ -15,9 +14,7 @@ from chuk_mcp.mcp_client.host.environment import get_default_environment
 
 # mcp imports
 from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import (
-    StdioServerParameters,
-)
+from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
 __all__ = ["StdioClient", "stdio_client"]
 
@@ -26,10 +23,9 @@ class StdioClient:
     """
     A newline‑delimited JSON‑RPC client speaking over stdio to a subprocess.
 
-    - Maintains `self.notifications` for notifications (id=None).
-    - Per-request streams via `new_request_stream`.
-    - Robust CRLF-normalized line splitting.
-    - _stdin_writer pulls from `self._client_out()` (a stub you can override).
+    - `client.notifications`: broadcast stream of notifications (id=None)
+    - Per‑request streams via `client.new_request_stream(id)`
+    - Send messages via `await client.send_json(msg_or_str)`
     """
 
     def __init__(self, server: StdioServerParameters):
@@ -40,27 +36,54 @@ class StdioClient:
 
         self.server = server
 
-        # Notification broadcast stream (id == None)
+        # Notification broadcast stream (id==None)
         self._notify_send: MemoryObjectSendStream
         self.notifications: MemoryObjectReceiveStream
         self._notify_send, self.notifications = anyio.create_memory_object_stream(0)
 
-        # Per-request pending response streams
+        # Per‑request pending response streams
         self._pending: Dict[str, MemoryObjectSendStream] = {}
 
-        # Placeholder for writing
+        # Outgoing queue → stdin
+        self._out_send: MemoryObjectSendStream
+        self._out_receive: MemoryObjectReceiveStream
+        self._out_send, self._out_receive = anyio.create_memory_object_stream(0)
+
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
+
+    # ─── Public API ────────────────────────────────────────────────────────────
+
+    def new_request_stream(self, req_id: str) -> MemoryObjectReceiveStream:
+        """
+        Returns a 1‑slot receive stream for the given request ID.
+        Use `await stream.receive()` to get your JSONRPCMessage.
+        """
+        send_s, recv_s = anyio.create_memory_object_stream(1)
+        self._pending[req_id] = send_s
+        return recv_s
+
+    async def send_json(self, message: Union[str, JSONRPCMessage]) -> None:
+        """
+        Queue one message for sending:
+          - If `message` is a JSONRPCMessage, it will be serialized via
+            `model_dump_json(exclude_none=True)`
+          - If `message` is a str, it's sent as raw JSON.
+        """
+        if isinstance(message, str):
+            await self._out_send.send((None, message))
+        else:
+            await self._out_send.send((message.id, message))
 
     # ─── Internal helpers ─────────────────────────────────────────────────────
 
     async def _route_message(self, msg: JSONRPCMessage) -> None:
-        # Notifications
+        # Broadcast notifications
         if msg.id is None:
             await self._notify_send.send(msg)
             return
 
-        # Matched responses
+        # Match per‑request
         send_stream = self._pending.pop(msg.id, None)
         if send_stream:
             await send_stream.send(msg)
@@ -70,23 +93,19 @@ class StdioClient:
 
     async def _stdout_reader(self) -> None:
         """
-        Read lines from process.stdout (async iterator of str or bytes),
-        normalize CRLF, split on '\n', and route valid JSON‑RPC messages.
+        Read raw chunks from process.stdout (str or bytes), normalize CRLF,
+        split on '\n', parse JSONRPCMessage and route.
         """
         assert self.process and self.process.stdout
         buffer = ""
         try:
             async for chunk in self.process.stdout:
-                # Accept either str or bytes
                 if isinstance(chunk, (bytes, bytearray)):
                     chunk = chunk.decode()
-                # Normalize CRLF → LF
                 chunk = chunk.replace("\r\n", "\n")
                 buffer += chunk
 
-                # Process all complete lines
                 lines = buffer.split("\n")
-                # Keep last fragment in buffer if no trailing '\n'
                 if buffer.endswith("\n"):
                     to_process, buffer = lines, ""
                 else:
@@ -111,47 +130,35 @@ class StdioClient:
 
     async def _stdin_writer(self) -> None:
         """
-        Pull (req_id, message) pairs from self._client_out(),
-        serialize to JSON (or pass raw string), and send to stdin.
-        Per‑message errors are logged and swallowed.
+        Pull (req_id, message) from internal queue, serialize, and write to stdin.
+        Per-message errors are logged and swallowed.
         """
         assert self.process and self.process.stdin
         logging.debug("stdin_writer started")
         try:
             async for req_id, message in self._client_out():
                 try:
-                    json_str = message if isinstance(message, str) else message.model_dump_json(exclude_none=True)
+                    json_str = (
+                        message
+                        if isinstance(message, str)
+                        else message.model_dump_json(exclude_none=True)
+                    )
                     await self.process.stdin.send(f"{json_str}\n".encode())
                 except Exception:
                     logging.error("Unexpected error in stdin_writer")
                     logging.debug("Traceback:\n%s", traceback.format_exc())
-                    # swallow and continue
         finally:
             logging.debug("stdin_writer exiting; closing server stdin")
-            # ensure the subprocess sees EOF on its stdin
             await self.process.stdin.aclose()
 
     async def _client_out(self):
         """
-        Stub generator for outgoing messages.
-        Tests can monkey‑patch `self._client_out = my_async_gen`.
+        Internal outgoing generator over the queue populated by send_json().
         """
-        await anyio.sleep(1e9)
-        if False:
-            yield ("", "")  # pragma: no cover
+        async for item in self._out_receive:
+            yield item
 
-    # ─── Public API ────────────────────────────────────────────────────────────
-
-    def new_request_stream(self, req_id: str) -> MemoryObjectReceiveStream:
-        """
-        Returns a 1‑slot receive stream for the given request ID.
-        Use `await stream.receive()` to get your JSONRPCMessage.
-        """
-        send_s, recv_s = anyio.create_memory_object_stream(1)
-        self._pending[req_id] = send_s
-        return recv_s
-
-    # ─── Async context‑manager ──────────────────────────────────────────────────
+    # ─── Context‑manager interface ─────────────────────────────────────────────
 
     async def __aenter__(self) -> "StdioClient":
         self.process = await anyio.open_process(
@@ -160,7 +167,6 @@ class StdioClient:
             stderr=sys.stderr,
             start_new_session=True,
         )
-        # Kick off I/O tasks
         self.tg = anyio.create_task_group()
         await self.tg.__aenter__()
         self.tg.start_soon(self._stdout_reader)
@@ -176,7 +182,6 @@ class StdioClient:
         return False
 
     async def _terminate_process(self) -> None:
-        """Gracefully terminate the subprocess, then kill on timeout."""
         if not self.process:
             return
         try:
@@ -199,10 +204,12 @@ class StdioClient:
 @asynccontextmanager
 async def stdio_client(server: StdioServerParameters):
     """
-    Convenience wrapper:
+    Async‐context wrapper:
 
         async with stdio_client(params) as client:
-            # client is a StdioClient instance
+            # client is a StdioClient
+            # notifications   ← client.notifications
+            # send requests  ← await client.send_json(msg_or_str)
     """
     client = StdioClient(server)
     await client.__aenter__()
