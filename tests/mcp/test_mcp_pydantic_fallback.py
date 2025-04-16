@@ -1,58 +1,67 @@
 # tests/test_mcp_pydantic_fallback.py
 
-import sys
 import importlib
+import sys
+
 import pytest
 
-def test_mcp_pydantic_base_fallback(monkeypatch):
-    """
-    Test that mcp_pydantic_base falls back to the pure-Python implementation
-    when Pydantic is not available, and that it can handle declared + extra fields.
-    """
-    # 1) Remove 'pydantic' from sys.modules so import fails
-    monkeypatch.delitem(sys.modules, "pydantic", raising=False)
 
-    # 2) Reload our module so it re-checks for pydantic availability
-    import chuk_mcp.mcp_client.mcp_pydantic_base
-    importlib.reload(chuk_mcp.mcp_client.mcp_pydantic_base)
+def _reload_with_fallback(monkeypatch):
+    """Reload *mcp_pydantic_base* forcing the pure‑python fallback path."""
+    # 1. Force env‑var so import branch chooses the fallback regardless of
+    #    whether real Pydantic is installed in the environment running the tests.
+    monkeypatch.setenv("MCP_FORCE_FALLBACK", "1")
 
-    # 3) Now import the fallback classes/functions
-    from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, Field, ConfigDict
+    # 2. Remove cached modules so reload really re‑evaluates the top of file.
+    for m in list(sys.modules):
+        if m.startswith("chuk_mcp.mcp_client.mcp_pydantic_base") or m == "pydantic":
+            sys.modules.pop(m, None)
 
-    # 4) Define a quick test model using the fallback
-    class FallbackModel(McpPydanticBase):
+    # 3. (Re)import
+    import chuk_mcp.mcp_client.mcp_pydantic_base as mpb  # noqa: WPS433 – runtime import needed
+
+    importlib.reload(mpb)
+    return mpb
+
+
+def test_fallback_basic(monkeypatch):
+    mpb = _reload_with_fallback(monkeypatch)
+    McpPydanticBase, Field, ConfigDict = (
+        mpb.McpPydanticBase,
+        mpb.Field,
+        mpb.ConfigDict,
+    )
+
+    # ------------------------------------------------------------------
+    # Define a tiny model that uses a default + extra‑allow config
+    # ------------------------------------------------------------------
+    class Model(McpPydanticBase):
         x: int = Field(default=123)
-        # If you want to test ConfigDict usage (like model_config):
         model_config = ConfigDict(extra="allow")
 
-    # 5) Instantiate and test .model_dump()
-    instance = FallbackModel()
-    assert instance.model_dump() == {"x": 123}, \
-        "Fallback .model_dump should return a dict of declared fields (if no extras are set)."
+    # 1) Defaults work
+    inst = Model()
+    dump = inst.model_dump()
+    assert dump["x"] == 123
+    # no private keys in the dump
+    assert all(not k.startswith("_") for k in dump)
 
-    # 6) Test .model_validate() with some data
-    instance2 = FallbackModel.model_validate({"x": 456})
-    assert instance2.x == 456, "Fallback .model_validate should construct an instance with 'x'"
+    # 2) model_validate works
+    inst2 = Model.model_validate({"x": 456})
+    assert inst2.x == 456
 
-    # 7) Check our 'extra' config dict is stored (though it's not enforced by fallback)
-    assert instance.model_config == {"extra": "allow"}
+    # 3) class‐level config still accessible
+    assert inst.model_config == {"extra": "allow"}
 
-    # 8) Now test extra fields like 'command' and 'args'
-    extra_data = {
-        "x": 789,
-        "command": "uv",
-        "args": ["run", "mcp-server-sqlite"]
-    }
-    instance3 = FallbackModel.model_validate(extra_data)
+    # 4) Extra fields are allowed
+    extra_data = {"x": 789, "command": "uv", "args": ["run", "srv"]}
+    inst3 = Model.model_validate(extra_data)
+    assert inst3.command == "uv"
+    assert inst3.args == ["run", "srv"]
 
-    # Verify fallback now attaches arbitrary fields to the instance
-    assert instance3.x == 789
-    assert instance3.command == "uv"
-    assert instance3.args == ["run", "mcp-server-sqlite"]
-
-    # 9) Verify they appear in the model dump as well
-    assert instance3.model_dump() == {
-        "x": 789,
-        "command": "uv",
-        "args": ["run", "mcp-server-sqlite"]
-    }
+    # 5) They round‑trip through model_dump for only public fields
+    dump3 = inst3.model_dump()
+    assert dump3["x"] == 789
+    assert dump3["command"] == "uv"
+    assert dump3["args"] == ["run", "srv"]
+    assert all(not k.startswith("_") for k in dump3)
