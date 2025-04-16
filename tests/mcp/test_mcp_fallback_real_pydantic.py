@@ -1,33 +1,68 @@
+# test_mcp_fallback_real_pydantic.py
 import os
+import sys
+import importlib
+
 import pytest
 
+
+@pytest.mark.skipif(
+    os.environ.get("MCP_FORCE_FALLBACK") == "1",
+    reason="Fallback forced via env‑var; real‑Pydantic path intentionally skipped.",
+)
 def test_mcp_pydantic_base_real_pydantic():
-    """
-    Test that mcp_pydantic_base uses real Pydantic if available.
-    This confirms that we do NOT trigger the fallback logic.
-    """
-    # Skip this test if fallback is forced.
-    if os.environ.get("MCP_FORCE_FALLBACK") == "1":
-        pytest.skip("MCP_FORCE_FALLBACK is set; skipping real Pydantic test.")
+    """Ensure *McpPydanticBase* uses the real Pydantic implementation when available."""
 
-    import sys
-    assert "pydantic" in sys.modules, "Pydantic should be installed for this test."
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    # 1. Import check
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    try:
+        import pydantic  # noqa: WPS433 – runtime import for version detection
+    except ImportError:
+        pytest.skip("Pydantic not installed – cannot exercise real‐Pydantic branch.")
 
-    from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, Field, ConfigDict
-    import pydantic
+    # Clear cached *mcp_pydantic_base* in case earlier tests forced fallback.
+    sys.modules.pop("chuk_mcp.mcp_client.mcp_pydantic_base", None)
+    mpb = importlib.import_module("chuk_mcp.mcp_client.mcp_pydantic_base")
 
-    # Define a test model
-    class RealPydanticModel(McpPydanticBase):
-        x: int = Field(default=123)
-        model_config = ConfigDict(extra="forbid")
-
-    # Check the MRO includes pydantic.BaseModel
-    assert pydantic.BaseModel in RealPydanticModel.__mro__, (
-        "When Pydantic is installed, McpPydanticBase should be pydantic.BaseModel."
+    McpPydanticBase, Field, ConfigDict = (
+        mpb.McpPydanticBase,
+        mpb.Field,
+        mpb.ConfigDict,
     )
 
-    # Check standard Pydantic behavior
-    instance = RealPydanticModel()
-    assert instance.model_dump() == {"x": 123}
-    instance2 = RealPydanticModel.model_validate({"x": 456})
-    assert instance2.x == 456
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    # 2. Sanity‑check hierarchy
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    assert issubclass(
+        McpPydanticBase, pydantic.BaseModel
+    ), "McpPydanticBase should alias pydantic.BaseModel when Pydantic is present."
+
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    # 3. Define a tiny model compatible with both Pydantic v1 + v2 APIs
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    if pydantic.version.VERSION.startswith("1."):
+
+        class RealModel(McpPydanticBase):
+            x: int = Field(default=123)
+
+            class Config:  # noqa: D401 – Pydantic v1 config style
+                extra = "forbid"
+
+    else:  # v2
+
+        class RealModel(McpPydanticBase):
+            x: int = Field(default=123)
+            model_config = ConfigDict(extra="forbid")
+
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    # 4. Behaviour checks
+    # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+    inst = RealModel()
+
+    # v2 has .model_dump(); v1 has .dict()
+    data = inst.model_dump() if hasattr(inst, "model_dump") else inst.dict()
+    assert data == {"x": 123}
+
+    inst2 = RealModel.model_validate({"x": 456})
+    assert inst2.x == 456

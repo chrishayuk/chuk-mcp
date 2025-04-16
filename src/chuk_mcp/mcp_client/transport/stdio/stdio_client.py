@@ -3,48 +3,67 @@ import json
 import logging
 import sys
 import traceback
+from contextlib import asynccontextmanager
+
 import anyio
 from anyio.streams.text import TextReceiveStream
-from contextlib import asynccontextmanager
 
 # host imports
 from chuk_mcp.mcp_client.host.environment import get_default_environment
 
 # mcp imports
 from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
+from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import (
+    StdioServerParameters,
+)
+
 
 class StdioClient:
+    """
+    A lightweight stdio JSON‑RPC client that launches a helper server as a
+    subprocess and shuttles messages back and forth over stdin/stdout.
+
+    The helper process is now started with `start_new_session=True` so it no
+    longer receives SIGINT when the user presses Ctrl‑C in the parent CLI.
+    """
+
     def __init__(self, server: StdioServerParameters):
         if not server.command:
             raise ValueError("Server command must not be empty.")
         if not isinstance(server.args, (list, tuple)):
             raise ValueError("Server arguments must be a list or tuple.")
-        self.server = server
-        self.read_stream_writer, self.read_stream = anyio.create_memory_object_stream(0)
-        self.write_stream, self.write_stream_reader = anyio.create_memory_object_stream(0)
-        self.process = None
-        self.tg = None
 
-    async def _process_json_line(self, line: str):
+        self.server = server
+
+        # in‑memory object streams are enough for our use‑case
+        self.read_stream_writer, self.read_stream = anyio.create_memory_object_stream(0)
+        self.write_stream, self.write_stream_reader = anyio.create_memory_object_stream(
+            0
+        )
+
+        self.process: anyio.abc.Process | None = None
+        self.tg: anyio.abc.TaskGroup | None = None
+
+    # ------------------------------------------------------------------ #
+    # helpers
+    # ------------------------------------------------------------------ #
+    async def _process_json_line(self, line: str) -> None:
         try:
-            logging.debug(f"Processing line: {line.strip()}")
             data = json.loads(line)
-            logging.debug(f"Parsed JSON data: {data}")
             message = JSONRPCMessage.model_validate(data)
-            logging.debug(f"Validated JSONRPCMessage: {message}")
             await self.read_stream_writer.send(message)
         except json.JSONDecodeError as exc:
-            logging.error(f"JSON decode error: {exc}. Line: {line.strip()}")
+            logging.error("JSON decode error: %s  [line: %s]", exc, line.strip())
         except Exception as exc:
-            logging.error(f"Error processing message: {exc}. Line: {line.strip()}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
+            logging.error("Error processing message: %s", exc)
+            logging.debug("Traceback:\n%s", traceback.format_exc())
 
-    async def _stdout_reader(self):
-        """Read JSON-RPC messages from the server's stdout."""
-        assert self.process.stdout, "Opened process is missing stdout"
+    async def _stdout_reader(self) -> None:
+        """Read JSON‑RPC messages from the server's stdout."""
+        assert self.process and self.process.stdout
+
         buffer = ""
-        logging.debug("Starting stdout_reader")
+        logging.debug("stdout_reader started")
         try:
             async with self.read_stream_writer:
                 async for chunk in TextReceiveStream(self.process.stdout):
@@ -57,110 +76,104 @@ class StdioClient:
                     await self._process_json_line(buffer)
         except anyio.ClosedResourceError:
             logging.debug("Read stream closed.")
-        except Exception as exc:
-            logging.error(f"Unexpected error in stdout_reader: {exc}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
+        except Exception:
+            logging.error("Unexpected error in stdout_reader")
+            logging.debug("Traceback:\n%s", traceback.format_exc())
             raise
         finally:
-            logging.debug("Exiting stdout_reader")
+            logging.debug("stdout_reader exiting")
 
-    async def _stdin_writer(self):
-        """Send JSON-RPC messages from the write stream to the server's stdin."""
-        assert self.process.stdin, "Opened process is missing stdin"
-        logging.debug("Starting stdin_writer")
+    async def _stdin_writer(self) -> None:
+        """Forward outgoing JSON‑RPC messages to the server's stdin."""
+        assert self.process and self.process.stdin
+
+        logging.debug("stdin_writer started")
         try:
             async with self.write_stream_reader:
                 async for message in self.write_stream_reader:
-                    # Check if the message is already a string or needs conversion
-                    if isinstance(message, str):
-                        json_str = message
-                    else:
-                        # Assume it's a model object with model_dump_json method
-                        json_str = message.model_dump_json(exclude_none=True)
-                    
-                    logging.debug(f"Sending: {json_str}")
-                    await self.process.stdin.send((json_str + "\n").encode())
+                    json_str = (
+                        message
+                        if isinstance(message, str)
+                        else message.model_dump_json(exclude_none=True)
+                    )
+                    await self.process.stdin.send(f"{json_str}\n".encode())
         except anyio.ClosedResourceError:
             logging.debug("Write stream closed.")
-        except Exception as exc:
-            logging.error(f"Unexpected error in stdin_writer: {exc}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
+        except Exception:
+            logging.error("Unexpected error in stdin_writer")
+            logging.debug("Traceback:\n%s", traceback.format_exc())
             raise
         finally:
-            logging.debug("Exiting stdin_writer")
+            logging.debug("stdin_writer exiting")
 
-    async def _terminate_process(self):
-        """Terminate the subprocess, first gracefully then forcefully if needed."""
+    async def _terminate_process(self) -> None:
+        """Terminate the subprocess gracefully, then force‑kill if needed."""
+        if self.process is None:
+            return
         try:
             if self.process.returncode is None:
-                logging.debug("Terminating subprocess gracefully...")
+                logging.debug("Terminating subprocess…")
                 self.process.terminate()
                 try:
                     with anyio.fail_after(5):
                         await self.process.wait()
-                    logging.info("Process terminated gracefully.")
                 except TimeoutError:
-                    logging.warning("Graceful termination timed out. Forcefully killing process...")
-                    try:
-                        self.process.kill()
-                        with anyio.fail_after(5):
-                            await self.process.wait()
-                        logging.info("Process killed successfully.")
-                    except Exception as kill_exc:
-                        logging.error(f"Error killing process: {kill_exc}")
-            else:
-                logging.info("Process already terminated.")
-        except Exception as exc:
-            logging.error(f"Error during process termination: {exc}")
+                    logging.warning("Graceful term timed out – killing …")
+                    self.process.kill()
+                    with anyio.fail_after(5):
+                        await self.process.wait()
+        except Exception:
+            logging.error("Error during process termination")
+            logging.debug("Traceback:\n%s", traceback.format_exc())
 
+    # ------------------------------------------------------------------ #
+    # async context‑manager interface
+    # ------------------------------------------------------------------ #
     async def __aenter__(self):
-        # Start the subprocess.
+        # Launch helper in its *own* session so Ctrl‑C in the parent CLI
+        # doesn’t interrupt the child.
         self.process = await anyio.open_process(
             [self.server.command, *self.server.args],
             env=self.server.env or get_default_environment(),
             stderr=sys.stderr,
+            start_new_session=True,  # ← critical line: detach from tty SIGINT
         )
-        logging.debug(
-            f"Subprocess started with PID {self.process.pid}, command: {self.server.command}"
-        )
-        # Create a task group for background tasks.
+        logging.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
+
+        # Start background I/O tasks
         self.tg = anyio.create_task_group()
         await self.tg.__aenter__()
         self.tg.start_soon(self._stdout_reader)
         self.tg.start_soon(self._stdin_writer)
-        # Return the streams to the caller.
+
         return self.read_stream, self.write_stream
 
     async def __aexit__(self, exc_type, exc, tb):
-        # Cancel the task group if it exists.
         if self.tg is not None:
-            self.tg.cancel_scope.cancel()  # Synchronous cancellation.
+            self.tg.cancel_scope.cancel()
             try:
                 await self.tg.__aexit__(None, None, None)
             except RuntimeError as re:
-                # Catch the cancel scope error if it occurs during shutdown.
                 if "Attempted to exit cancel scope" in str(re):
-                    logging.debug("Caught cancel scope error in __aexit__: %s", re)
+                    logging.debug("Suppressed cancel‑scope RuntimeError: %s", re)
                 else:
                     raise
-        # Terminate the subprocess.
         await self._terminate_process()
         return False
 
 
+# ---------------------------------------------------------------------- #
+# Public convenience context‑manager
+# ---------------------------------------------------------------------- #
 @asynccontextmanager
 async def stdio_client(server: StdioServerParameters):
     """
-    Async context manager for the stdio client.
     Usage:
         async with stdio_client(server_params) as (read_stream, write_stream):
             ...
     """
     client = StdioClient(server)
     try:
-        streams = await client.__aenter__()
-        yield streams
-    except Exception:
-        raise
+        yield await client.__aenter__()
     finally:
         await client.__aexit__(None, None, None)
