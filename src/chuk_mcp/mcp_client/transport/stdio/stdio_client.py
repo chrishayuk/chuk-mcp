@@ -35,22 +35,22 @@ class StdioClient:
 
         self.server = server
 
-        # Global broadcast stream for notifications (id == None) - for test compatibility
+        # Global broadcast stream for notifications (id == None) - use buffer to prevent deadlock
         self._notify_send: MemoryObjectSendStream
         self.notifications: MemoryObjectReceiveStream
-        self._notify_send, self.notifications = anyio.create_memory_object_stream(0)
+        self._notify_send, self.notifications = anyio.create_memory_object_stream(100)
 
         # Per‑request streams; key = request id - for test compatibility
         self._pending: Dict[str, MemoryObjectSendStream] = {}
 
-        # Main communication streams
+        # Main communication streams - use buffer to prevent deadlock
         self._incoming_send: MemoryObjectSendStream
         self._incoming_recv: MemoryObjectReceiveStream
-        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(0)
+        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(100)
 
         self._outgoing_send: MemoryObjectSendStream
         self._outgoing_recv: MemoryObjectReceiveStream
-        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(0)
+        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(100)
 
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
@@ -68,11 +68,12 @@ class StdioClient:
 
         # Route for legacy API compatibility
         if msg.id is None:
-            # notification → broadcast
+            # notification → broadcast - use nowait to avoid blocking
             try:
-                await self._notify_send.send(msg)
-            except anyio.BrokenResourceError:
-                pass
+                self._notify_send.send_nowait(msg)
+            except (anyio.WouldBlock, anyio.BrokenResourceError):
+                # If buffer is full or stream is closed, drop the notification
+                logging.debug("Dropped notification due to full buffer or closed stream")
             return
 
         # Response to specific request
@@ -156,6 +157,7 @@ class StdioClient:
         Create a one‑shot receive stream for *req_id*.
         The caller can await .receive() to get the JSONRPCMessage.
         """
+        # Use buffer size of 1 to avoid deadlock in tests
         send_s, recv_s = anyio.create_memory_object_stream(1)
         self._pending[req_id] = send_s
         return recv_s
@@ -201,6 +203,9 @@ class StdioClient:
 
     async def __aexit__(self, exc_type, exc, tb):
         try:
+            # Close outgoing stream to signal stdin_writer to exit
+            await self._outgoing_send.aclose()
+            
             if self.tg:
                 # Cancel all tasks
                 self.tg.cancel_scope.cancel()
