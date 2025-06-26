@@ -31,7 +31,7 @@ def test_default_factory_uniqueness():
     assert b.tags == []  # Not shared
 
 ###############################################################################
-# 2. Optional field is not required + type‑checked
+# 2. Optional field is not required + type-checked
 ###############################################################################
 
 @pytest.mark.skipif(PYDANTIC_AVAILABLE, reason="fallback-only behavior")
@@ -88,7 +88,7 @@ def test_nested_exclude_none():
     assert "maybe" not in dumped["child"], dumped  # cascaded exclusion
 
 ###############################################################################
-# 5. Special‑case models get their default tweaks even in fallback
+# 5. Special-case models get their default tweaks even in fallback
 ###############################################################################
 
 def test_special_case_defaults():

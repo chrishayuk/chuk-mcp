@@ -7,12 +7,12 @@ import pytest
 
 
 def _reload_with_fallback(monkeypatch):
-    """Reload *mcp_pydantic_base* forcing the pure‑python fallback path."""
-    # 1. Force env‑var so import branch chooses the fallback regardless of
+    """Reload *mcp_pydantic_base* forcing the pure-python fallback path."""
+    # 1. Force env-var so import branch chooses the fallback regardless of
     #    whether real Pydantic is installed in the environment running the tests.
     monkeypatch.setenv("MCP_FORCE_FALLBACK", "1")
 
-    # 2. Remove cached modules so reload really re‑evaluates the top of file.
+    # 2. Remove cached modules so reload really re-evaluates the top of file.
     for m in list(sys.modules):
         if m.startswith("chuk_mcp.mcp_client.mcp_pydantic_base") or m == "pydantic":
             sys.modules.pop(m, None)
@@ -33,7 +33,7 @@ def test_fallback_basic(monkeypatch):
     )
 
     # ------------------------------------------------------------------
-    # Define a tiny model that uses a default + extra‑allow config
+    # Define a tiny model that uses a default + extra-allow config
     # ------------------------------------------------------------------
     class Model(McpPydanticBase):
         x: int = Field(default=123)
@@ -59,7 +59,7 @@ def test_fallback_basic(monkeypatch):
     assert inst3.command == "uv"
     assert inst3.args == ["run", "srv"]
 
-    # 5) They round‑trip through model_dump for only public fields
+    # 5) They round-trip through model_dump for only public fields
     dump3 = inst3.model_dump()
     assert dump3["x"] == 789
     assert dump3["command"] == "uv"

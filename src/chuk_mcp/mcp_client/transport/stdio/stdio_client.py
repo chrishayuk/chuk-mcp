@@ -1,11 +1,10 @@
 # chuk_mcp/mcp_client/transport/stdio/stdio_client.py
-# chuk_mcp/mcp_client/transport/stdio/stdio_client.py
 import json
 import logging
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
@@ -24,10 +23,8 @@ class StdioClient:
     """
     A newline‑delimited JSON‑RPC client speaking over stdio to a subprocess.
 
-    Features:
-      * **Router**: per‑request queues so responses never get “stolen”.
-      * **Robust line parsing** via simple chunk buffering.
-      * **Resilient writer**: per‑message errors are logged and swallowed.
+    Maintains compatibility with existing tests while providing working
+    message transmission functionality.
     """
 
     def __init__(self, server: StdioServerParameters):
@@ -38,13 +35,22 @@ class StdioClient:
 
         self.server = server
 
-        # Global broadcast stream for notifications (id == None)
+        # Global broadcast stream for notifications (id == None) - for test compatibility
         self._notify_send: MemoryObjectSendStream
         self.notifications: MemoryObjectReceiveStream
         self._notify_send, self.notifications = anyio.create_memory_object_stream(0)
 
-        # Per‑request streams; key = request id
+        # Per‑request streams; key = request id - for test compatibility
         self._pending: Dict[str, MemoryObjectSendStream] = {}
+
+        # Main communication streams
+        self._incoming_send: MemoryObjectSendStream
+        self._incoming_recv: MemoryObjectReceiveStream
+        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(0)
+
+        self._outgoing_send: MemoryObjectSendStream
+        self._outgoing_recv: MemoryObjectReceiveStream
+        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(0)
 
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
@@ -53,86 +59,97 @@ class StdioClient:
     # Internal helpers
     # ------------------------------------------------------------------ #
     async def _route_message(self, msg: JSONRPCMessage) -> None:
+        """Route messages for both new stream API and old request-specific API."""
+        # Send to main incoming stream for stdio_client() context manager
+        try:
+            await self._incoming_send.send(msg)
+        except anyio.BrokenResourceError:
+            pass  # Stream might be closed during shutdown
+
+        # Route for legacy API compatibility
         if msg.id is None:
             # notification → broadcast
-            await self._notify_send.send(msg)
+            try:
+                await self._notify_send.send(msg)
+            except anyio.BrokenResourceError:
+                pass
             return
 
-        send_stream = self._pending.pop(msg.id, None)
+        # Response to specific request
+        send_stream = self._pending.pop(str(msg.id), None)
         if send_stream:
-            await send_stream.send(msg)
-            await send_stream.aclose()
+            try:
+                await send_stream.send(msg)
+                await send_stream.aclose()
+            except anyio.BrokenResourceError:
+                pass
         else:
             logging.warning("Received response with unknown id: %s", msg.id)
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON‑RPC messages via simple buffering."""
-        assert self.process and self.process.stdout
+        try:
+            assert self.process and self.process.stdout
 
-        buffer = ""
-        logging.debug("stdout_reader started")
+            buffer = ""
+            logging.debug("stdout_reader started")
 
-        # Directly consume whatever async iterator stdout provides
-        async for chunk in self.process.stdout:
-            buffer += chunk
+            async for chunk in self.process.stdout:
+                buffer += chunk
 
-            # Split on any newline variant
-            for line in buffer.splitlines(keepends=False):
-                if not line.strip():
-                    continue
-                try:
-                    data = json.loads(line)
-                    msg = JSONRPCMessage.model_validate(data)
-                    await self._route_message(msg)
-                except json.JSONDecodeError as exc:
-                    logging.error("JSON decode error: %s  [line: %.120s]", exc, line)
-                except Exception as exc:
-                    logging.error("Error processing message: %s", exc)
-                    logging.debug("Traceback:\n%s", traceback.format_exc())
+                # Split on newlines
+                lines = buffer.split('\n')
+                buffer = lines[-1]  # Keep incomplete line
+                
+                for line in lines[:-1]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        msg = JSONRPCMessage.model_validate(data)
+                        await self._route_message(msg)
+                        logging.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+                    except json.JSONDecodeError as exc:
+                        logging.error("JSON decode error: %s  [line: %.120s]", exc, line)
+                    except Exception as exc:
+                        logging.error("Error processing message: %s", exc)
+                        logging.debug("Traceback:\n%s", traceback.format_exc())
 
-            # Retain any trailing incomplete fragment
-            if buffer and not buffer.endswith(("\n", "\r")):
-                buffer = buffer.rsplit("\n", 1)[-1]
-            else:
-                buffer = ""
-
-        logging.debug("stdout_reader exiting")
+            logging.debug("stdout_reader exiting")
+        except Exception as e:
+            logging.error(f"stdout_reader error: {e}")
+            logging.debug("Traceback:\n%s", traceback.format_exc())
 
     async def _stdin_writer(self) -> None:
         """Forward outgoing JSON‑RPC messages to the server's stdin."""
-        assert self.process and self.process.stdin
-        logging.debug("stdin_writer started")
+        try:
+            assert self.process and self.process.stdin
+            logging.debug("stdin_writer started")
 
-        # _client_out yields (req_id, message) pairs
-        async for req_id, message in self._client_out():
-            try:
-                json_str = (
-                    message
-                    if isinstance(message, str)
-                    else message.model_dump_json(exclude_none=True)
-                )
-                await self.process.stdin.send(f"{json_str}\n".encode())
-            except Exception as exc:
-                logging.error("Unexpected error in stdin_writer: %s", exc)
-                logging.debug("Traceback:\n%s", traceback.format_exc())
-                # swallow and continue
-                continue
+            async for message in self._outgoing_recv:
+                try:
+                    json_str = (
+                        message
+                        if isinstance(message, str)
+                        else message.model_dump_json(exclude_none=True)
+                    )
+                    await self.process.stdin.send(f"{json_str}\n".encode())
+                    logging.debug(f"Sent: {message.method or 'response'} (id: {message.id})")
+                except Exception as exc:
+                    logging.error("Unexpected error in stdin_writer: %s", exc)
+                    logging.debug("Traceback:\n%s", traceback.format_exc())
+                    continue
 
-        logging.debug("stdin_writer exiting; closing server stdin")
-        await self.process.stdin.aclose()
-
-    async def _client_out(self):
-        """
-        Internal generator stub: yields (req_id, JSONRPCMessage or str).
-        Replace with your own queuing mechanism.
-        """
-        # Block forever by default
-        await anyio.sleep(1e9)
-        if False:
-            yield ("", "")
+            logging.debug("stdin_writer exiting; closing server stdin")
+            if self.process and self.process.stdin:
+                await self.process.stdin.aclose()
+        except Exception as e:
+            logging.error(f"stdin_writer error: {e}")
+            logging.debug("Traceback:\n%s", traceback.format_exc())
 
     # ------------------------------------------------------------------ #
-    # Public API for request lifecycle
+    # Public API for request lifecycle (for test compatibility)
     # ------------------------------------------------------------------ #
     def new_request_stream(self, req_id: str) -> MemoryObjectReceiveStream:
         """
@@ -146,37 +163,67 @@ class StdioClient:
     async def send_json(self, msg: JSONRPCMessage) -> None:
         """
         Queue *msg* for transmission.
-        Under the hood you need to pump it into _client_out.
         """
-        send_s, _ = anyio.create_memory_object_stream(1)
-        await send_s.send((msg.id, msg))
-        await send_s.aclose()
+        try:
+            await self._outgoing_send.send(msg)
+        except anyio.BrokenResourceError:
+            logging.warning("Cannot send message - outgoing stream is closed")
+
+    # ------------------------------------------------------------------ #
+    # New API for stdio_client context manager
+    # ------------------------------------------------------------------ #
+    def get_streams(self) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
+        """Get the read and write streams for communication."""
+        return self._incoming_recv, self._outgoing_send
 
     # ------------------------------------------------------------------ #
     # async context‑manager interface
     # ------------------------------------------------------------------ #
     async def __aenter__(self):
-        self.process = await anyio.open_process(
-            [self.server.command, *self.server.args],
-            env=self.server.env or get_default_environment(),
-            stderr=sys.stderr,
-            start_new_session=True,
-        )
-        logging.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
+        try:
+            self.process = await anyio.open_process(
+                [self.server.command, *self.server.args],
+                env=self.server.env or get_default_environment(),
+                stderr=sys.stderr,
+                start_new_session=True,
+            )
+            logging.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
 
-        self.tg = anyio.create_task_group()
-        await self.tg.__aenter__()
-        self.tg.start_soon(self._stdout_reader)
-        self.tg.start_soon(self._stdin_writer)
+            self.tg = anyio.create_task_group()
+            await self.tg.__aenter__()
+            self.tg.start_soon(self._stdout_reader)
+            self.tg.start_soon(self._stdin_writer)
 
-        return self
+            return self
+        except Exception as e:
+            logging.error(f"Error starting stdio client: {e}")
+            raise
 
     async def __aexit__(self, exc_type, exc, tb):
-        if self.tg:
-            self.tg.cancel_scope.cancel()
-            await self.tg.__aexit__(None, None, None)
-        if self.process and self.process.returncode is None:
-            await self._terminate_process()
+        try:
+            if self.tg:
+                # Cancel all tasks
+                self.tg.cancel_scope.cancel()
+                
+                # Handle task group exceptions properly
+                try:
+                    await self.tg.__aexit__(None, None, None)
+                except BaseExceptionGroup as eg:
+                    # Handle exception groups from anyio
+                    for exc in eg.exceptions:
+                        if not isinstance(exc, anyio.get_cancelled_exc_class()):
+                            logging.error(f"Task error during shutdown: {exc}")
+                except Exception as e:
+                    # Handle regular exceptions for older anyio versions
+                    if not isinstance(e, anyio.get_cancelled_exc_class()):
+                        logging.error(f"Task error during shutdown: {e}")
+                
+            if self.process and self.process.returncode is None:
+                await self._terminate_process()
+                
+        except Exception as e:
+            logging.error(f"Error during stdio client shutdown: {e}")
+            
         return False
 
     async def _terminate_process(self) -> None:
@@ -195,23 +242,40 @@ class StdioClient:
                     self.process.kill()
                     with anyio.fail_after(5):
                         await self.process.wait()
-        except Exception:
-            logging.error("Error during process termination")
+        except Exception as e:
+            logging.error(f"Error during process termination: {e}")
             logging.debug("Traceback:\n%s", traceback.format_exc())
 
 
 # ---------------------------------------------------------------------- #
-# Convenience context‑manager                                           #
+# Convenience context‑manager that returns streams for send_message
 # ---------------------------------------------------------------------- #
 @asynccontextmanager
-async def stdio_client(server: StdioServerParameters):
+async def stdio_client(server: StdioServerParameters) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
     """
+    Create a stdio client and return streams that work with send_message.
+    
     Usage:
-        async with stdio_client(server_params) as client:
-            # client is a StdioClient instance
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            response = await send_message(read_stream, write_stream, "ping")
+    
+    Returns:
+        Tuple of (read_stream, write_stream) for JSON-RPC communication
     """
     client = StdioClient(server)
+    
     try:
-        yield await client.__aenter__()
-    finally:
-        await client.__aexit__(None, None, None)
+        async with client:
+            # Return the streams that send_message expects
+            yield client.get_streams()
+    except BaseExceptionGroup as eg:
+        # Handle exception groups from anyio task groups
+        for exc in eg.exceptions:
+            if not isinstance(exc, anyio.get_cancelled_exc_class()):
+                logging.error(f"stdio_client error: {exc}")
+        raise
+    except Exception as e:
+        # Handle regular exceptions
+        if not isinstance(e, anyio.get_cancelled_exc_class()):
+            logging.error(f"stdio_client error: {e}")
+        raise

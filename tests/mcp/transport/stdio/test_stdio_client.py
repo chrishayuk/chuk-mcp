@@ -39,7 +39,7 @@ class MockProcess:
         self.stdin = AsyncMock()
         self.stdin.send = AsyncMock()
         self.stdin.aclose = AsyncMock()
-        self.stdout = None  # patched per‑test
+        self.stdout = None  # patched per-test
 
     async def wait(self):
         self.returncode = self._exit_code
@@ -187,11 +187,11 @@ async def test_non_json_line_ignored(caplog):
         tg.cancel_scope.cancel()
 
 ###############################################################################
-# Multi‑message and CRLF tests                                                 #
+# Multi-message and CRLF tests                                                 #
 ###############################################################################
 
 async def test_multiple_messages_in_one_chunk():
-    """Two JSON‑RPC messages in a single chunk get routed separately."""
+    """Two JSON-RPC messages in a single chunk get routed separately."""
     client = StdioClient(StdioServerParameters(command="test"))
     client.process = MockProcess()
 
