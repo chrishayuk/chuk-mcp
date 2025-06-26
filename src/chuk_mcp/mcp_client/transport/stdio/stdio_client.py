@@ -88,7 +88,7 @@ class StdioClient:
             logging.warning("Received response with unknown id: %s", msg.id)
 
     async def _stdout_reader(self) -> None:
-        """Read server stdout and route JSON‑RPC messages via simple buffering."""
+        """Read server stdout and route JSON-RPC messages with batch support."""
         try:
             assert self.process and self.process.stdout
 
@@ -108,9 +108,25 @@ class StdioClient:
                         continue
                     try:
                         data = json.loads(line)
-                        msg = JSONRPCMessage.model_validate(data)
-                        await self._route_message(msg)
-                        logging.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+                        
+                        # Handle JSON-RPC batch messages (MUST support per spec)
+                        if isinstance(data, list):
+                            # Process each message in the batch
+                            logging.debug(f"Received batch with {len(data)} messages")
+                            for item in data:
+                                try:
+                                    msg = JSONRPCMessage.model_validate(item)
+                                    await self._route_message(msg)
+                                    logging.debug(f"Batch item: {msg.method or 'response'} (id: {msg.id})")
+                                except Exception as exc:
+                                    logging.error("Error processing batch item: %s", exc)
+                                    logging.debug("Invalid batch item: %.120s", json.dumps(item))
+                        else:
+                            # Single message
+                            msg = JSONRPCMessage.model_validate(data)
+                            await self._route_message(msg)
+                            logging.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+                            
                     except json.JSONDecodeError as exc:
                         logging.error("JSON decode error: %s  [line: %.120s]", exc, line)
                     except Exception as exc:
@@ -121,6 +137,7 @@ class StdioClient:
         except Exception as e:
             logging.error(f"stdout_reader error: {e}")
             logging.debug("Traceback:\n%s", traceback.format_exc())
+            
 
     async def _stdin_writer(self) -> None:
         """Forward outgoing JSON‑RPC messages to the server's stdin."""
