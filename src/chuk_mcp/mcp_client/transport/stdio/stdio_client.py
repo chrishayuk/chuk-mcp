@@ -77,15 +77,17 @@ class StdioClient:
                 pass
             return
 
-        # Legacy streams (only if present)
-        if self._pending:
-            legacy_stream = self._pending.pop(str(msg.id), None)
-            if legacy_stream:
-                try:
-                    await legacy_stream.send(msg)
-                    await legacy_stream.aclose()
-                except anyio.BrokenResourceError:
-                    pass
+        # Legacy streams (handle responses and requests with IDs)
+        legacy_stream = self._pending.pop(str(msg.id), None)
+        if legacy_stream:
+            try:
+                await legacy_stream.send(msg)
+                await legacy_stream.aclose()
+            except anyio.BrokenResourceError:
+                pass
+        else:
+            # Log warning for unknown IDs (needed for tests)
+            logging.warning(f"Received message for unknown id: {msg.id}")
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON-RPC messages with batch support."""
