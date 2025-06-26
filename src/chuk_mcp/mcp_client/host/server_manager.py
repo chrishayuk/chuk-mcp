@@ -1,15 +1,11 @@
-# chuk_mcp/chuk_mcp.mcp_client/host/server_manager.py
+# chuk_mcp/mcp_client/host/server_manager.py
 import os
 import json
 import asyncio
 import anyio
 
-# mcp imports
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
+# mcp imports - import from messages layer, not transport layer
 from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-
-# cli imports
-from mcp_cli.config import load_config
 
 def run_command(command_func, config_file, server_names, user_specified=None):
     """Run a command with the specified servers by managing server connections."""
@@ -18,6 +14,10 @@ def run_command(command_func, config_file, server_names, user_specified=None):
         server_info = []  # For intelligent routing.
         context_managers = []
         clean_exit = False
+        
+        # Import dependencies here to avoid circular imports
+        from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
+        from chuk_mcp.config import load_config
         
         # Create all server connections.
         for sname in server_names:

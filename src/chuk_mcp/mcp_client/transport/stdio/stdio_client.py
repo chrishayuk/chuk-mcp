@@ -21,7 +21,7 @@ __all__ = ["StdioClient", "stdio_client"]
 
 class StdioClient:
     """
-    A newline‑delimited JSON‑RPC client speaking over stdio to a subprocess.
+    A newline-delimited JSON-RPC client speaking over stdio to a subprocess.
 
     Maintains compatibility with existing tests while providing working
     message transmission functionality.
@@ -40,7 +40,7 @@ class StdioClient:
         self.notifications: MemoryObjectReceiveStream
         self._notify_send, self.notifications = anyio.create_memory_object_stream(100)
 
-        # Per‑request streams; key = request id - for test compatibility
+        # Per-request streams; key = request id - for test compatibility
         self._pending: Dict[str, MemoryObjectSendStream] = {}
 
         # Main communication streams - use buffer to prevent deadlock
@@ -58,34 +58,34 @@ class StdioClient:
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
+    
+    # Performance-optimized version with minimal logging
     async def _route_message(self, msg: JSONRPCMessage) -> None:
-        """Route messages for both new stream API and old request-specific API."""
-        # Send to main incoming stream for stdio_client() context manager
+        """Fast routing with minimal overhead."""
+        
+        # Main stream (always)
         try:
             await self._incoming_send.send(msg)
         except anyio.BrokenResourceError:
-            pass  # Stream might be closed during shutdown
+            return
 
-        # Route for legacy API compatibility
+        # Notifications
         if msg.id is None:
-            # notification → broadcast - use nowait to avoid blocking
             try:
                 self._notify_send.send_nowait(msg)
             except (anyio.WouldBlock, anyio.BrokenResourceError):
-                # If buffer is full or stream is closed, drop the notification
-                logging.debug("Dropped notification due to full buffer or closed stream")
+                pass
             return
 
-        # Response to specific request
-        send_stream = self._pending.pop(str(msg.id), None)
-        if send_stream:
-            try:
-                await send_stream.send(msg)
-                await send_stream.aclose()
-            except anyio.BrokenResourceError:
-                pass
-        else:
-            logging.warning("Received response with unknown id: %s", msg.id)
+        # Legacy streams (only if present)
+        if self._pending:
+            legacy_stream = self._pending.pop(str(msg.id), None)
+            if legacy_stream:
+                try:
+                    await legacy_stream.send(msg)
+                    await legacy_stream.aclose()
+                except anyio.BrokenResourceError:
+                    pass
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON-RPC messages with batch support."""
@@ -96,11 +96,15 @@ class StdioClient:
             logging.debug("stdout_reader started")
 
             async for chunk in self.process.stdout:
-                buffer += chunk
+                # Handle both bytes and string chunks
+                if isinstance(chunk, bytes):
+                    buffer += chunk.decode('utf-8')
+                else:
+                    buffer += chunk
 
                 # Split on newlines
                 lines = buffer.split('\n')
-                buffer = lines[-1]  # Keep incomplete line
+                buffer = lines[-1]
                 
                 for line in lines[:-1]:
                     line = line.strip()
@@ -140,7 +144,7 @@ class StdioClient:
             
 
     async def _stdin_writer(self) -> None:
-        """Forward outgoing JSON‑RPC messages to the server's stdin."""
+        """Forward outgoing JSON-RPC messages to the server's stdin."""
         try:
             assert self.process and self.process.stdin
             logging.debug("stdin_writer started")
@@ -171,7 +175,7 @@ class StdioClient:
     # ------------------------------------------------------------------ #
     def new_request_stream(self, req_id: str) -> MemoryObjectReceiveStream:
         """
-        Create a one‑shot receive stream for *req_id*.
+        Create a one-shot receive stream for *req_id*.
         The caller can await .receive() to get the JSONRPCMessage.
         """
         # Use buffer size of 1 to avoid deadlock in tests
@@ -196,7 +200,7 @@ class StdioClient:
         return self._incoming_recv, self._outgoing_send
 
     # ------------------------------------------------------------------ #
-    # async context‑manager interface
+    # async context-manager interface
     # ------------------------------------------------------------------ #
     async def __aenter__(self):
         try:
@@ -249,7 +253,7 @@ class StdioClient:
         return False
 
     async def _terminate_process(self) -> None:
-        """Terminate the helper process gracefully, then force‑kill if needed."""
+        """Terminate the helper process gracefully, then force-kill if needed."""
         if not self.process:
             return
         try:
@@ -270,7 +274,7 @@ class StdioClient:
 
 
 # ---------------------------------------------------------------------- #
-# Convenience context‑manager that returns streams for send_message
+# Convenience context-manager that returns streams for send_message
 # ---------------------------------------------------------------------- #
 @asynccontextmanager
 async def stdio_client(server: StdioServerParameters) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
