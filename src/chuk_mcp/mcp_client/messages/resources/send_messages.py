@@ -149,3 +149,46 @@ async def send_resources_subscribe(
     except Exception:
         # Subscription failed
         return False
+    
+
+async def send_resources_unsubscribe(
+    read_stream: MemoryObjectReceiveStream,
+    write_stream: MemoryObjectSendStream,
+    uri: str,
+    timeout: float = 5.0,
+    retries: int = 3,
+) -> bool:
+    """
+    Send a 'resources/unsubscribe' message to unsubscribe from resource changes.
+    
+    Args:
+        read_stream: Stream to read responses from
+        write_stream: Stream to write requests to
+        uri: URI of the resource to unsubscribe from
+        timeout: Timeout in seconds for the response
+        retries: Number of retry attempts
+        
+    Returns:
+        bool: True if unsubscription was successful, False otherwise
+        
+    Raises:
+        Exception: If the server returns an error or the request fails
+    """
+    try:
+        response = await send_message(
+            read_stream=read_stream,
+            write_stream=write_stream,
+            method=MessageMethod.RESOURCES_UNSUBSCRIBE,
+            params={"uri": uri},
+            timeout=timeout,
+            retries=retries,
+        )
+        
+        # Any non-error response indicates success
+        return response is not None
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logging.error(f"Failed to unsubscribe from resource {uri}: {e}")
+        # Unsubscription failed
+        return False
