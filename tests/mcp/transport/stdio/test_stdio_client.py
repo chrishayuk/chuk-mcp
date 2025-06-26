@@ -147,9 +147,10 @@ async def test_notification_broadcast_and_unknown(caplog):
 
     # Unknown-id responses log a warning immediately
     caplog.set_level(logging.WARNING)
-    await client._route_message(make_message(id="ghost"))
+    # Create a valid response with an unknown ID (has result to be valid)
+    await client._route_message(make_message(id="ghost", result={}))
     assert "unknown id" in caplog.text.lower()
-
+    
 ###############################################################################
 # _stdin_writer                                                               #
 ###############################################################################
