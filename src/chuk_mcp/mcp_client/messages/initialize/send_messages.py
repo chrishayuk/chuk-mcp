@@ -211,3 +211,49 @@ def validate_version_format(version: str) -> bool:
     import re
     pattern = r'^\d{4}-\d{2}-\d{2}$'
     return bool(re.match(pattern, version))
+
+async def send_initialize_with_client_tracking(
+    read_stream: MemoryObjectReceiveStream,
+    write_stream: MemoryObjectSendStream,
+    client: Optional[Any] = None,  # StdioClient instance
+    timeout: float = 5.0,
+    supported_versions: Optional[List[str]] = None,
+    preferred_version: Optional[str] = None,
+) -> Optional[InitializeResult]:
+    """
+    Send an initialization request and track the protocol version in the client.
+    
+    This version extends send_initialize to automatically set the negotiated
+    protocol version in the StdioClient for version-aware feature support.
+    
+    Args:
+        read_stream: Stream to read responses from
+        write_stream: Stream to write requests to
+        client: Optional StdioClient instance to track protocol version
+        timeout: Timeout in seconds for the response
+        supported_versions: List of protocol versions supported by the client
+        preferred_version: Specific version to prefer (for testing/compatibility)
+        
+    Returns:
+        InitializeResult object if successful, None otherwise
+        
+    Raises:
+        VersionMismatchError: If server responds with an unsupported protocol version
+        TimeoutError: If server doesn't respond within the timeout
+        Exception: For other unexpected errors
+    """
+    # Call the standard initialize function
+    result = await send_initialize(
+        read_stream=read_stream,
+        write_stream=write_stream,
+        timeout=timeout,
+        supported_versions=supported_versions,
+        preferred_version=preferred_version,
+    )
+    
+    # If successful and we have a client, set the protocol version
+    if result and client and hasattr(client, 'set_protocol_version'):
+        client.set_protocol_version(result.protocolVersion)
+        logging.info(f"Set client protocol version to: {result.protocolVersion}")
+    
+    return result

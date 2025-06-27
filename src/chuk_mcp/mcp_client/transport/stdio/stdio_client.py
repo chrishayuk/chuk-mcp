@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
@@ -16,7 +16,53 @@ from chuk_mcp.mcp_client.host.environment import get_default_environment
 from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
-__all__ = ["StdioClient", "stdio_client"]
+__all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
+
+
+def _supports_batch_processing(protocol_version: Optional[str]) -> bool:
+    """
+    Check if the protocol version supports JSON-RPC batch processing.
+    
+    Batch processing was removed in version 2025-06-18.
+    
+    Args:
+        protocol_version: The negotiated protocol version
+        
+    Returns:
+        True if batch processing is supported, False otherwise
+    """
+    if not protocol_version:
+        # Default to supporting batch for backward compatibility
+        return True
+    
+    # Parse version and check if it's before 2025-06-18
+    try:
+        # Versions are in YYYY-MM-DD format, but be flexible with zero-padding
+        version_parts = protocol_version.split('-')
+        
+        # We need exactly 3 parts for a valid version
+        if len(version_parts) != 3:
+            # Treat versions with extra parts as invalid/malformed
+            raise ValueError("Invalid version format")
+            
+        year = int(version_parts[0])
+        month = int(version_parts[1])
+        day = int(version_parts[2])
+        
+        # 2025-06-18 and later don't support batching
+        if year > 2025:
+            return False
+        elif year == 2025 and month > 6:
+            return False
+        elif year == 2025 and month == 6 and day >= 18:
+            return False
+            
+        # All earlier versions support batching
+        return True
+    except (ValueError, TypeError, IndexError):
+        # If we can't parse the version, default to supporting batch
+        logging.warning(f"Could not parse protocol version '{protocol_version}', assuming batch support")
+        return True
 
 
 class StdioClient:
@@ -24,7 +70,7 @@ class StdioClient:
     A newline-delimited JSON-RPC client speaking over stdio to a subprocess.
 
     Maintains compatibility with existing tests while providing working
-    message transmission functionality.
+    message transmission functionality. Supports version-aware batch processing.
     """
 
     def __init__(self, server: StdioServerParameters):
@@ -54,6 +100,14 @@ class StdioClient:
 
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
+        
+        # Track negotiated protocol version for feature support
+        self._protocol_version: Optional[str] = None
+
+    def set_protocol_version(self, version: str) -> None:
+        """Set the negotiated protocol version."""
+        self._protocol_version = version
+        logging.debug(f"Protocol version set to: {version}")
 
     # ------------------------------------------------------------------ #
     # Internal helpers
@@ -90,7 +144,7 @@ class StdioClient:
             logging.warning(f"Received message for unknown id: {msg.id}")
 
     async def _stdout_reader(self) -> None:
-        """Read server stdout and route JSON-RPC messages with batch support."""
+        """Read server stdout and route JSON-RPC messages with version-aware batch support."""
         try:
             assert self.process and self.process.stdout
 
@@ -115,10 +169,10 @@ class StdioClient:
                     try:
                         data = json.loads(line)
                         
-                        # Handle JSON-RPC batch messages (MUST support per spec)
-                        if isinstance(data, list):
+                        # Handle JSON-RPC batch messages only if version supports it
+                        if isinstance(data, list) and _supports_batch_processing(self._protocol_version):
                             # Process each message in the batch
-                            logging.debug(f"Received batch with {len(data)} messages")
+                            logging.debug(f"Received batch with {len(data)} messages (protocol: {self._protocol_version})")
                             for item in data:
                                 try:
                                     msg = JSONRPCMessage.model_validate(item)
@@ -127,6 +181,17 @@ class StdioClient:
                                 except Exception as exc:
                                     logging.error("Error processing batch item: %s", exc)
                                     logging.debug("Invalid batch item: %.120s", json.dumps(item))
+                        elif isinstance(data, list):
+                            # Batch received but not supported in this protocol version
+                            logging.warning(f"Received batch message but protocol version {self._protocol_version} does not support batching")
+                            # Try to process individual items anyway for compatibility
+                            for item in data:
+                                try:
+                                    msg = JSONRPCMessage.model_validate(item)
+                                    await self._route_message(msg)
+                                    logging.debug(f"Individual item from unsupported batch: {msg.method or 'response'} (id: {msg.id})")
+                                except Exception as exc:
+                                    logging.error("Error processing item from unsupported batch: %s", exc)
                         else:
                             # Single message
                             msg = JSONRPCMessage.model_validate(data)
@@ -306,4 +371,74 @@ async def stdio_client(server: StdioServerParameters) -> Tuple[MemoryObjectRecei
         # Handle regular exceptions
         if not isinstance(e, anyio.get_cancelled_exc_class()):
             logging.error(f"stdio_client error: {e}")
+        raise
+
+
+@asynccontextmanager
+async def stdio_client_with_initialize(
+    server: StdioServerParameters,
+    timeout: float = 5.0,
+    supported_versions: Optional[List[str]] = None,
+    preferred_version: Optional[str] = None,
+):
+    """
+    Create a stdio client and automatically send initialization.
+    
+    This combines stdio_client with send_initialize_with_client_tracking
+    to provide a convenient way to start an MCP server with proper
+    initialization and version tracking.
+    
+    Usage:
+        async with stdio_client_with_initialize(server_params) as (read_stream, write_stream, init_result):
+            # init_result contains the server capabilities and protocol version
+            response = await send_message(read_stream, write_stream, "tools/list")
+    
+    Args:
+        server: Server parameters for starting the subprocess
+        timeout: Timeout for initialization in seconds
+        supported_versions: List of supported protocol versions
+        preferred_version: Preferred protocol version to negotiate
+        
+    Yields:
+        Tuple of (read_stream, write_stream, init_result)
+        
+    Raises:
+        VersionMismatchError: If version negotiation fails
+        TimeoutError: If initialization times out
+        Exception: For other initialization failures
+    """
+    from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize_with_client_tracking
+    
+    client = StdioClient(server)
+    
+    try:
+        async with client:
+            read_stream, write_stream = client.get_streams()
+            
+            # Perform initialization with version tracking
+            init_result = await send_initialize_with_client_tracking(
+                read_stream=read_stream,
+                write_stream=write_stream,
+                client=client,
+                timeout=timeout,
+                supported_versions=supported_versions,
+                preferred_version=preferred_version,
+            )
+            
+            if not init_result:
+                raise Exception("Initialization failed")
+            
+            # Yield the streams and initialization result
+            yield read_stream, write_stream, init_result
+            
+    except BaseExceptionGroup as eg:
+        # Handle exception groups from anyio task groups
+        for exc in eg.exceptions:
+            if not isinstance(exc, anyio.get_cancelled_exc_class()):
+                logging.error(f"stdio_client_with_initialize error: {exc}")
+        raise
+    except Exception as e:
+        # Handle regular exceptions
+        if not isinstance(e, anyio.get_cancelled_exc_class()):
+            logging.error(f"stdio_client_with_initialize error: {e}")
         raise

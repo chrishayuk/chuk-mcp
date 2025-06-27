@@ -35,6 +35,7 @@ The stdio transport is ideal for:
 from .stdio_client import (
     StdioClient,
     stdio_client,
+    stdio_client_with_initialize,
 )
 
 from .stdio_server_parameters import (
@@ -49,6 +50,7 @@ __all__ = [
     # Main client class and context manager
     "StdioClient",
     "stdio_client",
+    "stdio_client_with_initialize",
     
     # Configuration
     "StdioServerParameters",
