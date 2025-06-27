@@ -5,9 +5,6 @@ from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, ConfigDict, F
 # Type aliases matching the official implementation
 RequestId = Union[int, str]
 ProgressToken = Union[str, int]
-
-# Remove the top-level _meta field from these classes since it belongs in params/result
-
 class JSONRPCRequest(McpPydanticBase):
     """A request that expects a response."""
     

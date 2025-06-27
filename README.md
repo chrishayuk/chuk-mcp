@@ -1,214 +1,441 @@
 # chuk-mcp
 
-A Python client implementation for the Model Context Protocol (MCP).
+A comprehensive Python client implementation for the **Model Context Protocol (MCP)** - the open standard for connecting AI assistants to external data and tools.
 
 [![PyPI version](https://badge.fury.io/py/chuk-mcp.svg)](https://badge.fury.io/py/chuk-mcp)
 [![Python Version](https://img.shields.io/pypi/pyversions/chuk-mcp)](https://pypi.org/project/chuk-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## What is MCP?
+## What is the Model Context Protocol?
 
-The Model Context Protocol (MCP) is a standardized protocol for LLM applications to communicate with their context providers. This allows for standardized access to tools, prompts, and resources that LLMs can use during inference.
+The **Model Context Protocol (MCP)** is an open standard that enables AI applications to securely access external data and tools. Instead of every AI app building custom integrations, MCP provides a universal interface for:
 
-This client implementation provides a Python interface to interact with MCP servers.
+- **🔧 Tools**: Functions AI can call (APIs, file operations, calculations)
+- **📄 Resources**: Data sources AI can read (files, databases, web content)  
+- **💬 Prompts**: Reusable prompt templates with parameters
+- **🎯 Real-time Data**: Live information that changes frequently
 
-## Features
+**Key Benefits:**
+- **Standardized**: One protocol for all integrations
+- **Secure**: User-controlled access to sensitive data
+- **Extensible**: Easy to add new capabilities
+- **Language-Agnostic**: Works across different programming languages
 
-- Protocol version negotiation with servers
-- Resource management
-- Tool execution
-- Prompt retrieval
-- Resilient communication with automatic retries
-- Support for stdio-based transport
+## Why Use This Client?
 
-## Installation
+`chuk-mcp` is a production-ready Python implementation that provides:
+
+✅ **Complete MCP Protocol Support** - All standard features including tools, resources, prompts, sampling, and completion  
+✅ **Type Safety** - Full type annotations with Pydantic integration (or graceful fallback)  
+✅ **Robust Error Handling** - Automatic retries, connection recovery, and detailed error reporting  
+✅ **Multi-Server Support** - Connect to multiple MCP servers simultaneously  
+✅ **Developer Experience** - Rich CLI tools, comprehensive docs, and intuitive APIs  
+✅ **Production Ready** - Battle-tested with proper logging, monitoring, and performance optimization  
+
+## Quick Start
+
+### Installation
 
 ```bash
+# Using uv (recommended - fast and modern)
+uv add chuk-mcp
+
+# Or using pip
 pip install chuk-mcp
 ```
 
-For development:
-
-```bash
-pip install chuk-mcp[dev]
-```
-
-## Usage
-
-### Basic Connection
+### Basic Usage
 
 ```python
 import anyio
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
-from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-from chuk_mcp.mcp_client.messages.ping.send_messages import send_ping
+from chuk_mcp import stdio_client, StdioServerParameters, send_initialize
 
 async def main():
-    # Configure the server parameters
+    # Configure connection to an MCP server
     server_params = StdioServerParameters(
-        command="path/to/mcp/server",
-        args=["--some-option", "value"],
+        command="uvx",  # Use uvx to run Python tools
+        args=["mcp-server-sqlite", "--db-path", "example.db"]
     )
     
-    # Connect to the server
+    # Connect and initialize
     async with stdio_client(server_params) as (read_stream, write_stream):
-        # Initialize the connection
+        # Initialize the MCP session
         init_result = await send_initialize(read_stream, write_stream)
-        if not init_result:
-            print("Server initialization failed")
-            return
         
-        # Send a ping to verify connection
-        ping_result = await send_ping(read_stream, write_stream)
-        print("Ping successful" if ping_result else "Ping failed")
-
-# Run the async function
-anyio.run(main)
-```
-
-### Loading Configuration
-
-```python
-import anyio
-from chuk_mcp.config import load_config
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-
-async def main():
-    # Load the server configuration from a JSON file
-    server_params = await load_config("server_config.json", "sqlite")
-    
-    # Connect to the server using the configuration
-    async with stdio_client(server_params) as (read_stream, write_stream):
-        init_result = await send_initialize(read_stream, write_stream)
         if init_result:
-            print("Connected to server:", init_result.serverInfo.name)
+            print(f"✅ Connected to {init_result.serverInfo.name}")
+            print(f"📋 Protocol version: {init_result.protocolVersion}")
+        else:
+            print("❌ Failed to initialize connection")
 
-# Run the async function
 anyio.run(main)
 ```
 
-### Working with Tools
+### Using the CLI
 
-```python
-import anyio
-from chuk_mcp.config import load_config
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-from chuk_mcp.mcp_client.messages.tools.send_messages import send_tools_list, send_tools_call
+Test server connectivity instantly:
 
-async def main():
-    server_params = await load_config("server_config.json", "sqlite")
-    
-    async with stdio_client(server_params) as (read_stream, write_stream):
-        # Initialize the connection
-        await send_initialize(read_stream, write_stream)
-        
-        # List available tools
-        tools_response = await send_tools_list(read_stream, write_stream)
-        for tool in tools_response.get("tools", []):
-            print(f"Available tool: {tool['name']} - {tool['description']}")
-        
-        # Call a tool
-        result = await send_tools_call(
-            read_stream,
-            write_stream,
-            name="get_weather",
-            arguments={"location": "San Francisco"},
-        )
-        print("Tool result:", result)
+```bash
+# Test default server in server_config.json
+uv run python -m chuk_mcp
 
-# Run the async function
-anyio.run(main)
+# Test specific server with detailed output  
+uv run python -m chuk_mcp --server sqlite --verbose
+
+# List all configured servers
+uv run python -m chuk_mcp --list-servers
+
+# Run comprehensive demos
+uv run examples/e2e_smoke_test.py --demo all
 ```
 
-### Working with Resources
+## Core Concepts
+
+### 🔧 Tools - Functions AI Can Call
+
+Tools are functions that AI can execute on your behalf. Examples include file operations, API calls, calculations, or any custom logic.
 
 ```python
-import anyio
-from chuk_mcp.config import load_config
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-from chuk_mcp.mcp_client.messages.resources.send_messages import send_resources_list, send_resources_read
+from chuk_mcp import send_tools_list, send_tools_call
 
-async def main():
-    server_params = await load_config("server_config.json", "filesystem")
+async def explore_tools(read_stream, write_stream):
+    # List available tools
+    tools_response = await send_tools_list(read_stream, write_stream)
     
-    async with stdio_client(server_params) as (read_stream, write_stream):
-        # Initialize the connection
-        await send_initialize(read_stream, write_stream)
-        
-        # List available resources
-        resources_response = await send_resources_list(read_stream, write_stream)
-        
-        # Find and read a specific resource
-        for resource in resources_response.get("resources", []):
-            if resource["name"].endswith(".py"):
-                content = await send_resources_read(read_stream, write_stream, resource["uri"])
-                print(f"Content of {resource['name']}:")
-                print(content.get("contents", [{}])[0].get("text", ""))
-                break
+    for tool in tools_response.get("tools", []):
+        print(f"🔧 {tool['name']}: {tool['description']}")
+    
+    # Call a specific tool
+    result = await send_tools_call(
+        read_stream, write_stream,
+        name="execute_sql",
+        arguments={"query": "SELECT COUNT(*) FROM users"}
+    )
+    
+    print(f"📊 Query result: {result}")
+```
 
-# Run the async function
-anyio.run(main)
+### 📄 Resources - Data AI Can Access
+
+Resources are data sources like files, database records, API responses, or any URI-addressable content.
+
+```python
+from chuk_mcp import send_resources_list, send_resources_read
+
+async def explore_resources(read_stream, write_stream):
+    # Discover available resources
+    resources_response = await send_resources_list(read_stream, write_stream)
+    
+    for resource in resources_response.get("resources", []):
+        print(f"📄 {resource['name']} ({resource['mimeType']})")
+        print(f"   URI: {resource['uri']}")
+    
+    # Read specific resource content
+    if resources_response.get("resources"):
+        first_resource = resources_response["resources"][0]
+        content = await send_resources_read(read_stream, write_stream, first_resource["uri"])
+        
+        for item in content.get("contents", []):
+            if "text" in item:
+                print(f"📖 Content preview: {item['text'][:200]}...")
+```
+
+### 💬 Prompts - Reusable Templates
+
+Prompts are parameterized templates that help generate consistent, high-quality AI interactions.
+
+```python
+from chuk_mcp import send_prompts_list, send_prompts_get
+
+async def use_prompts(read_stream, write_stream):
+    # List available prompt templates
+    prompts_response = await send_prompts_list(read_stream, write_stream)
+    
+    for prompt in prompts_response.get("prompts", []):
+        print(f"💬 {prompt['name']}: {prompt['description']}")
+    
+    # Get a prompt with custom arguments
+    prompt_result = await send_prompts_get(
+        read_stream, write_stream,
+        name="analyze_data",
+        arguments={"dataset": "sales_2024", "metric": "revenue"}
+    )
+    
+    # The result contains formatted messages ready for AI
+    for message in prompt_result.get("messages", []):
+        print(f"🤖 {message['role']}: {message['content']}")
 ```
 
 ## Configuration
 
-Create a `server_config.json` file to configure your MCP servers:
+Create a `server_config.json` file to define your MCP servers:
 
 ```json
 {
   "mcpServers": {
     "sqlite": {
       "command": "uvx",
-      "args": ["mcp-server-sqlite", "--db-path", "test.db"]
+      "args": ["mcp-server-sqlite", "--db-path", "database.db"]
     },
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/path/to/directory"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]
+    },
+    "github": {
+      "command": "uvx",
+      "args": ["mcp-server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "python": {
+      "command": "python",
+      "args": ["-m", "mcp_server_python"],
+      "env": {
+        "PYTHONPATH": "/custom/python/path"
+      }
     }
   }
 }
 ```
 
+### Configuration Loading
+
+```python
+from chuk_mcp import load_config, stdio_client, send_initialize
+
+async def connect_configured_server():
+    # Load server configuration
+    server_params = await load_config("server_config.json", "sqlite")
+    
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        init_result = await send_initialize(read_stream, write_stream)
+        print(f"Connected to configured server: {init_result.serverInfo.name}")
+```
+
+## Advanced Features
+
+### 🎯 Intelligent Sampling
+
+Let servers request AI to generate content on their behalf (with user approval):
+
+```python
+from chuk_mcp.messages.sampling import send_sampling_create_message, create_sampling_message
+
+async def ai_content_generation(read_stream, write_stream):
+    # Server can request AI to generate content
+    messages = [
+        create_sampling_message("user", "Explain quantum computing in simple terms")
+    ]
+    
+    result = await send_sampling_create_message(
+        read_stream, write_stream,
+        messages=messages,
+        max_tokens=1000,
+        temperature=0.7
+    )
+    
+    print(f"🤖 AI Generated: {result['content']['text']}")
+```
+
+### 🎯 Argument Completion
+
+Provide intelligent autocompletion for tool arguments:
+
+```python
+from chuk_mcp.messages.completion import send_completion_complete, create_resource_reference, create_argument_info
+
+async def smart_completion(read_stream, write_stream):
+    # Get completion suggestions for a resource argument
+    response = await send_completion_complete(
+        read_stream, write_stream,
+        ref=create_resource_reference("file:///project/data/"),
+        argument=create_argument_info("filename", "sales_202")
+    )
+    
+    completions = response.get("completion", {}).get("values", [])
+    print(f"💡 Suggestions: {completions}")
+```
+
+### 🔄 Multi-Server Orchestration
+
+Connect to multiple servers simultaneously:
+
+```python
+from chuk_mcp.host import run_command
+
+async def multi_server_task(server_streams):
+    """Process data using multiple MCP servers."""
+    
+    # server_streams contains connections to all configured servers
+    for i, (read_stream, write_stream) in enumerate(server_streams):
+        print(f"Processing with server {i+1}")
+        
+        # Each server can have different capabilities
+        tools = await send_tools_list(read_stream, write_stream)
+        print(f"  Available tools: {len(tools.get('tools', []))}")
+
+# Run across multiple servers defined in config
+run_command(multi_server_task, "server_config.json", ["sqlite", "filesystem", "github"])
+```
+
+### 📡 Real-time Subscriptions
+
+Subscribe to resource changes for live updates:
+
+```python
+from chuk_mcp.messages.resources import send_resources_subscribe
+
+async def live_monitoring(read_stream, write_stream):
+    # Subscribe to file changes
+    success = await send_resources_subscribe(
+        read_stream, write_stream,
+        uri="file:///project/logs/app.log"
+    )
+    
+    if success:
+        print("📡 Subscribed to log file changes")
+        
+        # Handle notifications in your message loop
+        # (implementation depends on your notification handling)
+```
+
+## Error Handling & Resilience
+
+`chuk-mcp` provides robust error handling with automatic retries:
+
+```python
+from chuk_mcp.messages import RetryableError, NonRetryableError
+
+async def resilient_operations(read_stream, write_stream):
+    try:
+        # Operations automatically retry on transient failures
+        result = await send_tools_call(
+            read_stream, write_stream,
+            name="network_operation",
+            arguments={"url": "https://api.example.com/data"},
+            timeout=30.0,  # Extended timeout for slow operations
+            retries=5      # More retries for critical operations
+        )
+        
+    except RetryableError as e:
+        print(f"⚠️ Transient error after retries: {e}")
+        # Handle gracefully - maybe try alternative approach
+        
+    except NonRetryableError as e:
+        print(f"❌ Permanent error: {e}")
+        # Handle definitively - operation cannot succeed
+        
+    except Exception as e:
+        print(f"🚨 Unexpected error: {e}")
+        # Handle unknown errors
+```
+
+## Available MCP Servers
+
+The MCP ecosystem includes servers for popular services:
+
+- **📁 Filesystem**: `@modelcontextprotocol/server-filesystem` 
+- **🗄️ SQLite**: `mcp-server-sqlite` 
+- **🐙 GitHub**: `mcp-server-github`
+- **☁️ Google Drive**: `mcp-server-gdrive`
+- **🔍 Web Search**: `mcp-server-brave-search`
+- **📊 PostgreSQL**: `mcp-server-postgres`
+- **📈 Analytics**: Various data analytics servers
+- **🔧 Custom**: Build your own with the MCP SDK
+
+Install servers with uv:
+```bash
+# Install popular MCP servers
+uv tool install mcp-server-sqlite
+uv tool install mcp-server-github
+
+# Or use npx for Node.js servers
+npx -y @modelcontextprotocol/server-filesystem /path/to/files
+```
+
+Find more at: [MCP Servers Directory](https://github.com/modelcontextprotocol/servers)
+
+## Building MCP Servers
+
+Want to create your own MCP server? Check out:
+
+- **Python**: [`mcp` package](https://pypi.org/project/mcp/)
+- **TypeScript**: [`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+- **Specification**: [MCP Protocol Documentation](https://spec.modelcontextprotocol.io/)
+
 ## Development
 
 ### Setup
 
-1. Clone the repository
-2. Install development dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-### Running Tests
-
 ```bash
-make test
+git clone https://github.com/chrishayuk/chuk-mcp
+cd chuk-mcp
+
+# Install with development dependencies
+uv sync --dev
+
+# Or with pip
+pip install -e ".[dev]"
 ```
 
-or
+### Testing
 
 ```bash
+# Run all tests with uv
+uv run pytest
+
+# Or with traditional pytest
 pytest
+
+# Run with coverage
+uv run pytest --cov=chuk_mcp
+
+# Test specific functionality
+uv run pytest tests/test_tools.py -v
+
+# Run the comprehensive test suite
+uv run examples/e2e_smoke_test.py --smoke
 ```
 
-### Building the Package
+### Contributing
 
-```bash
-make build
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for your changes
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Performance & Monitoring
+
+`chuk-mcp` includes built-in performance monitoring:
+
+```python
+import logging
+
+# Enable detailed logging for debugging
+logging.basicConfig(level=logging.DEBUG)
+
+# Performance is optimized for:
+# - Concurrent server connections
+# - Efficient message routing  
+# - Minimal memory allocation
+# - Fast JSON serialization
 ```
+
+## Support & Community
+
+- **📖 Documentation**: [Full API Documentation](https://docs.example.com)
+- **🐛 Issues**: [GitHub Issues](https://github.com/chrishayuk/chuk-mcp/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/chrishayuk/chuk-mcp/discussions)
+- **📧 Email**: For private inquiries
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
+## Acknowledgments
 
-This implementation follows the Model Context Protocol specification.
+- Built on the [Model Context Protocol](https://modelcontextprotocol.io/) specification
+- Inspired by the official [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- Thanks to the MCP community for feedback and contributions

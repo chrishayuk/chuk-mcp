@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fixed chuk-mcp Quickstart Script
+chuk-mcp Quickstart Script
 
 This version fixes the bytes/string issue in subprocess communication.
 """
