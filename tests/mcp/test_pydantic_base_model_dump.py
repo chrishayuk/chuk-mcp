@@ -16,7 +16,7 @@ from chuk_mcp.mcp_client.mcp_pydantic_base import (
 # Test helpers                                                                 
 ###############################################################################
 class _ModelWrapper:  # noqa: D401 – helper
-    """Normalises *model_dump_json* across Pydantic‑v1, v2 and the fallback."""
+    """Normalises *model_dump_json* across Pydantic-v1, v2 and the fallback."""
 
     def __init__(self, instance):
         self._instance = instance
@@ -42,7 +42,7 @@ def _new(model_cls, **kwargs):
     return _ModelWrapper(model_cls(**kwargs))
 
 ###############################################################################
-# Positive‑path tests                                                         
+# Positive-path tests                                                         
 ###############################################################################
 
 def test_basic_dump():
@@ -77,7 +77,7 @@ def test_custom_json_options():
     else:
         compact = mdl.model_dump_json(indent=None)
 
-    # pretty‑printed output contains a newline; compact should not.
+    # pretty-printed output contains a newline; compact should not.
     assert pretty.startswith("{\n")
     assert "\n" not in compact  # no newlines in compact form
 
@@ -111,7 +111,7 @@ def test_complex_types_roundtrip():
     assert dumped["mapping"]["a"]["x"] == 3
 
 ###############################################################################
-# Negative‑path / validation tests                                            
+# Negative-path / validation tests                                            
 ###############################################################################
 
 def test_missing_required_raises():

@@ -8,7 +8,7 @@ import pytest
 
 @pytest.mark.skipif(
     os.environ.get("MCP_FORCE_FALLBACK") == "1",
-    reason="Fallback forced via env‑var; real‑Pydantic path intentionally skipped.",
+    reason="Fallback forced via env-var; real-Pydantic path intentionally skipped.",
 )
 def test_mcp_pydantic_base_real_pydantic():
     """Ensure *McpPydanticBase* uses the real Pydantic implementation when available."""
@@ -32,7 +32,7 @@ def test_mcp_pydantic_base_real_pydantic():
     )
 
     # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
-    # 2. Sanity‑check hierarchy
+    # 2. Sanity-check hierarchy
     # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
     assert issubclass(
         McpPydanticBase, pydantic.BaseModel

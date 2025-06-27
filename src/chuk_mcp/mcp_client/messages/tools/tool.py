@@ -1,11 +1,21 @@
-# chuk_mcp/chuk_mcp.mcp_client/messages/tools/tool_input_schema.py
+# chuk_mcp/mcp_client/messages/tools/tool.py
+from typing import Any, Dict, Optional
 from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, Field
 
-# chuk_mcp imports
-from chuk_mcp.mcp_client.messages.tools.tool_input_schema import ToolInputSchema
-
 class Tool(McpPydanticBase):
-    """Model representing a tool in the MCP protocol."""
+    """Model representing a tool in the MCP protocol - spec compliant."""
+    
     name: str
-    description: str
-    inputSchema: ToolInputSchema
+    """The programmatic name of the tool."""
+    
+    description: Optional[str] = None
+    """A human-readable description of the tool."""
+    
+    inputSchema: Dict[str, Any]
+    """A JSON Schema object defining the expected parameters for the tool."""
+    
+    # MCP spec requires _meta field support
+    meta: Optional[Dict[str, Any]] = Field(default=None, alias="_meta")
+    """MCP metadata field, serialized as '_meta' in JSON."""
+    
+    model_config = {"extra": "allow"}
