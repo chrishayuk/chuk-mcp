@@ -23,10 +23,10 @@ from typing import Optional
 
 import anyio
 
-# Import from our package
+# Import from our package - updated to use new structure
 from chuk_mcp.config import load_config
-from chuk_mcp.mcp_client import (
-    stdio_client,
+from chuk_mcp.transports.stdio import stdio_client
+from chuk_mcp.protocol.messages import (
     send_initialize,
     send_ping,
     send_tools_list,

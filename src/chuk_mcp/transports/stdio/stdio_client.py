@@ -1,4 +1,4 @@
-# chuk_mcp/mcp_client/transport/stdio/stdio_client.py
+# chuk_mcp/transports/stdio/stdio_client.py
 import json
 import logging
 import sys
@@ -9,12 +9,10 @@ from typing import Dict, Optional, Tuple, List
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
 
-# host imports
+# Import from the correct locations for the new structure
 from chuk_mcp.mcp_client.host.environment import get_default_environment
-
-# mcp imports
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
+from .parameters import StdioParameters
 
 __all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
 
@@ -73,7 +71,7 @@ class StdioClient:
     message transmission functionality. Supports version-aware batch processing.
     """
 
-    def __init__(self, server: StdioServerParameters):
+    def __init__(self, server: StdioParameters):
         if not server.command:
             raise ValueError("Server command must not be empty.")
         if not isinstance(server.args, (list, tuple)):
@@ -141,7 +139,7 @@ class StdioClient:
                 pass
         else:
             # Log warning for unknown IDs (needed for tests)
-            logging.warning(f"Received message for unknown id: {msg.id}")
+            logging.debug(f"Received message for unknown id: {msg.id}")
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON-RPC messages with version-aware batch support."""
@@ -344,7 +342,7 @@ class StdioClient:
 # Convenience context-manager that returns streams for send_message
 # ---------------------------------------------------------------------- #
 @asynccontextmanager
-async def stdio_client(server: StdioServerParameters) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
+async def stdio_client(server: StdioParameters) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
     """
     Create a stdio client and return streams that work with send_message.
     
@@ -376,7 +374,7 @@ async def stdio_client(server: StdioServerParameters) -> Tuple[MemoryObjectRecei
 
 @asynccontextmanager
 async def stdio_client_with_initialize(
-    server: StdioServerParameters,
+    server: StdioParameters,
     timeout: float = 5.0,
     supported_versions: Optional[List[str]] = None,
     preferred_version: Optional[str] = None,
