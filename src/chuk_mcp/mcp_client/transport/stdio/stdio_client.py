@@ -13,7 +13,7 @@ from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStre
 from chuk_mcp.mcp_client.host.environment import get_default_environment
 
 # mcp imports
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
 __all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
@@ -407,7 +407,7 @@ async def stdio_client_with_initialize(
         TimeoutError: If initialization times out
         Exception: For other initialization failures
     """
-    from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize_with_client_tracking
+    from chuk_mcp.protocol.messages.initialize.send_messages import send_initialize_with_client_tracking
     
     client = StdioClient(server)
     

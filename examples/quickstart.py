@@ -2,7 +2,7 @@
 """
 chuk-mcp Quickstart Script
 
-This version fixes the bytes/string issue in subprocess communication.
+Updated to use the new protocol layer structure.
 """
 
 import asyncio
@@ -16,23 +16,51 @@ from pathlib import Path
 # Set up logging to see what's happening
 logging.basicConfig(level=logging.DEBUG)
 
-# Import chuk-mcp
+# Import chuk-mcp with fallback for import paths
+print("🔧 Loading chuk-mcp...")
 try:
     import anyio
+    
+    # Transport layer imports (these should be stable)
     from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
     from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
-    from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
-    from chuk_mcp.mcp_client.messages.ping.send_messages import send_ping
-    from chuk_mcp.mcp_client.messages.tools.send_messages import send_tools_list, send_tools_call
+    
+    # Try the new centralized protocol imports first
+    try:
+        from chuk_mcp.protocol.messages import (
+            send_initialize,
+            send_ping,
+            send_tools_list,
+            send_tools_call,
+        )
+        print("✅ Using centralized protocol imports")
+    except ImportError:
+        # Fallback to individual module imports
+        try:
+            from chuk_mcp.protocol.messages.initialize import send_initialize
+            from chuk_mcp.protocol.messages.ping import send_ping
+            from chuk_mcp.protocol.messages.tools import send_tools_list, send_tools_call
+            print("✅ Using individual module imports")
+        except ImportError:
+            # Last resort - try the old paths
+            from chuk_mcp.protocol.messages.initialize.send_messages import send_initialize
+            from chuk_mcp.protocol.messages.ping.send_messages import send_ping
+            from chuk_mcp.protocol.messages.tools.send_messages import send_tools_list, send_tools_call
+            print("✅ Using legacy import paths")
+    
     print("✅ chuk-mcp imports successful!")
+    
 except ImportError as e:
     print(f"❌ Import error: {e}")
+    print("\n🔍 Troubleshooting:")
+    print("   • Make sure chuk-mcp is installed: pip install -e .")
+    print("   • Check that you're in the right directory")
+    print("   • Verify the package structure matches the imports")
     sys.exit(1)
 
 
 def create_minimal_server():
     """Create a minimal MCP server for testing."""
-    # This server will be more robust with better error handling
     return '''#!/usr/bin/env python3
 import asyncio
 import json
@@ -66,7 +94,7 @@ class MinimalMCPServer:
                     "jsonrpc": "2.0",
                     "id": msg_id,
                     "result": {
-                        "protocolVersion": params.get("protocolVersion", "2024-11-05"),
+                        "protocolVersion": params.get("protocolVersion", "2025-06-18"),
                         "capabilities": self.capabilities,
                         "serverInfo": self.server_info
                     }
@@ -280,6 +308,11 @@ async def quickstart_demo():
             
             print("\\n🎉 Quickstart demo completed successfully!")
             print("\\n💡 Your chuk-mcp installation is working correctly!")
+            print("\\n📊 Summary:")
+            print("   ✅ Protocol layer: Working")
+            print("   ✅ Transport layer: Working") 
+            print("   ✅ Message handling: Working")
+            print("   ✅ Tool execution: Working")
     
     except Exception as e:
         print(f"\\n❌ Error during demo: {str(e)}")
@@ -294,6 +327,14 @@ async def quickstart_demo():
         print(f"   • Python path: {sys.executable}")
         print(f"   • Working directory: {os.getcwd()}")
         print(f"   • Server file exists: {os.path.exists(server_file)}")
+        
+        # Show import status
+        print("\\n📦 Import status:")
+        try:
+            import chuk_mcp
+            print(f"   • chuk_mcp location: {chuk_mcp.__file__}")
+        except ImportError:
+            print("   • chuk_mcp not found in Python path")
         
         raise
     
@@ -311,24 +352,32 @@ def main():
     """Main entry point."""
     print("🚀 chuk-mcp Quickstart")
     print("=" * 50)
-    print("Testing your chuk-mcp installation...")
+    print("Testing your restructured chuk-mcp implementation...")
     print("=" * 50)
     
     try:
         anyio.run(quickstart_demo)
         print("\\n" + "=" * 50)
-        print("🎉 Success! chuk-mcp is working correctly!")
+        print("🎉 Success! Your restructured chuk-mcp is working correctly!")
+        print("\\n📚 What this validates:")
+        print("   ✅ New protocol layer structure")
+        print("   ✅ Import path compatibility")
+        print("   ✅ Core MCP functionality")
+        print("   ✅ Transport layer stability")
         print("\\n📚 Next steps:")
-        print("   • Try the full demos")
-        print("   • Check out the examples")
+        print("   • Update your E2E tests with new import paths")
+        print("   • Try the full feature demos")
         print("   • Build your own MCP integrations")
         print("=" * 50)
     except KeyboardInterrupt:
         print("\\n\\n👋 Demo interrupted by user. Goodbye!")
     except Exception as e:
         print(f"\\n💥 Demo failed: {str(e)}")
-        print("\\nThis indicates an issue with the chuk-mcp implementation.")
-        print("Please check the error messages above for details.")
+        print("\\n🔧 This suggests an issue with:")
+        print("   • Import path configuration")
+        print("   • Protocol layer restructuring")
+        print("   • Or a missing file/module")
+        print("\\nPlease check the error messages above for details.")
         sys.exit(1)
 
 

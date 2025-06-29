@@ -3,9 +3,9 @@ import pytest
 import anyio
 
 # imports
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.messages.message_method import MessageMethod
-from chuk_mcp.mcp_client.messages.resources.send_messages import (
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.message_method import MessageMethod
+from chuk_mcp.protocol.messages.resources.send_messages import (
     send_resources_list,
     send_resources_read,
     send_resources_templates_list,

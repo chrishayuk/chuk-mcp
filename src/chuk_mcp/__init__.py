@@ -53,7 +53,7 @@ from chuk_mcp.mcp_client import stdio_client, StdioServerParameters
 server_params = StdioServerParameters(command="python", args=["my_server.py"])
 async with stdio_client(server_params) as (read_stream, write_stream):
     # Use any MCP feature
-    from chuk_mcp.mcp_client.messages.tools import send_tools_list
+    from chuk_mcp.protocol.messages.tools import send_tools_list
     tools = await send_tools_list(read_stream, write_stream)
     print(f"Available tools: {tools}")
 ```

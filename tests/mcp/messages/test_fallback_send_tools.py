@@ -18,17 +18,17 @@ async def test_send_tools_list_fallback(monkeypatch):
 
     # 2) Also remove any of your chuk_mcp modules that might be cached
     #    so that on reload, they see pydantic is missing.
-    #    (Remove whichever submodules are relevant – e.g. chuk_mcp.mcp_client, chuk_mcp.mcp_client.messages, etc.)
+    #    (Remove whichever submodules are relevant – e.g. chuk_mcp.mcp_client, chuk_mcp.protocol.messages, etc.)
     for mod_name in list(sys.modules):
         if mod_name.startswith("chuk_mcp.mcp_client"):
             del sys.modules[mod_name]
 
     # 3) Re-import the modules under test
-    import chuk_mcp.mcp_client.messages.json_rpc_message  # triggers fallback
-    import chuk_mcp.mcp_client.messages.tools.send_messages as tools_messages
+    import chuk_mcp.protocol.messages.json_rpc_message  # triggers fallback
+    import chuk_mcp.protocol.messages.tools.send_messages as tools_messages
     from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
-    from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-    from chuk_mcp.mcp_client.messages.message_method import MessageMethod
+    from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
+    from chuk_mcp.protocol.messages.message_method import MessageMethod
 
     # 4) Now replicate the server+client test from test_send_tools.py
     read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)

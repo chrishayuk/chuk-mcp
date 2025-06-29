@@ -5,7 +5,7 @@ import pytest
 try:
     from pydantic import ValidationError
 except ImportError:
-    from chuk_mcp.mcp_client.mcp_pydantic_base import ValidationError
+    from chuk_mcp.protocol.mcp_pydantic_base import ValidationError
 
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 

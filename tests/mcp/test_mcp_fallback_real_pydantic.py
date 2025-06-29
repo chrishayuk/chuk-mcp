@@ -22,8 +22,8 @@ def test_mcp_pydantic_base_real_pydantic():
         pytest.skip("Pydantic not installed – cannot exercise real‐Pydantic branch.")
 
     # Clear cached *mcp_pydantic_base* in case earlier tests forced fallback.
-    sys.modules.pop("chuk_mcp.mcp_client.mcp_pydantic_base", None)
-    mpb = importlib.import_module("chuk_mcp.mcp_client.mcp_pydantic_base")
+    sys.modules.pop("chuk_mcp.protocol.mcp_pydantic_base", None)
+    mpb = importlib.import_module("chuk_mcp.protocol.mcp_pydantic_base")
 
     McpPydanticBase, Field, ConfigDict = (
         mpb.McpPydanticBase,

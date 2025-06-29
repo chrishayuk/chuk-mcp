@@ -3,8 +3,8 @@ import pytest
 import anyio
 from unittest.mock import MagicMock
 
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.messages.resources.send_messages import (
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.resources.send_messages import (
     send_resources_subscribe,
     send_resources_unsubscribe
 )
