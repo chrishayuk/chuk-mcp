@@ -1,6 +1,6 @@
 # chuk_mcp/mcp_client/transport/stdio/stdio_server_parameters.py
 from typing import Dict, List, Optional
-from chuk_mcp.mcp_client.mcp_pydantic_base import McpPydanticBase, Field
+from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase, Field
 
 class StdioServerParameters(McpPydanticBase):
     """

@@ -4,13 +4,13 @@ from typing import List, Optional, Dict, Any
 
 import pytest
 
-from chuk_mcp.mcp_client.mcp_pydantic_base import (
+from chuk_mcp.protocol.mcp_pydantic_base import (
     McpPydanticBase,
     Field,
     ValidationError,
     PYDANTIC_AVAILABLE,
 )
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import (
     StdioServerParameters,
 )

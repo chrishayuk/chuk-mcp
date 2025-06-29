@@ -5,7 +5,7 @@ import asyncio
 import anyio
 
 # mcp imports - import from messages layer, not transport layer
-from chuk_mcp.mcp_client.messages.initialize.send_messages import send_initialize
+from chuk_mcp.protocol.messages.initialize.send_messages import send_initialize
 
 def run_command(command_func, config_file, server_names, user_specified=None):
     """Run a command with the specified servers by managing server connections."""

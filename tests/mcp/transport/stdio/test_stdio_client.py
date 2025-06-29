@@ -5,7 +5,7 @@ import json
 import logging
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client, StdioClient
 from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
 
@@ -1005,10 +1005,10 @@ async def test_stdio_client_with_initialize():
     from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client_with_initialize
     
     # Mock the initialization process with correct import path
-    with patch('chuk_mcp.mcp_client.messages.initialize.send_messages.send_initialize_with_client_tracking') as mock_init:
-        from chuk_mcp.mcp_client.messages.initialize.send_messages import InitializeResult
-        from chuk_mcp.mcp_client.messages.initialize.mcp_server_info import MCPServerInfo
-        from chuk_mcp.mcp_client.messages.initialize.mcp_server_capabilities import MCPServerCapabilities
+    with patch('chuk_mcp.protocol.messages.initialize.send_messages.send_initialize_with_client_tracking') as mock_init:
+        from chuk_mcp.protocol.messages.initialize.send_messages import InitializeResult
+        from chuk_mcp.protocol.types.info import MCPServerInfo
+        from chuk_mcp.protocol.types.capabilities import MCPServerCapabilities
         
         # Mock successful initialization
         mock_result = InitializeResult(

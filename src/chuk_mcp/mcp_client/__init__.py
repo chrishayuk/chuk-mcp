@@ -18,8 +18,8 @@ levels of abstraction:
 │ • High-level command execution and error handling               │
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
-│ Messages Layer (messages/)                                      │
-│ • Protocol-specific message handling (tools, resources, etc.)   │
+│ Protocol Layer (../protocol/)                                   │
+│ • Shared protocol components (types, messages, versioning)      │
 │ • MCP feature implementations (sampling, completion, etc.)      │
 │ • JSON-RPC message construction and parsing                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -43,7 +43,7 @@ Key Features:
 Quick Start:
 ```python
 from chuk_mcp.mcp_client import stdio_client, StdioServerParameters
-from chuk_mcp.mcp_client.messages.tools import send_tools_list
+from chuk_mcp.protocol.messages.tools import send_tools_list
 
 # Connect to an MCP server
 server_params = StdioServerParameters(command="python", args=["my_server.py"])
@@ -59,8 +59,8 @@ is not available, making it suitable for environments with minimal dependencies.
 Use `MCP_FORCE_FALLBACK=1` to test fallback behavior even when Pydantic is installed.
 """
 
-# Core base class and utilities
-from .mcp_pydantic_base import (
+# Core base class and utilities from protocol layer
+from ..protocol.mcp_pydantic_base import (
     McpPydanticBase,
     Field,
     ValidationError,
@@ -82,47 +82,46 @@ from .host import (
     DEFAULT_INHERITED_ENV_VARS,
 )
 
-# Core messaging infrastructure
-from .messages import (
+# Core messaging infrastructure from protocol layer
+from ..protocol.messages import (
     JSONRPCMessage,
     send_message,
     MessageMethod,
     RetryableError,
     NonRetryableError,
-)
-
-# Initialization and protocol setup
-from .messages.initialize import (
+    
+    # Initialization
     send_initialize,
     send_initialized_notification,
     InitializeResult,
-    MCPClientCapabilities,
-    MCPServerCapabilities,
     VersionMismatchError,
-)
-
-# Common message types for easy access
-from .messages.tools import (
+    
+    # Common operations
     send_tools_list,
     send_tools_call,
     Tool,
     ToolResult,
-)
-
-from .messages.resources import (
     send_resources_list,
     send_resources_read,
     Resource,
     ResourceContent,
-)
-
-from .messages.prompts import (
     send_prompts_list,
     send_prompts_get,
+    send_ping,
 )
 
-from .messages.ping import (
-    send_ping,
+# Import capabilities and info types from protocol layer
+from ..protocol.types import (
+    ClientCapabilities,
+    ServerCapabilities,
+    ClientInfo,
+    ServerInfo,
+    
+    # Legacy aliases for backward compatibility
+    MCPClientCapabilities,
+    MCPServerCapabilities,
+    MCPClientInfo,
+    MCPServerInfo,
 )
 
 __version__ = "0.3.0"
@@ -159,9 +158,17 @@ __all__ = [
     "send_initialize",
     "send_initialized_notification", 
     "InitializeResult",
-    "MCPClientCapabilities",
-    "MCPServerCapabilities",
     "VersionMismatchError",
+    
+    # Capabilities and info types
+    "ClientCapabilities",
+    "ServerCapabilities",
+    "ClientInfo",
+    "ServerInfo",
+    "MCPClientCapabilities",  # Legacy alias
+    "MCPServerCapabilities",  # Legacy alias
+    "MCPClientInfo",         # Legacy alias
+    "MCPServerInfo",         # Legacy alias
     
     # Common operations - tools
     "send_tools_list",

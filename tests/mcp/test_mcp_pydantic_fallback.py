@@ -14,11 +14,11 @@ def _reload_with_fallback(monkeypatch):
 
     # 2. Remove cached modules so reload really re-evaluates the top of file.
     for m in list(sys.modules):
-        if m.startswith("chuk_mcp.mcp_client.mcp_pydantic_base") or m == "pydantic":
+        if m.startswith("chuk_mcp.protocol.mcp_pydantic_base") or m == "pydantic":
             sys.modules.pop(m, None)
 
     # 3. (Re)import
-    import chuk_mcp.mcp_client.mcp_pydantic_base as mpb  # noqa: WPS433 – runtime import needed
+    import chuk_mcp.protocol.mcp_pydantic_base as mpb  # noqa: WPS433 – runtime import needed
 
     importlib.reload(mpb)
     return mpb

@@ -6,8 +6,8 @@ import logging
 from unittest.mock import AsyncMock
 
 # imports
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.messages.send_message import (
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.send_message import (
     send_message, 
     CancellationToken, 
     CancelledError

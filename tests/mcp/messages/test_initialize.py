@@ -4,9 +4,9 @@ import anyio
 import logging
 from unittest.mock import patch
 
-from chuk_mcp.mcp_client.messages.initialize.errors import VersionMismatchError
-from chuk_mcp.mcp_client.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.messages.initialize.send_messages import (
+from chuk_mcp.protocol.types.errors import VersionMismatchError
+from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
+from chuk_mcp.protocol.messages.initialize.send_messages import (
     send_initialize,
     send_initialized_notification,
     InitializeResult,

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 # Implementation under test
-from chuk_mcp.mcp_client.mcp_pydantic_base import (
+from chuk_mcp.protocol.mcp_pydantic_base import (
     McpPydanticBase,
     ConfigDict,
     ValidationError,
