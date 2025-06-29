@@ -8,6 +8,6 @@ that can handle client connections via various transports.
 
 from .server import MCPServer
 from .protocol_handler import ProtocolHandler
-from .session.manager import SessionManager
+from .session.memory import SessionManager
 
 __all__ = ["MCPServer", "ProtocolHandler", "SessionManager"]

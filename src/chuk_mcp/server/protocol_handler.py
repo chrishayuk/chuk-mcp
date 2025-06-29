@@ -5,7 +5,7 @@ import logging
 from ..protocol.messages.json_rpc_message import JSONRPCMessage
 from ..protocol.types.info import ServerInfo
 from ..protocol.types.capabilities import ServerCapabilities
-from .session.manager import SessionManager
+from .session.memory import SessionManager
 
 
 class ProtocolHandler:

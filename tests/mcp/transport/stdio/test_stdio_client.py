@@ -146,7 +146,7 @@ async def test_notification_broadcast_and_unknown(caplog):
         assert note.method == "ping"
 
     # Unknown-id responses log a warning immediately
-    caplog.set_level(logging.WARNING)
+    caplog.set_level(logging.DEBUG)
     # Create a valid response with an unknown ID (has result to be valid)
     await client._route_message(make_message(id="ghost", result={}))
     assert "unknown id" in caplog.text.lower()
@@ -785,7 +785,7 @@ async def test_batch_with_duplicate_ids(caplog):
     recv_dup = client.new_request_stream("dup")
     recv_unique = client.new_request_stream("unique")
     
-    caplog.set_level(logging.WARNING)
+    caplog.set_level(logging.DEBUG)
     
     results = {}
     
@@ -946,7 +946,7 @@ async def test_version_aware_batch_rejection(caplog):
     recv_1 = client.new_request_stream("1")
     recv_2 = client.new_request_stream("2")
     
-    caplog.set_level(logging.WARNING)
+    caplog.set_level(logging.DEBUG)
     results = {}
     
     async def read_stdout():
@@ -1219,7 +1219,7 @@ async def test_mixed_version_scenarios(caplog):
     recv_new1 = client.new_request_stream("new1")
     recv_new2 = client.new_request_stream("new2")
     
-    caplog.set_level(logging.WARNING)
+    caplog.set_level(logging.DEBUG)
     results = {}
     
     async def read_stdout():

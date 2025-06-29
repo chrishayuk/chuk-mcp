@@ -8,7 +8,8 @@ import time
 from typing import Dict, Any
 
 # Import the session manager components
-from chuk_mcp.server.session.manager import SessionManager, SessionInfo
+from chuk_mcp.server.session.memory import InMemorySessionManager
+from chuk_mcp.server.session.base import SessionInfo
 
 
 class TestSessionInfo:
@@ -70,18 +71,19 @@ class TestSessionInfo:
         assert session1 != session3
 
 
-class TestSessionManager:
-    """Test the SessionManager class."""
+class TestInMemorySessionManager:
+    """Test the InMemorySessionManager class."""
     
     @pytest.fixture
     def manager(self):
         """Create a fresh session manager."""
-        return SessionManager()
+        return InMemorySessionManager()
     
     def test_initialization(self, manager):
         """Test session manager initialization."""
         assert isinstance(manager.sessions, dict)
         assert len(manager.sessions) == 0
+        assert manager.get_session_count() == 0
     
     def test_create_session(self, manager):
         """Test session creation."""
@@ -107,6 +109,7 @@ class TestSessionManager:
         assert session.created_at <= time.time()
         assert session.last_activity <= time.time()
         assert session.created_at <= session.last_activity
+        assert manager.get_session_count() == 1
     
     def test_create_session_defaults(self, manager):
         """Test session creation with default metadata."""
@@ -132,6 +135,7 @@ class TestSessionManager:
         
         # All sessions should be stored
         assert len(manager.sessions) == 5
+        assert manager.get_session_count() == 5
         
         # Each session should have correct info
         for i, session_id in enumerate(session_ids):
@@ -167,19 +171,66 @@ class TestSessionManager:
         time.sleep(0.01)
         
         # Update activity
-        manager.update_activity(session_id)
+        result = manager.update_activity(session_id)
         
-        # Check activity was updated
+        # Check activity was updated and method returned True
+        assert result is True
         updated_activity = manager.sessions[session_id].last_activity
         assert updated_activity > initial_activity
     
     def test_update_activity_nonexistent(self, manager):
         """Test updating activity for non-existent session."""
-        # Should not raise an error
-        manager.update_activity("nonexistent-session-id")
+        # Should not raise an error but return False
+        result = manager.update_activity("nonexistent-session-id")
         
+        assert result is False
         # Should not create a session
         assert len(manager.sessions) == 0
+    
+    def test_delete_session(self, manager):
+        """Test deleting a session."""
+        client_info = {"name": "test-client"}
+        session_id = manager.create_session(client_info, "2025-06-18")
+        
+        assert session_id in manager.sessions
+        assert manager.get_session_count() == 1
+        
+        # Delete the session
+        result = manager.delete_session(session_id)
+        
+        assert result is True
+        assert session_id not in manager.sessions
+        assert manager.get_session_count() == 0
+        assert manager.get_session(session_id) is None
+    
+    def test_delete_session_nonexistent(self, manager):
+        """Test deleting a non-existent session."""
+        result = manager.delete_session("nonexistent-session-id")
+        
+        assert result is False
+        assert manager.get_session_count() == 0
+    
+    def test_clear_all_sessions(self, manager):
+        """Test clearing all sessions."""
+        # Create multiple sessions
+        for i in range(5):
+            manager.create_session({"name": f"client-{i}"}, "2025-06-18")
+        
+        assert manager.get_session_count() == 5
+        
+        # Clear all sessions
+        cleared_count = manager.clear_all_sessions()
+        
+        assert cleared_count == 5
+        assert manager.get_session_count() == 0
+        assert len(manager.sessions) == 0
+    
+    def test_clear_all_sessions_empty(self, manager):
+        """Test clearing all sessions when none exist."""
+        cleared_count = manager.clear_all_sessions()
+        
+        assert cleared_count == 0
+        assert manager.get_session_count() == 0
     
     def test_cleanup_expired_no_expired(self, manager):
         """Test cleanup when no sessions are expired."""
@@ -192,6 +243,7 @@ class TestSessionManager:
         
         assert removed == 0
         assert len(manager.sessions) == 3
+        assert manager.get_session_count() == 3
     
     def test_cleanup_expired_with_expired(self, manager):
         """Test cleanup with expired sessions."""
@@ -212,6 +264,7 @@ class TestSessionManager:
         
         assert removed == 2
         assert len(manager.sessions) == 1
+        assert manager.get_session_count() == 1
         
         # The remaining session should be the recent one
         remaining_session = list(manager.sessions.values())[0]
@@ -231,6 +284,7 @@ class TestSessionManager:
         
         assert removed == 3
         assert len(manager.sessions) == 0
+        assert manager.get_session_count() == 0
     
     def test_list_sessions_empty(self, manager):
         """Test listing sessions when empty."""
@@ -255,6 +309,7 @@ class TestSessionManager:
         # Check that it's a copy (modifying returned dict shouldn't affect manager)
         sessions.clear()
         assert len(manager.sessions) == 3
+        assert manager.get_session_count() == 3
     
     def test_session_lifecycle(self, manager):
         """Test complete session lifecycle."""
@@ -266,6 +321,7 @@ class TestSessionManager:
         
         # Verify creation
         assert session_id in manager.sessions
+        assert manager.get_session_count() == 1
         session = manager.get_session(session_id)
         assert session is not None
         assert session.client_info == client_info
@@ -276,7 +332,8 @@ class TestSessionManager:
         
         for _ in range(3):
             time.sleep(0.01)
-            manager.update_activity(session_id)
+            result = manager.update_activity(session_id)
+            assert result is True
             
             updated_session = manager.get_session(session_id)
             assert updated_session.last_activity > initial_activity
@@ -290,6 +347,7 @@ class TestSessionManager:
         removed = manager.cleanup_expired(max_age=1)
         assert removed == 0
         assert session_id in manager.sessions
+        assert manager.get_session_count() == 1
         
         # Force cleanup by setting old activity
         current_time = time.time()
@@ -298,15 +356,16 @@ class TestSessionManager:
         removed = manager.cleanup_expired(max_age=3600)
         assert removed == 1
         assert session_id not in manager.sessions
+        assert manager.get_session_count() == 0
         assert manager.get_session(session_id) is None
 
 
-class TestSessionManagerConcurrency:
+class TestInMemorySessionManagerConcurrency:
     """Test session manager behavior under concurrent access patterns."""
     
     def test_rapid_session_creation(self):
         """Test rapid session creation doesn't cause conflicts."""
-        manager = SessionManager()
+        manager = InMemorySessionManager()
         session_ids = set()
         
         # Create many sessions rapidly
@@ -320,10 +379,11 @@ class TestSessionManagerConcurrency:
         # All session IDs should be unique
         assert len(session_ids) == 100
         assert len(manager.sessions) == 100
+        assert manager.get_session_count() == 100
     
     def test_mixed_operations(self):
         """Test mixed create/update/cleanup operations."""
-        manager = SessionManager()
+        manager = InMemorySessionManager()
         session_ids = []
         
         # Create initial sessions
@@ -334,12 +394,15 @@ class TestSessionManagerConcurrency:
             )
             session_ids.append(session_id)
         
+        assert manager.get_session_count() == 10
+        
         # Mix of operations
         current_time = time.time()
         
         # Update some sessions
         for session_id in session_ids[:5]:
-            manager.update_activity(session_id)
+            result = manager.update_activity(session_id)
+            assert result is True
         
         # Age some sessions
         for session_id in session_ids[5:]:
@@ -353,6 +416,8 @@ class TestSessionManagerConcurrency:
             )
             session_ids.append(session_id)
         
+        assert manager.get_session_count() == 15
+        
         # Cleanup expired
         removed = manager.cleanup_expired(max_age=3600)
         
@@ -360,6 +425,36 @@ class TestSessionManagerConcurrency:
         assert removed == 5
         # Should have 10 remaining (5 updated + 5 new)
         assert len(manager.sessions) == 10
+        assert manager.get_session_count() == 10
+    
+    def test_delete_operations(self):
+        """Test various delete operations."""
+        manager = InMemorySessionManager()
+        
+        # Create sessions
+        session_ids = []
+        for i in range(5):
+            session_id = manager.create_session({"name": f"client-{i}"}, "2025-06-18")
+            session_ids.append(session_id)
+        
+        assert manager.get_session_count() == 5
+        
+        # Delete individual sessions
+        for i in range(3):
+            result = manager.delete_session(session_ids[i])
+            assert result is True
+            assert manager.get_session_count() == 5 - i - 1
+        
+        # Try to delete already deleted session
+        result = manager.delete_session(session_ids[0])
+        assert result is False
+        assert manager.get_session_count() == 2
+        
+        # Clear remaining sessions
+        cleared = manager.clear_all_sessions()
+        assert cleared == 2
+        assert manager.get_session_count() == 0
+
 
 
 if __name__ == "__main__":
