@@ -2,7 +2,7 @@
 """
 chuk-mcp Quickstart Script
 
-Updated to use the new protocol layer structure.
+Updated to use the new transport and protocol APIs exclusively.
 """
 
 import asyncio
@@ -14,53 +14,38 @@ import logging
 from pathlib import Path
 
 # Set up logging to see what's happening
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
-# Import chuk-mcp with fallback for import paths
-print("🔧 Loading chuk-mcp...")
+# Import new chuk-mcp APIs
+print("🔧 Loading chuk-mcp with new APIs...")
 try:
     import anyio
     
-    # Transport layer imports (these should be stable)
-    from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-    from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
+    # New transport layer imports
+    from chuk_mcp.transports.stdio import stdio_client
+    from chuk_mcp.transports.stdio.parameters import StdioParameters
     
-    # Try the new centralized protocol imports first
-    try:
-        from chuk_mcp.protocol.messages import (
-            send_initialize,
-            send_ping,
-            send_tools_list,
-            send_tools_call,
-        )
-        print("✅ Using centralized protocol imports")
-    except ImportError:
-        # Fallback to individual module imports
-        try:
-            from chuk_mcp.protocol.messages.initialize import send_initialize
-            from chuk_mcp.protocol.messages.ping import send_ping
-            from chuk_mcp.protocol.messages.tools import send_tools_list, send_tools_call
-            print("✅ Using individual module imports")
-        except ImportError:
-            # Last resort - try the old paths
-            from chuk_mcp.protocol.messages.initialize.send_messages import send_initialize
-            from chuk_mcp.protocol.messages.ping.send_messages import send_ping
-            from chuk_mcp.protocol.messages.tools.send_messages import send_tools_list, send_tools_call
-            print("✅ Using legacy import paths")
+    # New protocol layer imports
+    from chuk_mcp.protocol.messages import (
+        send_initialize,
+        send_ping,
+        send_tools_list,
+        send_tools_call,
+    )
     
-    print("✅ chuk-mcp imports successful!")
+    print("✅ New chuk-mcp APIs loaded successfully!")
     
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("\n🔍 Troubleshooting:")
     print("   • Make sure chuk-mcp is installed: pip install -e .")
     print("   • Check that you're in the right directory")
-    print("   • Verify the package structure matches the imports")
+    print("   • Verify the new transport structure exists")
     sys.exit(1)
 
 
-def create_minimal_server():
-    """Create a minimal MCP server for testing."""
+def create_modern_server():
+    """Create a modern MCP server using the new framework."""
     return '''#!/usr/bin/env python3
 import asyncio
 import json
@@ -68,20 +53,23 @@ import sys
 import logging
 
 # Set up logging for the server
-logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
+logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
-class MinimalMCPServer:
+class QuickstartMCPServer:
+    """Simple MCP server for quickstart demo."""
+    
     def __init__(self):
         self.server_info = {
             "name": "quickstart-server",
             "version": "1.0.0"
         }
         self.capabilities = {
-            "tools": {}
+            "tools": {"listChanged": True}
         }
     
     async def handle_message(self, message):
+        """Handle JSON-RPC messages."""
         logger.debug(f"Handling message: {message}")
         
         method = message.get("method")
@@ -96,7 +84,8 @@ class MinimalMCPServer:
                     "result": {
                         "protocolVersion": params.get("protocolVersion", "2025-06-18"),
                         "capabilities": self.capabilities,
-                        "serverInfo": self.server_info
+                        "serverInfo": self.server_info,
+                        "instructions": "Welcome to the chuk-mcp quickstart server! 🚀"
                     }
                 }
                 logger.debug(f"Initialize response: {response}")
@@ -116,22 +105,41 @@ class MinimalMCPServer:
                 return response
                 
             elif method == "tools/list":
+                tools = [
+                    {
+                        "name": "hello",
+                        "description": "Say hello to someone",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name to greet"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    {
+                        "name": "echo",
+                        "description": "Echo back a message",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Message to echo"
+                                }
+                            },
+                            "required": ["message"]
+                        }
+                    }
+                ]
+                
                 response = {
                     "jsonrpc": "2.0", 
                     "id": msg_id,
-                    "result": {
-                        "tools": [{
-                            "name": "hello",
-                            "description": "Say hello",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"}
-                                },
-                                "required": ["name"]
-                            }
-                        }]
-                    }
+                    "result": {"tools": tools}
                 }
                 logger.debug(f"Tools list response: {response}")
                 return response
@@ -148,12 +156,37 @@ class MinimalMCPServer:
                         "result": {
                             "content": [{
                                 "type": "text", 
-                                "text": f"Hello, {name}! 👋"
+                                "text": f"Hello, {name}! 👋 Welcome to chuk-mcp!"
                             }]
                         }
                     }
-                    logger.debug(f"Tool call response: {response}")
+                    logger.debug(f"Hello tool response: {response}")
                     return response
+                    
+                elif tool_name == "echo":
+                    message = arguments.get("message", "")
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "result": {
+                            "content": [{
+                                "type": "text",
+                                "text": f"Echo: {message}"
+                            }]
+                        }
+                    }
+                    logger.debug(f"Echo tool response: {response}")
+                    return response
+                    
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "error": {
+                            "code": -32602,
+                            "message": f"Unknown tool: {tool_name}"
+                        }
+                    }
             
             # Unknown method
             error_response = {
@@ -178,21 +211,36 @@ class MinimalMCPServer:
                 }
             }
     
-    async def run(self):
-        logger.info("Starting MCP server...")
+    async def read_stdin(self):
+        """Async generator for reading from stdin."""
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        
+        # Connect stdin to the reader
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
         
         while True:
             try:
-                # Read line from stdin
-                line = sys.stdin.readline()
+                line = await reader.readline()
                 if not line:
-                    logger.info("EOF received, shutting down")
+                    logger.info("EOF on stdin, shutting down")
                     break
                 
-                line = line.strip()
-                if not line:
-                    continue
-                
+                line_str = line.decode('utf-8').strip()
+                if line_str:
+                    yield line_str
+                    
+            except Exception as e:
+                logger.error(f"Error reading stdin: {e}")
+                break
+
+    async def run(self):
+        """Main server loop."""
+        logger.info("🚀 Starting quickstart MCP server...")
+        
+        try:
+            async for line in self.read_stdin():
                 logger.debug(f"Received line: {line}")
                 
                 try:
@@ -216,30 +264,35 @@ class MinimalMCPServer:
                     }
                     print(json.dumps(error_response), flush=True)
                     
-            except Exception as e:
-                logger.error(f"Server error: {e}")
-                break
-        
-        logger.info("MCP server shutting down")
+        except Exception as e:
+            logger.error(f"Server error: {e}")
+        finally:
+            logger.info("Quickstart MCP server shutting down")
 
 if __name__ == "__main__":
     try:
-        asyncio.run(MinimalMCPServer().run())
+        server = QuickstartMCPServer()
+        asyncio.run(server.run())
     except KeyboardInterrupt:
         logger.info("Server interrupted")
     except Exception as e:
         logger.error(f"Server failed: {e}")
+        sys.exit(1)
 '''
 
 
 async def quickstart_demo():
-    """Run a quick demonstration with better error handling."""
+    """Run a quick demonstration using the new APIs."""
     print("🚀 chuk-mcp Quickstart Demo")
+    print("=" * 40)
+    print("🎯 Using NEW APIs:")
+    print("   • chuk_mcp.transports.stdio")
+    print("   • chuk_mcp.protocol.messages")
     print("=" * 40)
     
     # Create temporary server
-    print("📝 Creating minimal MCP server...")
-    server_code = create_minimal_server()
+    print("📝 Creating quickstart MCP server...")
+    server_code = create_modern_server()
     
     with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
         f.write(server_code)
@@ -249,24 +302,27 @@ async def quickstart_demo():
     
     try:
         print("🔧 Setting up server parameters...")
-        server_params = StdioServerParameters(
+        # Use new StdioParameters class
+        server_params = StdioParameters(
             command="python",
-            args=[server_file],
-            env=None  # Use default environment
+            args=[server_file]
         )
         
         print("📡 Connecting to server...")
-        print("   (This may take a few seconds...)")
+        print("   (Using new stdio_client transport...)")
         
+        # Use new stdio_client context manager
         async with stdio_client(server_params) as (read_stream, write_stream):
             print("   ✅ Connection established!")
             
             # Test 1: Initialize
             print("\\n1️⃣  Testing initialization...")
             try:
-                init_result = await send_initialize(read_stream, write_stream, timeout=10.0)
+                init_result = await send_initialize(read_stream, write_stream)
                 print(f"   ✅ Server: {init_result.serverInfo.name}")
                 print(f"   📋 Protocol: {init_result.protocolVersion}")
+                if hasattr(init_result, 'instructions') and init_result.instructions:
+                    print(f"   💡 Instructions: {init_result.instructions}")
             except Exception as e:
                 print(f"   ❌ Initialization failed: {e}")
                 raise
@@ -274,7 +330,7 @@ async def quickstart_demo():
             # Test 2: Ping
             print("\\n2️⃣  Testing ping...")
             try:
-                ping_success = await send_ping(read_stream, write_stream, timeout=10.0)
+                ping_success = await send_ping(read_stream, write_stream)
                 print(f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}")
             except Exception as e:
                 print(f"   ❌ Ping failed: {e}")
@@ -283,7 +339,7 @@ async def quickstart_demo():
             # Test 3: List tools
             print("\\n3️⃣  Testing tools...")
             try:
-                tools_response = await send_tools_list(read_stream, write_stream, timeout=10.0)
+                tools_response = await send_tools_list(read_stream, write_stream)
                 tools = tools_response["tools"]
                 print(f"   📋 Found {len(tools)} tool(s):")
                 for tool in tools:
@@ -292,25 +348,39 @@ async def quickstart_demo():
                 print(f"   ❌ Tools list failed: {e}")
                 raise
             
-            # Test 4: Call tool
+            # Test 4: Call hello tool
             print("\\n4️⃣  Testing tool execution...")
             try:
                 hello_response = await send_tools_call(
                     read_stream, write_stream,
-                    "hello", {"name": "chuk-mcp User"},
-                    timeout=10.0
+                    "hello", {"name": "New API User"}
                 )
                 result_text = hello_response["content"][0]["text"]
-                print(f"   📤 Tool result: {result_text}")
+                print(f"   📤 Hello result: {result_text}")
             except Exception as e:
-                print(f"   ❌ Tool call failed: {e}")
+                print(f"   ❌ Hello tool failed: {e}")
+                raise
+            
+            # Test 5: Call echo tool
+            print("\\n5️⃣  Testing echo tool...")
+            try:
+                echo_response = await send_tools_call(
+                    read_stream, write_stream,
+                    "echo", {"message": "Testing new chuk-mcp APIs!"}
+                )
+                echo_text = echo_response["content"][0]["text"]
+                print(f"   📤 Echo result: {echo_text}")
+            except Exception as e:
+                print(f"   ❌ Echo tool failed: {e}")
                 raise
             
             print("\\n🎉 Quickstart demo completed successfully!")
-            print("\\n💡 Your chuk-mcp installation is working correctly!")
+            print("\\n💡 Your new chuk-mcp APIs are working correctly!")
             print("\\n📊 Summary:")
-            print("   ✅ Protocol layer: Working")
-            print("   ✅ Transport layer: Working") 
+            print("   ✅ New transport layer: Working")
+            print("   ✅ New protocol messages: Working")
+            print("   ✅ StdioParameters: Working")
+            print("   ✅ stdio_client context manager: Working")
             print("   ✅ Message handling: Working")
             print("   ✅ Tool execution: Working")
     
@@ -333,6 +403,8 @@ async def quickstart_demo():
         try:
             import chuk_mcp
             print(f"   • chuk_mcp location: {chuk_mcp.__file__}")
+            print("   • New transport APIs: Available")
+            print("   • New protocol APIs: Available")
         except ImportError:
             print("   • chuk_mcp not found in Python path")
         
@@ -350,33 +422,35 @@ async def quickstart_demo():
 
 def main():
     """Main entry point."""
-    print("🚀 chuk-mcp Quickstart")
+    print("🚀 chuk-mcp Quickstart - New APIs")
     print("=" * 50)
-    print("Testing your restructured chuk-mcp implementation...")
+    print("Testing your new chuk-mcp transport and protocol APIs...")
     print("=" * 50)
     
     try:
         anyio.run(quickstart_demo)
         print("\\n" + "=" * 50)
-        print("🎉 Success! Your restructured chuk-mcp is working correctly!")
+        print("🎉 Success! Your new chuk-mcp APIs are working perfectly!")
         print("\\n📚 What this validates:")
-        print("   ✅ New protocol layer structure")
-        print("   ✅ Import path compatibility")
+        print("   ✅ New transport layer (chuk_mcp.transports.stdio)")
+        print("   ✅ New protocol messages (chuk_mcp.protocol.messages)")
+        print("   ✅ StdioParameters class")
+        print("   ✅ stdio_client context manager")
         print("   ✅ Core MCP functionality")
-        print("   ✅ Transport layer stability")
         print("\\n📚 Next steps:")
-        print("   • Update your E2E tests with new import paths")
-        print("   • Try the full feature demos")
+        print("   • Try the full E2E smoke tests")
+        print("   • Explore the modern server framework")
         print("   • Build your own MCP integrations")
+        print("   • Test the new server APIs")
         print("=" * 50)
     except KeyboardInterrupt:
         print("\\n\\n👋 Demo interrupted by user. Goodbye!")
     except Exception as e:
         print(f"\\n💥 Demo failed: {str(e)}")
         print("\\n🔧 This suggests an issue with:")
-        print("   • Import path configuration")
-        print("   • Protocol layer restructuring")
-        print("   • Or a missing file/module")
+        print("   • New transport layer setup")
+        print("   • New protocol message imports")
+        print("   • API compatibility")
         print("\\nPlease check the error messages above for details.")
         sys.exit(1)
 

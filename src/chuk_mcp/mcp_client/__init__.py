@@ -1,191 +1,253 @@
 # chuk_mcp/mcp_client/__init__.py
 """
-Model Context Protocol (MCP) Client Library
+Backward compatibility shim for the old mcp_client structure.
 
-This is a comprehensive Python client implementation for the Model Context Protocol,
-providing a complete toolkit for building applications that communicate with MCP
-servers. The library is designed to be both powerful for advanced use cases and
-simple for basic integrations.
-
-Architecture Overview:
-The client library is organized into several layers, each providing different
-levels of abstraction:
-
-┌─────────────────────────────────────────────────────────────────┐
-│ Host Layer (host/)                                              │
-│ • Multi-server management and orchestration                     │
-│ • Environment configuration and lifecycle management            │
-│ • High-level command execution and error handling               │
-└─────────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────────┐
-│ Protocol Layer (../protocol/)                                   │
-│ • Shared protocol components (types, messages, versioning)      │
-│ • MCP feature implementations (sampling, completion, etc.)      │
-│ • JSON-RPC message construction and parsing                     │
-└─────────────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────────────┐
-│ Transport Layer (transport/)                                    │
-│ • Low-level communication mechanisms (stdio, future: HTTP, WS)  │
-│ • Connection management and message routing                     │
-│ • Process lifecycle and cleanup                                 │
-└─────────────────────────────────────────────────────────────────┘
-
-Key Features:
-• **Complete MCP Protocol Support**: All standard MCP features including tools,
-  resources, prompts, sampling, completion, and roots
-• **Multiple Transport Options**: Currently supports stdio, designed for extensibility
-• **Robust Error Handling**: Comprehensive error handling with retries and graceful fallback
-• **High Performance**: Optimized message routing and minimal overhead
-• **Type Safety**: Full type annotations with Pydantic integration (or fallback)
-• **Multi-Server Support**: Connect to and manage multiple MCP servers simultaneously
-• **Cross-Platform**: Works on Windows, macOS, and Linux with appropriate environment handling
-
-Quick Start:
-```python
-from chuk_mcp.mcp_client import stdio_client, StdioServerParameters
-from chuk_mcp.protocol.messages.tools import send_tools_list
-
-# Connect to an MCP server
-server_params = StdioServerParameters(command="python", args=["my_server.py"])
-async with stdio_client(server_params) as (read_stream, write_stream):
-    # List available tools
-    response = await send_tools_list(read_stream, write_stream)
-    print(f"Available tools: {response['tools']}")
-```
-
-Dependency Management:
-The library includes a fallback implementation for core functionality when Pydantic
-is not available, making it suitable for environments with minimal dependencies.
-Use `MCP_FORCE_FALLBACK=1` to test fallback behavior even when Pydantic is installed.
+This module re-exports everything from the new locations while maintaining
+the old API surface for backward compatibility.
 """
 
-# Core base class and utilities from protocol layer
-from ..protocol.mcp_pydantic_base import (
-    McpPydanticBase,
-    Field,
-    ValidationError,
-    PYDANTIC_AVAILABLE,
-)
+import warnings
+import os
+import sys
+from types import ModuleType
 
-# Transport layer - stdio is the primary transport
-from .transport import (
-    StdioClient,
-    stdio_client,
-    StdioServerParameters,
-    shutdown_stdio_server,
-)
+# Only show deprecation warnings if explicitly enabled
+if os.environ.get("CHUK_MCP_SHOW_DEPRECATIONS", "false").lower() == "true":
+    warnings.warn(
+        "chuk_mcp.mcp_client is deprecated. Use chuk_mcp.client or chuk_mcp.server instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-# Host layer - high-level management
-from .host import (
-    run_command,
-    get_default_environment,
-    DEFAULT_INHERITED_ENV_VARS,
-)
+# Import from new transport location but maintain old API
+# Updated to use the new transports structure
+from ..transports.stdio import stdio_client
+from ..transports.stdio.parameters import StdioParameters as StdioServerParameters
+from ..transports.stdio.transport import StdioTransport as StdioClient
 
-# Core messaging infrastructure from protocol layer
+# Create compatibility functions for old API
+async def stdio_client_with_initialize(
+    server_params,
+    timeout: float = 5.0,
+    supported_versions = None,
+    preferred_version = None,
+):
+    """Compatibility wrapper for stdio_client_with_initialize."""
+    from ..protocol.messages.initialize import send_initialize
+    
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        # Perform initialization
+        init_result = await send_initialize(read_stream, write_stream, timeout=timeout)
+        if not init_result:
+            raise Exception("Initialization failed")
+        
+        # Yield streams and init result (old API format)
+        yield read_stream, write_stream, init_result
+
+# Create compatibility for shutdown function
+async def shutdown_stdio_server(read_stream=None, write_stream=None, process=None, timeout=5.0):
+    """Compatibility wrapper for shutdown_stdio_server."""
+    # In the new architecture, shutdown is handled by the transport's __aexit__
+    # This is just a no-op for compatibility
+    pass
+
+# Re-export from protocol layer
 from ..protocol.messages import (
+    send_initialize,
+    send_tools_list,
+    send_tools_call,
+    send_resources_list,
+    send_resources_read,
+    send_prompts_list,
+    send_prompts_get,
+    send_ping,
     JSONRPCMessage,
     send_message,
     MessageMethod,
     RetryableError,
     NonRetryableError,
-    
-    # Initialization
-    send_initialize,
-    send_initialized_notification,
-    InitializeResult,
     VersionMismatchError,
-    
-    # Common operations
-    send_tools_list,
-    send_tools_call,
-    Tool,
-    ToolResult,
-    send_resources_list,
-    send_resources_read,
-    Resource,
-    ResourceContent,
-    send_prompts_list,
-    send_prompts_get,
-    send_ping,
 )
 
-# Import capabilities and info types from protocol layer
+# Import ValidationError with fallback
+try:
+    from ..protocol.types.errors import ValidationError
+except ImportError:
+    try:
+        from ..protocol.mcp_pydantic_base import ValidationError
+    except ImportError:
+        class ValidationError(ValueError):
+            pass
+
+from ..protocol.messages.tools import Tool, ToolResult
+from ..protocol.messages.resources import Resource, ResourceContent
+from ..protocol.messages.initialize import InitializeResult
 from ..protocol.types import (
-    ClientCapabilities,
-    ServerCapabilities,
-    ClientInfo,
-    ServerInfo,
-    
-    # Legacy aliases for backward compatibility
     MCPClientCapabilities,
     MCPServerCapabilities,
-    MCPClientInfo,
-    MCPServerInfo,
 )
 
-__version__ = "0.3.0"
+# Re-export from host layer (if it exists)
+try:
+    from .host.environment import get_default_environment
+    from .host.server_manager import run_command
+except ImportError:
+    # Create minimal implementations
+    def get_default_environment():
+        import os
+        return dict(os.environ)
+    
+    def run_command(*args, **kwargs):
+        raise NotImplementedError("run_command not available in restructured version")
+
+# Version info
+try:
+    from ..protocol.mcp_pydantic_base import PYDANTIC_AVAILABLE
+except ImportError:
+    PYDANTIC_AVAILABLE = True
+
+__version__ = "0.4.0"
+
+# Import the actual StdioClient (not the transport wrapper) for tests
+from ..transports.stdio.stdio_client import StdioClient as ActualStdioClient, _supports_batch_processing
+
+# Create fake transport module structure for backward compatibility
+class FakeTransportModule(ModuleType):
+    """Fake module to handle old import paths."""
+    
+    def __init__(self, name):
+        super().__init__(name)
+        
+    def __getattr__(self, name):
+        if name == "stdio":
+            return FakeStdioModule("chuk_mcp.mcp_client.transport.stdio")
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+class FakeStdioModule(ModuleType):
+    """Fake stdio module to handle old import paths."""
+    
+    def __init__(self, name):
+        super().__init__(name)
+        # Add all the stdio exports - use actual StdioClient for tests
+        self.stdio_client = stdio_client
+        self.StdioClient = ActualStdioClient  # Use the actual client, not the transport wrapper
+        self.stdio_client_with_initialize = stdio_client_with_initialize
+        
+    def __getattr__(self, name):
+        if name == "stdio_client":
+            return stdio_client
+        elif name == "StdioClient":
+            return ActualStdioClient  # Use the actual client
+        elif name == "stdio_client_with_initialize":
+            return stdio_client_with_initialize
+        elif name == "stdio_server_parameters":
+            return FakeStdioServerParametersModule("chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters")
+        elif name == "stdio_server_shutdown":
+            return FakeStdioServerShutdownModule("chuk_mcp.mcp_client.transport.stdio.stdio_server_shutdown")
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+class FakeStdioClientModule(ModuleType):
+    """Fake stdio_client module to handle direct imports."""
+    
+    def __init__(self, name):
+        super().__init__(name)
+        self.stdio_client = stdio_client
+        self.StdioClient = ActualStdioClient
+        self.stdio_client_with_initialize = stdio_client_with_initialize
+        self._supports_batch_processing = _supports_batch_processing
+        
+    def __getattr__(self, name):
+        if name == "stdio_client":
+            return stdio_client
+        elif name == "StdioClient":
+            return ActualStdioClient
+        elif name == "stdio_client_with_initialize":
+            return stdio_client_with_initialize
+        elif name == "_supports_batch_processing":
+            return _supports_batch_processing
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+class FakeStdioServerParametersModule(ModuleType):
+    """Fake stdio_server_parameters module."""
+    
+    def __init__(self, name):
+        super().__init__(name)
+        self.StdioServerParameters = StdioServerParameters
+        
+    def __getattr__(self, name):
+        if name == "StdioServerParameters":
+            return StdioServerParameters
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+class FakeStdioServerShutdownModule(ModuleType):
+    """Fake stdio_server_shutdown module."""
+    
+    def __init__(self, name):
+        super().__init__(name)
+        self.shutdown_stdio_server = shutdown_stdio_server
+        
+    def __getattr__(self, name):
+        if name == "shutdown_stdio_server":
+            return shutdown_stdio_server
+        raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
+
+# Inject fake modules into sys.modules for backward compatibility
+transport_module = FakeTransportModule("chuk_mcp.mcp_client.transport")
+stdio_module = FakeStdioModule("chuk_mcp.mcp_client.transport.stdio")
+stdio_client_module = FakeStdioClientModule("chuk_mcp.mcp_client.transport.stdio.stdio_client")
+stdio_params_module = FakeStdioServerParametersModule("chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters")
+stdio_shutdown_module = FakeStdioServerShutdownModule("chuk_mcp.mcp_client.transport.stdio.stdio_server_shutdown")
+
+sys.modules["chuk_mcp.mcp_client.transport"] = transport_module
+sys.modules["chuk_mcp.mcp_client.transport.stdio"] = stdio_module
+sys.modules["chuk_mcp.mcp_client.transport.stdio.stdio_client"] = stdio_client_module
+sys.modules["chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters"] = stdio_params_module
+sys.modules["chuk_mcp.mcp_client.transport.stdio.stdio_server_shutdown"] = stdio_shutdown_module
 
 __all__ = [
-    # Version info
-    "__version__",
-    
-    # Core infrastructure
-    "McpPydanticBase",
-    "Field", 
-    "ValidationError",
-    "PYDANTIC_AVAILABLE",
-    
-    # Transport layer
-    "StdioClient",
+    # Core client functionality
     "stdio_client",
-    "StdioServerParameters", 
+    "ActualStdioClient",  # Export the actual client for tests
+    "StdioClient",        # Keep the transport alias 
+    "StdioServerParameters",
+    "stdio_client_with_initialize",
     "shutdown_stdio_server",
     
-    # Host layer
-    "run_command",
-    "get_default_environment",
-    "DEFAULT_INHERITED_ENV_VARS",
+    # Message operations
+    "send_initialize",
+    "send_tools_list",
+    "send_tools_call",
+    "send_resources_list", 
+    "send_resources_read",
+    "send_prompts_list",
+    "send_prompts_get",
+    "send_ping",
     
-    # Core messaging
+    # Core infrastructure
     "JSONRPCMessage",
     "send_message",
     "MessageMethod",
-    "RetryableError",
-    "NonRetryableError",
     
-    # Initialization
-    "send_initialize",
-    "send_initialized_notification", 
-    "InitializeResult",
-    "VersionMismatchError",
+    # Host functionality
+    "run_command",
+    "get_default_environment",
     
-    # Capabilities and info types
-    "ClientCapabilities",
-    "ServerCapabilities",
-    "ClientInfo",
-    "ServerInfo",
-    "MCPClientCapabilities",  # Legacy alias
-    "MCPServerCapabilities",  # Legacy alias
-    "MCPClientInfo",         # Legacy alias
-    "MCPServerInfo",         # Legacy alias
-    
-    # Common operations - tools
-    "send_tools_list",
-    "send_tools_call",
+    # Data types
     "Tool",
     "ToolResult",
-    
-    # Common operations - resources  
-    "send_resources_list",
-    "send_resources_read",
-    "Resource",
+    "Resource", 
     "ResourceContent",
+    "InitializeResult",
+    "MCPClientCapabilities",
+    "MCPServerCapabilities",
     
-    # Common operations - prompts
-    "send_prompts_list", 
-    "send_prompts_get",
+    # Error handling
+    "VersionMismatchError",
+    "RetryableError",
+    "NonRetryableError", 
+    "ValidationError",
     
-    # Utilities
-    "send_ping",
+    # Version info
+    "__version__",
+    "PYDANTIC_AVAILABLE",
 ]

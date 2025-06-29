@@ -3,9 +3,9 @@ import json
 import logging
 
 # mcp_client imports
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
+from chuk_mcp.transports.stdio.parameters import StdioParameters
 
-async def load_config(config_path: str, server_name: str) -> StdioServerParameters:
+async def load_config(config_path: str, server_name: str) -> StdioParameters:
     """Load the server configuration from a JSON file."""
     try:
         # debug
@@ -23,7 +23,7 @@ async def load_config(config_path: str, server_name: str) -> StdioServerParamete
             raise ValueError(error_msg)
 
         # Construct the server parameters
-        result = StdioServerParameters(
+        result = StdioParameters(
             command=server_config["command"],
             args=server_config.get("args", []),
             env=server_config.get("env"),

@@ -2,7 +2,7 @@
 """
 Working chuk-mcp E2E Smoke Test
 
-Uses only the modules that actually exist in your implementation.
+Uses the new transport APIs and clean structure.
 """
 
 import asyncio
@@ -16,9 +16,9 @@ from pathlib import Path
 
 import anyio
 
-# chuk-mcp imports - only the ones that exist
-from chuk_mcp.mcp_client.transport.stdio.stdio_client import stdio_client
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import StdioServerParameters
+# chuk-mcp imports - using new APIs
+from chuk_mcp.transports.stdio import stdio_client
+from chuk_mcp.transports.stdio.parameters import StdioParameters
 from chuk_mcp.protocol.messages import (
     send_initialize,
     send_ping,
@@ -400,7 +400,7 @@ async def demo_basic_functionality():
         server_file = f.name
     
     try:
-        server_params = StdioServerParameters(command="python", args=[server_file])
+        server_params = StdioParameters(command="python", args=[server_file])
         
         async with stdio_client(server_params) as (read_stream, write_stream):
             print("📡 Connecting to comprehensive test server...")
@@ -494,7 +494,7 @@ async def demo_concurrent_operations():
         server_file = f.name
     
     try:
-        server_params = StdioServerParameters(command="python", args=[server_file])
+        server_params = StdioParameters(command="python", args=[server_file])
         
         async with stdio_client(server_params) as (read_stream, write_stream):
             print("📡 Connecting to test server...")
@@ -599,7 +599,7 @@ async def run_smoke_tests():
             server_file = f.name
         
         try:
-            server_params = StdioServerParameters(command="python", args=[server_file])
+            server_params = StdioParameters(command="python", args=[server_file])
             async with stdio_client(server_params) as (read_stream, write_stream):
                 init_result = await send_initialize(read_stream, write_stream)
                 assert init_result is not None
@@ -615,7 +615,7 @@ async def run_smoke_tests():
             server_file = f.name
         
         try:
-            server_params = StdioServerParameters(command="python", args=[server_file])
+            server_params = StdioParameters(command="python", args=[server_file])
             async with stdio_client(server_params) as (read_stream, write_stream):
                 await send_initialize(read_stream, write_stream)
                 
@@ -647,7 +647,7 @@ async def run_smoke_tests():
             server_file = f.name
         
         try:
-            server_params = StdioServerParameters(command="python", args=[server_file])
+            server_params = StdioParameters(command="python", args=[server_file])
             async with stdio_client(server_params) as (read_stream, write_stream):
                 await send_initialize(read_stream, write_stream)
                 
@@ -674,7 +674,7 @@ async def run_smoke_tests():
             server_file = f.name
         
         try:
-            server_params = StdioServerParameters(command="python", args=[server_file])
+            server_params = StdioParameters(command="python", args=[server_file])
             async with stdio_client(server_params) as (read_stream, write_stream):
                 await send_initialize(read_stream, write_stream)
                 
@@ -736,7 +736,7 @@ async def run_performance_tests():
         server_file = f.name
     
     try:
-        server_params = StdioServerParameters(command="python", args=[server_file])
+        server_params = StdioParameters(command="python", args=[server_file])
         
         # Test 1: Connection time
         print("\\n⏱️  Test 1: Connection Performance")
@@ -786,7 +786,7 @@ async def run_performance_tests():
 async def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="chuk-mcp Working E2E Tests",
+        description="chuk-mcp Working E2E Tests (New Transport APIs)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -831,7 +831,8 @@ Examples:
     
     print("🚀 chuk-mcp Working E2E Test Suite")
     print("=" * 60)
-    print("Testing with only the modules that exist in your implementation")
+    print("🎯 Using NEW transport APIs: chuk_mcp.transports.stdio")
+    print("📋 Testing protocol messages from: chuk_mcp.protocol.messages")
     print("=" * 60)
     
     try:
@@ -859,6 +860,7 @@ Examples:
         print("\\n" + "=" * 60)
         print("🎉 All requested tests completed successfully!")
         print("🔧 Your chuk-mcp implementation is working correctly.")
+        print("🚀 New transport APIs are functional!")
         print("=" * 60)
         
     except KeyboardInterrupt:
