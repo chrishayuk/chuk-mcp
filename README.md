@@ -33,6 +33,141 @@ The **Model Context Protocol (MCP)** is an open standard that enables AI applica
 ✅ **Developer Experience** - Rich CLI tools, comprehensive docs, and intuitive APIs  
 ✅ **Production Ready** - Battle-tested with proper logging, monitoring, and performance optimization  
 
+## Protocol Compliance
+
+`chuk-mcp` provides comprehensive compliance with the MCP specification across multiple protocol versions:
+
+### 📋 Supported Protocol Versions
+- **Latest**: `2025-06-18` (primary support)
+- **Stable**: `2025-03-26` (full compatibility)
+- **Legacy**: `2024-11-05` (backward compatibility)
+
+### 🎯 Core Protocol Features
+
+#### ✅ **JSON-RPC 2.0 Compliance**
+- Complete request/response/notification handling
+- Proper error code classification
+- Version-aware message routing
+- Batching support (version-dependent)
+
+#### ✅ **Transport Layer Support**
+- **Stdio Transport**: Primary subprocess-based communication
+- **HTTP Transport**: Modern streamable HTTP transport (spec 2025-03-26)
+- **SSE Transport**: Deprecated Server-Sent Events (backward compatibility)
+- **Pluggable Architecture**: Easy to add new transport types
+
+#### ✅ **MCP Operations**
+- **🔧 Tools**: List and call server tools with full argument validation
+- **📄 Resources**: Discover and read server resources with URI support
+- **💬 Prompts**: Get parameterized prompt templates with argument substitution
+- **🎯 Sampling**: Client-side LLM sampling (advanced feature)
+- **📝 Completion**: Argument autocompletion for enhanced UX
+- **🌳 Roots**: File system access control and security
+- **❓ Elicitation**: User input requests (new in 2025-06-18)
+
+### 🚀 Advanced Protocol Features
+
+#### ✅ **Session Management**
+- Automatic initialization and capability exchange
+- Version negotiation with fallback support
+- Multi-client session handling (server-side)
+- Connection lifecycle management
+
+#### ✅ **Real-time Operations**
+- **Progress Tracking**: Long-running operation progress reporting
+- **Cancellation**: Request cancellation support with proper cleanup
+- **Notifications**: Real-time event notifications (resource changes, logs)
+- **Subscriptions**: Resource change monitoring
+
+#### ✅ **Error Handling & Resilience**
+- Comprehensive error classification (retryable vs non-retryable)
+- Automatic retry logic with exponential backoff
+- Connection recovery and reconnection
+- Structured error reporting with context
+
+#### ✅ **Version-Aware Features**
+- **Feature Detection**: Automatic capability discovery
+- **Batching**: JSON-RPC batch support where available
+- **Protocol Upgrades**: Seamless version transitions
+- **Backward Compatibility**: Graceful degradation for older servers
+
+### 📊 Protocol Compliance Matrix
+
+| Feature Category | 2024-11-05 | 2025-03-26 | 2025-06-18 | Implementation Status |
+|-----------------|------------|------------|------------|---------------------|
+| **Core Operations** | | | | |
+| Tools (list/call) | ✅ | ✅ | ✅ | ✅ Complete |
+| Resources (list/read/subscribe) | ✅ | ✅ | ✅ | ✅ Complete |
+| Prompts (list/get) | ✅ | ✅ | ✅ | ✅ Complete |
+| **Transport** | | | | |
+| Stdio | ✅ | ✅ | ✅ | ✅ Complete |
+| SSE | ✅ | ⚠️ Deprecated | ❌ Removed | ✅ Legacy Support |
+| HTTP Streaming | ❌ | ✅ | ✅ | ✅ Complete |
+| **Advanced Features** | | | | |
+| Sampling | ❌ | ✅ | ✅ | ✅ Complete |
+| Completion | ❌ | ✅ | ✅ | ✅ Complete |
+| Roots | ❌ | ✅ | ✅ | ✅ Complete |
+| Elicitation | ❌ | ❌ | ✅ | ✅ Complete |
+| **Quality Features** | | | | |
+| Progress Tracking | ✅ | ✅ | ✅ | ✅ Complete |
+| Cancellation | ✅ | ✅ | ✅ | ✅ Complete |
+| Notifications | ✅ | ✅ | ✅ | ✅ Complete |
+| Batching | ❌ | ✅ | ✅ | ✅ Complete |
+
+### 🔧 Protocol Implementation Details
+
+#### Message Handling
+```python
+# Automatic protocol version detection and adaptation
+from chuk_mcp.protocol.messages import send_initialize
+
+async def connect_with_version_negotiation(read_stream, write_stream):
+    # Client automatically negotiates best supported version
+    init_result = await send_initialize(
+        read_stream, write_stream,
+        protocol_version="2025-06-18",  # Preferred version
+        client_info={"name": "my-client", "version": "1.0.0"}
+    )
+    
+    # Server responds with actual supported version
+    negotiated_version = init_result.protocolVersion
+    print(f"Using protocol version: {negotiated_version}")
+```
+
+#### Feature Detection
+```python
+# Version-aware feature usage
+from chuk_mcp.protocol.types import ClientCapabilities, ServerCapabilities
+
+async def adaptive_feature_usage(read_stream, write_stream):
+    # Client capabilities automatically adjusted based on protocol version
+    if init_result.capabilities.sampling:
+        # Use advanced sampling features
+        await use_sampling_features(read_stream, write_stream)
+    
+    if init_result.capabilities.completion:
+        # Provide argument autocompletion
+        await provide_completions(read_stream, write_stream)
+    
+    # Always available - core features work across all versions
+    tools = await send_tools_list(read_stream, write_stream)
+```
+
+#### Transport Abstraction
+```python
+# Protocol works seamlessly across different transports
+from chuk_mcp import stdio_client, http_client
+from chuk_mcp.protocol.messages import send_tools_list
+
+async def transport_agnostic_operations():
+    # Same protocol operations work with any transport
+    for client_factory in [stdio_client, http_client]:
+        async with client_factory(params) as (read_stream, write_stream):
+            await send_initialize(read_stream, write_stream)
+            tools = await send_tools_list(read_stream, write_stream)
+            # Protocol layer handles transport differences automatically
+```
+
 ## Quick Start
 
 ### Installation
@@ -362,17 +497,6 @@ async def resilient_operations(read_stream, write_stream):
         print(f"🚨 Unexpected error: {e}")
         # Handle unknown errors
 ```
-
-## Protocol Support
-
-`chuk-mcp` supports the latest MCP protocol features:
-
-- **📅 Protocol Version**: `2025-06-18` (latest)
-- **⬅️ Backward Compatibility**: Supports `2025-03-26` and `2024-11-05`
-- **🔧 Core Features**: Tools, resources, prompts, ping
-- **🚀 Advanced Features**: Sampling, completion, roots, logging
-- **📡 Notifications**: Real-time updates and progress tracking
-- **🔒 Security**: Proper error handling and validation
 
 ## Available MCP Servers
 
