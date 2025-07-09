@@ -9,58 +9,15 @@ from typing import Dict, Optional, Tuple, List
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
 
-# Import from the correct locations for the new structure
+# Import version-aware batching
+from chuk_mcp.protocol.features.batching import BatchProcessor, supports_batching
 from chuk_mcp.mcp_client.host.environment import get_default_environment
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from .parameters import StdioParameters
 
 __all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
 
-
-def _supports_batch_processing(protocol_version: Optional[str]) -> bool:
-    """
-    Check if the protocol version supports JSON-RPC batch processing.
-    
-    Batch processing was removed in version 2025-06-18.
-    
-    Args:
-        protocol_version: The negotiated protocol version
-        
-    Returns:
-        True if batch processing is supported, False otherwise
-    """
-    if not protocol_version:
-        # Default to supporting batch for backward compatibility
-        return True
-    
-    # Parse version and check if it's before 2025-06-18
-    try:
-        # Versions are in YYYY-MM-DD format, but be flexible with zero-padding
-        version_parts = protocol_version.split('-')
-        
-        # We need exactly 3 parts for a valid version
-        if len(version_parts) != 3:
-            # Treat versions with extra parts as invalid/malformed
-            raise ValueError("Invalid version format")
-            
-        year = int(version_parts[0])
-        month = int(version_parts[1])
-        day = int(version_parts[2])
-        
-        # 2025-06-18 and later don't support batching
-        if year > 2025:
-            return False
-        elif year == 2025 and month > 6:
-            return False
-        elif year == 2025 and month == 6 and day >= 18:
-            return False
-            
-        # All earlier versions support batching
-        return True
-    except (ValueError, TypeError, IndexError):
-        # If we can't parse the version, default to supporting batch
-        logging.warning(f"Could not parse protocol version '{protocol_version}', assuming batch support")
-        return True
+logger = logging.getLogger(__name__)
 
 
 class StdioClient:
@@ -99,19 +56,19 @@ class StdioClient:
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
         
-        # Track negotiated protocol version for feature support
-        self._protocol_version: Optional[str] = None
+        # Version-aware batch processing
+        self.batch_processor = BatchProcessor()
+        logger.debug("StdioClient initialized with version-aware batching")
 
     def set_protocol_version(self, version: str) -> None:
-        """Set the negotiated protocol version."""
-        self._protocol_version = version
-        logging.debug(f"Protocol version set to: {version}")
+        """Set the negotiated protocol version and update batching behavior."""
+        self.batch_processor.update_protocol_version(version)
+        logger.info(f"Protocol version set to: {version}, batching enabled: {self.batch_processor.batching_enabled}")
 
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
     
-    # Performance-optimized version with minimal logging
     async def _route_message(self, msg: JSONRPCMessage) -> None:
         """Fast routing with minimal overhead."""
         
@@ -139,7 +96,7 @@ class StdioClient:
                 pass
         else:
             # Log warning for unknown IDs (needed for tests)
-            logging.debug(f"Received message for unknown id: {msg.id}")
+            logger.debug(f"Received message for unknown id: {msg.id}")
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON-RPC messages with version-aware batch support."""
@@ -147,7 +104,7 @@ class StdioClient:
             assert self.process and self.process.stdout
 
             buffer = ""
-            logging.debug("stdout_reader started")
+            logger.debug("stdout_reader started")
 
             async for chunk in self.process.stdout:
                 # Handle both bytes and string chunks
@@ -166,53 +123,70 @@ class StdioClient:
                         continue
                     try:
                         data = json.loads(line)
-                        
-                        # Handle JSON-RPC batch messages only if version supports it
-                        if isinstance(data, list) and _supports_batch_processing(self._protocol_version):
-                            # Process each message in the batch
-                            logging.debug(f"Received batch with {len(data)} messages (protocol: {self._protocol_version})")
-                            for item in data:
-                                try:
-                                    msg = JSONRPCMessage.model_validate(item)
-                                    await self._route_message(msg)
-                                    logging.debug(f"Batch item: {msg.method or 'response'} (id: {msg.id})")
-                                except Exception as exc:
-                                    logging.error("Error processing batch item: %s", exc)
-                                    logging.debug("Invalid batch item: %.120s", json.dumps(item))
-                        elif isinstance(data, list):
-                            # Batch received but not supported in this protocol version
-                            logging.warning(f"Received batch message but protocol version {self._protocol_version} does not support batching")
-                            # Try to process individual items anyway for compatibility
-                            for item in data:
-                                try:
-                                    msg = JSONRPCMessage.model_validate(item)
-                                    await self._route_message(msg)
-                                    logging.debug(f"Individual item from unsupported batch: {msg.method or 'response'} (id: {msg.id})")
-                                except Exception as exc:
-                                    logging.error("Error processing item from unsupported batch: %s", exc)
-                        else:
-                            # Single message
-                            msg = JSONRPCMessage.model_validate(data)
-                            await self._route_message(msg)
-                            logging.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+                        await self._process_message_data(data)
                             
                     except json.JSONDecodeError as exc:
-                        logging.error("JSON decode error: %s  [line: %.120s]", exc, line)
+                        logger.error("JSON decode error: %s  [line: %.120s]", exc, line)
                     except Exception as exc:
-                        logging.error("Error processing message: %s", exc)
-                        logging.debug("Traceback:\n%s", traceback.format_exc())
+                        logger.error("Error processing message: %s", exc)
+                        logger.debug("Traceback:\n%s", traceback.format_exc())
 
-            logging.debug("stdout_reader exiting")
+            logger.debug("stdout_reader exiting")
         except Exception as e:
-            logging.error(f"stdout_reader error: {e}")
-            logging.debug("Traceback:\n%s", traceback.format_exc())
+            logger.error(f"stdout_reader error: {e}")
+            logger.debug("Traceback:\n%s", traceback.format_exc())
+
+    async def _process_message_data(self, data) -> None:
+        """Process message data with version-aware batching support."""
+        
+        # Check if we can process this message
+        if not self.batch_processor.can_process_batch(data):
+            logger.warning(f"Rejecting batch message in protocol version {self.batch_processor.protocol_version}")
             
+            # Send error response back to server
+            error_response = self.batch_processor.create_batch_rejection_error()
+            await self._send_error_response(error_response)
+            return
+        
+        # Handle JSON-RPC batch messages (if supported by version)
+        if isinstance(data, list):
+            if self.batch_processor.batching_enabled:
+                logger.debug(f"Processing batch with {len(data)} messages (protocol: {self.batch_processor.protocol_version})")
+                for item in data:
+                    try:
+                        msg = JSONRPCMessage.model_validate(item)
+                        await self._route_message(msg)
+                        logger.debug(f"Batch item: {msg.method or 'response'} (id: {msg.id})")
+                    except Exception as exc:
+                        logger.error("Error processing batch item: %s", exc)
+                        logger.debug("Invalid batch item: %.120s", json.dumps(item))
+            else:
+                # This should not happen as we check can_process_batch above
+                logger.error(f"Unexpected batch message in version {self.batch_processor.protocol_version}")
+        else:
+            # Single message
+            try:
+                msg = JSONRPCMessage.model_validate(data)
+                await self._route_message(msg)
+                logger.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+            except Exception as exc:
+                logger.error("Error processing single message: %s", exc)
+
+    async def _send_error_response(self, error_response: Dict) -> None:
+        """Send an error response back to the server."""
+        try:
+            if self.process and self.process.stdin:
+                json_str = json.dumps(error_response)
+                await self.process.stdin.send(f"{json_str}\n".encode())
+                logger.debug(f"Sent error response: {error_response.get('error', {}).get('message', 'Unknown error')}")
+        except Exception as e:
+            logger.error(f"Failed to send error response: {e}")
 
     async def _stdin_writer(self) -> None:
         """Forward outgoing JSON-RPC messages to the server's stdin."""
         try:
             assert self.process and self.process.stdin
-            logging.debug("stdin_writer started")
+            logger.debug("stdin_writer started")
 
             async for message in self._outgoing_recv:
                 try:
@@ -222,18 +196,24 @@ class StdioClient:
                         else message.model_dump_json(exclude_none=True)
                     )
                     await self.process.stdin.send(f"{json_str}\n".encode())
-                    logging.debug(f"Sent: {message.method or 'response'} (id: {message.id})")
+                    
+                    # Enhanced logging for batching scenarios
+                    if hasattr(message, 'method'):
+                        logger.debug(f"Sent: {message.method or 'response'} (id: {message.id})")
+                    else:
+                        logger.debug(f"Sent raw message: {json_str[:100]}...")
+                        
                 except Exception as exc:
-                    logging.error("Unexpected error in stdin_writer: %s", exc)
-                    logging.debug("Traceback:\n%s", traceback.format_exc())
+                    logger.error("Unexpected error in stdin_writer: %s", exc)
+                    logger.debug("Traceback:\n%s", traceback.format_exc())
                     continue
 
-            logging.debug("stdin_writer exiting; closing server stdin")
+            logger.debug("stdin_writer exiting; closing server stdin")
             if self.process and self.process.stdin:
                 await self.process.stdin.aclose()
         except Exception as e:
-            logging.error(f"stdin_writer error: {e}")
-            logging.debug("Traceback:\n%s", traceback.format_exc())
+            logger.error(f"stdin_writer error: {e}")
+            logger.debug("Traceback:\n%s", traceback.format_exc())
 
     # ------------------------------------------------------------------ #
     # Public API for request lifecycle (for test compatibility)
@@ -255,7 +235,7 @@ class StdioClient:
         try:
             await self._outgoing_send.send(msg)
         except anyio.BrokenResourceError:
-            logging.warning("Cannot send message - outgoing stream is closed")
+            logger.warning("Cannot send message - outgoing stream is closed")
 
     # ------------------------------------------------------------------ #
     # New API for stdio_client context manager
@@ -263,6 +243,25 @@ class StdioClient:
     def get_streams(self) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
         """Get the read and write streams for communication."""
         return self._incoming_recv, self._outgoing_send
+
+    # ------------------------------------------------------------------ #
+    # Version information methods
+    # ------------------------------------------------------------------ #
+    def get_protocol_version(self) -> Optional[str]:
+        """Get the current protocol version."""
+        return self.batch_processor.protocol_version
+    
+    def is_batching_enabled(self) -> bool:
+        """Check if batching is currently enabled."""
+        return self.batch_processor.batching_enabled
+    
+    def get_batching_info(self) -> Dict[str, any]:
+        """Get information about batching support."""
+        return {
+            "protocol_version": self.batch_processor.protocol_version,
+            "batching_enabled": self.batch_processor.batching_enabled,
+            "supports_batch_function": supports_batching(self.batch_processor.protocol_version)
+        }
 
     # ------------------------------------------------------------------ #
     # async context-manager interface
@@ -275,7 +274,7 @@ class StdioClient:
                 stderr=sys.stderr,
                 start_new_session=True,
             )
-            logging.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
+            logger.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
 
             self.tg = anyio.create_task_group()
             await self.tg.__aenter__()
@@ -284,7 +283,7 @@ class StdioClient:
 
             return self
         except Exception as e:
-            logging.error(f"Error starting stdio client: {e}")
+            logger.error(f"Error starting stdio client: {e}")
             raise
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -303,17 +302,17 @@ class StdioClient:
                     # Handle exception groups from anyio
                     for exc in eg.exceptions:
                         if not isinstance(exc, anyio.get_cancelled_exc_class()):
-                            logging.error(f"Task error during shutdown: {exc}")
+                            logger.error(f"Task error during shutdown: {exc}")
                 except Exception as e:
                     # Handle regular exceptions for older anyio versions
                     if not isinstance(e, anyio.get_cancelled_exc_class()):
-                        logging.error(f"Task error during shutdown: {e}")
+                        logger.error(f"Task error during shutdown: {e}")
                 
             if self.process and self.process.returncode is None:
                 await self._terminate_process()
                 
         except Exception as e:
-            logging.error(f"Error during stdio client shutdown: {e}")
+            logger.error(f"Error during stdio client shutdown: {e}")
             
         return False
 
@@ -323,19 +322,19 @@ class StdioClient:
             return
         try:
             if self.process.returncode is None:
-                logging.debug("Terminating subprocess…")
+                logger.debug("Terminating subprocess…")
                 self.process.terminate()
                 try:
                     with anyio.fail_after(5):
                         await self.process.wait()
                 except TimeoutError:
-                    logging.warning("Graceful term timed out – killing …")
+                    logger.warning("Graceful term timed out – killing …")
                     self.process.kill()
                     with anyio.fail_after(5):
                         await self.process.wait()
         except Exception as e:
-            logging.error(f"Error during process termination: {e}")
-            logging.debug("Traceback:\n%s", traceback.format_exc())
+            logger.error(f"Error during process termination: {e}")
+            logger.debug("Traceback:\n%s", traceback.format_exc())
 
 
 # ---------------------------------------------------------------------- #
@@ -363,12 +362,12 @@ async def stdio_client(server: StdioParameters) -> Tuple[MemoryObjectReceiveStre
         # Handle exception groups from anyio task groups
         for exc in eg.exceptions:
             if not isinstance(exc, anyio.get_cancelled_exc_class()):
-                logging.error(f"stdio_client error: {exc}")
+                logger.error(f"stdio_client error: {exc}")
         raise
     except Exception as e:
         # Handle regular exceptions
         if not isinstance(e, anyio.get_cancelled_exc_class()):
-            logging.error(f"stdio_client error: {e}")
+            logger.error(f"stdio_client error: {e}")
         raise
 
 
@@ -433,10 +432,28 @@ async def stdio_client_with_initialize(
         # Handle exception groups from anyio task groups
         for exc in eg.exceptions:
             if not isinstance(exc, anyio.get_cancelled_exc_class()):
-                logging.error(f"stdio_client_with_initialize error: {exc}")
+                logger.error(f"stdio_client_with_initialize error: {exc}")
         raise
     except Exception as e:
         # Handle regular exceptions
         if not isinstance(e, anyio.get_cancelled_exc_class()):
-            logging.error(f"stdio_client_with_initialize error: {e}")
+            logger.error(f"stdio_client_with_initialize error: {e}")
         raise
+
+
+# ---------------------------------------------------------------------- #
+# Legacy function for backward compatibility
+# ---------------------------------------------------------------------- #
+def _supports_batch_processing(protocol_version: Optional[str]) -> bool:
+    """
+    Legacy function for backward compatibility.
+    
+    Use BatchProcessor or supports_batching() function instead.
+    """
+    import warnings
+    warnings.warn(
+        "_supports_batch_processing is deprecated. Use supports_batching() or BatchProcessor instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return supports_batching(protocol_version)

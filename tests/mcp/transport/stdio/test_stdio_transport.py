@@ -16,7 +16,8 @@ import anyio
 # Import the new transport APIs
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 from chuk_mcp.transports.stdio.transport import StdioTransport
-from chuk_mcp.transports.stdio.stdio_client import StdioClient, stdio_client, _supports_batch_processing
+from chuk_mcp.transports.stdio.stdio_client import StdioClient, stdio_client
+from chuk_mcp.protocol.features.batching import supports_batching
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 
 
@@ -71,7 +72,7 @@ class TestStdioClient:
         assert client.server == params
         assert client.process is None
         assert client.tg is None
-        assert client._protocol_version is None
+        assert client.get_protocol_version() is None
     
     def test_invalid_parameters(self):
         """Test client with invalid parameters."""
@@ -91,7 +92,7 @@ class TestStdioClient:
         client = StdioClient(params)
         
         client.set_protocol_version("2025-06-18")
-        assert client._protocol_version == "2025-06-18"
+        assert client.get_protocol_version() == "2025-06-18"
     
     def test_new_request_stream(self):
         """Test request stream creation."""
@@ -151,26 +152,26 @@ class TestBatchProcessingSupport:
     def test_supports_batch_processing(self):
         """Test batch processing support detection."""
         # None should default to supporting batch
-        assert _supports_batch_processing(None) is True
+        assert supports_batching(None) is True
         
         # Old versions should support batch
-        assert _supports_batch_processing("2025-03-26") is True
-        assert _supports_batch_processing("2025-06-17") is True
+        assert supports_batching("2025-03-26") is True
+        assert supports_batching("2025-06-17") is True
         
         # New versions should not support batch
-        assert _supports_batch_processing("2025-06-18") is False
-        assert _supports_batch_processing("2025-06-19") is False
-        assert _supports_batch_processing("2025-07-01") is False
-        assert _supports_batch_processing("2026-01-01") is False
+        assert supports_batching("2025-06-18") is False
+        assert supports_batching("2025-06-19") is False
+        assert supports_batching("2025-07-01") is False
+        assert supports_batching("2026-01-01") is False
     
     def test_invalid_version_formats(self):
         """Test handling of invalid version formats."""
         # Invalid formats should default to supporting batch
-        assert _supports_batch_processing("invalid") is True
-        assert _supports_batch_processing("2025") is True
-        assert _supports_batch_processing("2025-06") is True
-        assert _supports_batch_processing("2025-06-18-extra") is True
-        assert _supports_batch_processing("not-a-date") is True
+        assert supports_batching("invalid") is True
+        assert supports_batching("2025") is True
+        assert supports_batching("2025-06") is True
+        assert supports_batching("2025-06-18-extra") is True
+        assert supports_batching("not-a-date") is True
 
 
 class TestStdioClientUnit:
@@ -184,7 +185,7 @@ class TestStdioClientUnit:
         assert client.server == params
         assert client.process is None
         assert client.tg is None
-        assert client._protocol_version is None
+        assert client.get_protocol_version() is None
     
     def test_protocol_version_setting(self):
         """Test protocol version setting."""
@@ -192,7 +193,7 @@ class TestStdioClientUnit:
         client = StdioClient(params)
         
         client.set_protocol_version("2025-06-18")
-        assert client._protocol_version == "2025-06-18"
+        assert client.get_protocol_version() == "2025-06-18"
     
     def test_new_request_stream(self):
         """Test request stream creation."""
@@ -358,11 +359,11 @@ except:
         
         # Test basic properties
         assert client.server == params
-        assert client._protocol_version is None
+        assert client.get_protocol_version() is None
         
         # Test protocol version setting
         client.set_protocol_version("2025-06-18")
-        assert client._protocol_version == "2025-06-18"
+        assert client.get_protocol_version() == "2025-06-18"
         
         # Test stream creation for legacy API
         stream = client.new_request_stream("test-123")
