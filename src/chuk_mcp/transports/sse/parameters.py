@@ -6,7 +6,12 @@ from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase
 
 
 class SSEParameters(TransportParameters, McpPydanticBase):
-    """Parameters for SSE (Server-Sent Events) transport."""
+    """
+    Parameters for SSE (Server-Sent Events) transport.
+    
+    ⚠️ DEPRECATION NOTICE: SSE transport is deprecated as of MCP spec 2025-03-26.
+    This implementation maintains backwards compatibility for existing deployments.
+    """
     
     url: str
     """Base URL for the SSE server (e.g., 'http://localhost:3000')"""
@@ -32,6 +37,15 @@ class SSEParameters(TransportParameters, McpPydanticBase):
     reconnect_delay: float = 1.0
     """Delay between reconnection attempts in seconds"""
     
+    sse_endpoint: str = "/sse"
+    """SSE endpoint path (default: /sse)"""
+    
+    message_endpoint_base: str = "/mcp"
+    """Base path for message endpoint (default: /mcp)"""
+    
+    keep_alive_interval: float = 30.0
+    """Keep-alive ping interval in seconds"""
+    
     model_config = {"extra": "allow"}
     
     @field_validator('url')
@@ -42,7 +56,7 @@ class SSEParameters(TransportParameters, McpPydanticBase):
             raise ValueError("SSE URL cannot be empty")
         if not v.startswith(('http://', 'https://')):
             raise ValueError("SSE URL must start with http:// or https://")
-        return v
+        return v.rstrip('/')  # Remove trailing slash for consistency
     
     @field_validator('timeout')
     @classmethod
@@ -66,6 +80,30 @@ class SSEParameters(TransportParameters, McpPydanticBase):
         """Validate reconnect delay is non-negative."""
         if v < 0:
             raise ValueError("Reconnect delay must be non-negative")
+        return v
+    
+    @field_validator('keep_alive_interval')
+    @classmethod
+    def validate_keep_alive_interval(cls, v):
+        """Validate keep-alive interval is positive."""
+        if v <= 0:
+            raise ValueError("Keep-alive interval must be positive")
+        return v
+    
+    @field_validator('sse_endpoint')
+    @classmethod
+    def validate_sse_endpoint(cls, v):
+        """Ensure SSE endpoint starts with /."""
+        if not v.startswith('/'):
+            v = f'/{v}'
+        return v
+    
+    @field_validator('message_endpoint_base')
+    @classmethod
+    def validate_message_endpoint_base(cls, v):
+        """Ensure message endpoint starts with /."""
+        if not v.startswith('/'):
+            v = f'/{v}'
         return v
     
     @model_validator(mode='after')

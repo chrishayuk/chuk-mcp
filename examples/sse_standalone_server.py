@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-SSE MCP Server - Standalone Implementation
+SSE MCP Server - Complete Fixed Implementation
 
-This server demonstrates SSE transport for MCP protocol.
-Save as 'sse_server_example.py' and run to enable SSE testing.
+This server demonstrates the correct SSE transport for MCP protocol
+with all methods implemented including resources/read.
 
 Usage:
     pip install fastapi uvicorn
-    python sse_server_example.py
-    # Then run: python examples/sse_client_example.py
+    python complete_fixed_sse_server.py
 """
 
 import asyncio
@@ -88,8 +87,12 @@ async def sse_endpoint(request: Request):
     
     async def event_stream():
         try:
+            print(f"🔗 Starting SSE stream for session {session_id}")
+            
             # Send the message endpoint URL (must end with /mcp for MCP protocol compliance)
             endpoint_url = f"/mcp?session_id={session_id}"
+            print(f"📤 Sending endpoint event: {endpoint_url}")
+            
             yield f"event: endpoint\n"
             yield f"data: {endpoint_url}\n\n"
             
@@ -98,13 +101,16 @@ async def sse_endpoint(request: Request):
                 try:
                     # Wait for either a message or timeout for keepalive
                     message = await asyncio.wait_for(message_queue.get(), timeout=30.0)
+                    print(f"📤 Sending message event: {message}")
                     # Send message back to client
                     yield f"event: message\n"
                     yield f"data: {json.dumps(message)}\n\n"
                 except asyncio.TimeoutError:
                     # Send keepalive
+                    keepalive_data = {'timestamp': datetime.datetime.now().isoformat()}
+                    print(f"📤 Sending keepalive: {keepalive_data}")
                     yield f"event: keepalive\n"
-                    yield f"data: {json.dumps({'timestamp': datetime.datetime.now().isoformat()})}\n\n"
+                    yield f"data: {json.dumps(keepalive_data)}\n\n"
                     
         except asyncio.CancelledError:
             logger.info(f"SSE connection closed for session {session_id}")
@@ -140,11 +146,11 @@ async def handle_message(request: Request):
     
     try:
         message = await request.json()
-        logger.info(f"Received message: {message.get('method')} (session: {session_id})")
+        logger.info(f"📨 Received message: {message.get('method')} (session: {session_id})")
         
         response = await handle_mcp_message(message, session)
         if response:
-            logger.info(f"Sending response via SSE: {response.get('result', response.get('error'))}")
+            logger.info(f"📤 Sending response via SSE: {response.get('result', response.get('error'))}")
             
             # Send response back via SSE stream
             if session_id in state.active_streams:
@@ -185,7 +191,7 @@ async def handle_mcp_message(message: Dict[str, Any], session: Dict[str, Any]) -
             return {
                 "jsonrpc": "2.0", "id": msg_id,
                 "result": {
-                    "protocolVersion": params.get("protocolVersion", "2025-06-18"),
+                    "protocolVersion": params.get("protocolVersion", "2024-11-05"),
                     "capabilities": state.capabilities,
                     "serverInfo": state.server_info,
                     "instructions": f"SSE MCP Server - Session: {session['id']}"
@@ -229,17 +235,6 @@ async def handle_mcp_message(message: Dict[str, Any], session: Dict[str, Any]) -
                                 "properties": {
                                     "increment": {"type": "integer", "default": 1}
                                 }
-                            }
-                        },
-                        {
-                            "name": "broadcast_test",
-                            "description": "Test SSE broadcasting capability",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "message": {"type": "string", "description": "Message to broadcast"}
-                                },
-                                "required": ["message"]
                             }
                         }
                     ]
@@ -290,20 +285,7 @@ async def handle_mcp_message(message: Dict[str, Any], session: Dict[str, Any]) -
                         "content": [{"type": "text", "text": f"🔢 SSE Counter: {session['counter']} (+{increment})"}]
                     }
                 }
-            
-            elif tool_name == "broadcast_test":
-                message_text = arguments.get("message", "Test message")
                 
-                # In a real implementation, this would broadcast to all connected clients
-                broadcast_info = f"📢 Broadcasting: '{message_text}' to {len(state.sessions)} session(s)"
-                
-                return {
-                    "jsonrpc": "2.0", "id": msg_id,
-                    "result": {
-                        "content": [{"type": "text", "text": broadcast_info}]
-                    }
-                }
-        
         elif method == "resources/list":
             return {
                 "jsonrpc": "2.0", "id": msg_id,
@@ -317,15 +299,9 @@ async def handle_mcp_message(message: Dict[str, Any], session: Dict[str, Any]) -
                         },
                         {
                             "uri": f"sse://session-{session['id']}",
-                            "name": "Current Session",
-                            "description": "Information about the current SSE session",
+                            "name": "Current Session Info",
+                            "description": "Detailed information about the current SSE session",
                             "mimeType": "application/json"
-                        },
-                        {
-                            "uri": "sse://connections",
-                            "name": "Active Connections",
-                            "description": "List of active SSE connections",
-                            "mimeType": "text/plain"
                         }
                     ]
                 }
@@ -335,53 +311,58 @@ async def handle_mcp_message(message: Dict[str, Any], session: Dict[str, Any]) -
             uri = params.get("uri")
             
             if uri == "sse://server-status":
-                status = {
+                # Generate current server status
+                status_data = {
                     "server": state.server_info,
                     "transport": "sse",
                     "active_sessions": len(state.sessions),
                     "capabilities": state.capabilities,
-                    "timestamp": datetime.datetime.now().isoformat()
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "session_details": {
+                        session_id: {
+                            "created": session_data["created"],
+                            "counter": session_data["counter"], 
+                            "initialized": session_data["initialized"]
+                        }
+                        for session_id, session_data in state.sessions.items()
+                    }
                 }
-                content = json.dumps(status, indent=2)
+                
+                content = json.dumps(status_data, indent=2)
                 mime_type = "application/json"
+                
+                return {
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "result": {
+                        "contents": [{"uri": uri, "mimeType": mime_type, "text": content}]
+                    }
+                }
             
             elif uri == f"sse://session-{session['id']}":
+                # Return detailed current session info
                 session_data = {
                     "session": session,
                     "transport": "sse",
-                    "endpoint": f"/mcp?session_id={session['id']}"
+                    "endpoint": f"/mcp?session_id={session['id']}",
+                    "stream_active": session['id'] in state.active_streams,
+                    "server_info": state.server_info
                 }
+                
                 content = json.dumps(session_data, indent=2)
                 mime_type = "application/json"
-            
-            elif uri == "sse://connections":
-                connections_info = f"""🌐 SSE Server Connections
-
-Active Sessions: {len(state.sessions)}
-Server: {state.server_info['name']} v{state.server_info['version']}
-Transport: Server-Sent Events (SSE)
-Protocol: HTTP/1.1 with SSE extensions
-
-Session Details:
-"""
-                for sid, sess in state.sessions.items():
-                    connections_info += f"  • {sid}: Created {sess['created']} (Counter: {sess['counter']})\n"
                 
-                content = connections_info
-                mime_type = "text/plain"
+                return {
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "result": {
+                        "contents": [{"uri": uri, "mimeType": mime_type, "text": content}]
+                    }
+                }
             
             else:
                 return {
                     "jsonrpc": "2.0", "id": msg_id,
                     "error": {"code": -32602, "message": f"Unknown resource URI: {uri}"}
                 }
-            
-            return {
-                "jsonrpc": "2.0", "id": msg_id,
-                "result": {
-                    "contents": [{"uri": uri, "mimeType": mime_type, "text": content}]
-                }
-            }
         
         elif method == "prompts/list":
             return {
@@ -396,11 +377,9 @@ Session Details:
                             ]
                         },
                         {
-                            "name": "realtime_prompt",
-                            "description": "Generate a prompt about real-time communication",
-                            "arguments": [
-                                {"name": "topic", "description": "Communication topic", "required": True}
-                            ]
+                            "name": "session_analysis",
+                            "description": "Analyze current session performance",
+                            "arguments": []
                         }
                     ]
                 }
@@ -414,7 +393,7 @@ Session Details:
                 detail_level = arguments.get("detail_level", "basic")
                 
                 if detail_level == "detailed":
-                    prompt_text = f"Please create a comprehensive status report for the SSE MCP server, including analysis of {len(state.sessions)} active sessions, performance metrics, and recommendations."
+                    prompt_text = f"Please create a comprehensive status report for the SSE MCP server, including analysis of {len(state.sessions)} active sessions, performance metrics, and recommendations for optimization."
                 else:
                     prompt_text = f"Please create a brief status summary for the SSE MCP server with {len(state.sessions)} active sessions."
                 
@@ -428,15 +407,13 @@ Session Details:
                     }
                 }
             
-            elif prompt_name == "realtime_prompt":
-                topic = arguments.get("topic", "communication")
-                
-                prompt_text = f"Please explain the benefits and implementation details of real-time {topic} using Server-Sent Events (SSE) technology, including best practices and common use cases."
+            elif prompt_name == "session_analysis":
+                prompt_text = f"Please analyze the performance and behavior of the current SSE session {session['id']}, including message count, connection stability, and usage patterns."
                 
                 return {
                     "jsonrpc": "2.0", "id": msg_id,
                     "result": {
-                        "description": f"Real-time communication prompt about {topic}",
+                        "description": "Session performance analysis prompt",
                         "messages": [
                             {"role": "user", "content": {"type": "text", "text": prompt_text}}
                         ]
@@ -456,10 +433,11 @@ Session Details:
     }
 
 if __name__ == "__main__":
-    print("🌊 Starting SSE MCP Server Example...")
+    print("🌊 Starting COMPLETE FIXED SSE MCP Server...")
     print("📡 Server will be available at: http://localhost:8000")
     print("🔗 SSE endpoint: http://localhost:8000/sse")
     print("📬 Messages endpoint: http://localhost:8000/mcp")
+    print("✅ All MCP methods implemented including resources/read")
     print("\n🚀 Starting server...")
     
     try:

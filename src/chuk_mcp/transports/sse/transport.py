@@ -1,14 +1,16 @@
-# chuk_mcp/transports/sse/transport.py
+# chuk_mcp/transports/sse/transport.py - CORRECTLY FIXED VERSION
 """
-SSE (Server-Sent Events) transport implementation for chuk_mcp.
+Universal SSE transport that handles both SSE response patterns:
+1. Immediate HTTP responses (like your example server)
+2. Async SSE message events (like the queue-based server)
 
-This transport provides the connection layer for SSE-based MCP servers.
-Protocol messages are handled by chuk_mcp.protocol.messages.
+FIXED: Properly handles async responses on the same SSE connection
 """
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
@@ -18,13 +20,19 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 from ..base import Transport
 from .parameters import SSEParameters
 
+logger = logging.getLogger(__name__)
+
 
 class SSETransport(Transport):
     """
-    SSE transport that provides streams for MCP communication.
+    Universal SSE transport that handles multiple response patterns.
     
-    The actual MCP protocol messages are handled by chuk_mcp.protocol.messages.
-    This transport just manages the SSE connection and message routing.
+    1. Connects to /sse for SSE stream
+    2. Waits for 'endpoint' event to get message URL  
+    3. Sends MCP messages via HTTP POST to message URL
+    4. Handles responses via either:
+       - Immediate HTTP response (200 status)
+       - Async SSE message events (202 status + SSE on SAME connection)
     """
 
     def __init__(self, parameters: SSEParameters):
@@ -43,7 +51,7 @@ class SSETransport(Transport):
         self._outgoing_task: Optional[asyncio.Task] = None
         self._connected = asyncio.Event()
         
-        # Message handling
+        # Message handling - support both immediate and async responses
         self._pending_requests: Dict[str, asyncio.Future] = {}
         self._message_lock = asyncio.Lock()
         
@@ -61,9 +69,9 @@ class SSETransport(Transport):
 
     async def __aenter__(self):
         """Enter async context and set up SSE connection."""
-        # Set up HTTP client with headers
+        # Set up HTTP client with proper headers
         client_headers = {}
-        client_headers.update(self.headers)  # self.headers is guaranteed to be dict now
+        client_headers.update(self.headers)
         
         # Auto-detect bearer token from environment if not provided
         if not any("authorization" in k.lower() for k in client_headers.keys()):
@@ -73,32 +81,42 @@ class SSETransport(Transport):
                     client_headers["Authorization"] = bearer_token
                 else:
                     client_headers["Authorization"] = f"Bearer {bearer_token}"
+                logger.info("Using bearer token from MCP_BEARER_TOKEN environment variable")
 
         self._client = httpx.AsyncClient(
             headers=client_headers,
-            timeout=self.timeout,
+            timeout=httpx.Timeout(self.timeout),
         )
 
-        # Create memory streams for message routing
+        # Create memory streams
         from anyio import create_memory_object_stream
         self._incoming_send, self._incoming_recv = create_memory_object_stream(100)
         self._outgoing_send, self._outgoing_recv = create_memory_object_stream(100)
 
         # Start SSE connection
-        self._sse_task = asyncio.create_task(self._sse_connection_handler())
+        self._sse_task = asyncio.create_task(self._handle_sse_connection())
         
-        # Start message handler for outgoing messages
+        # Start message handler
         self._outgoing_task = asyncio.create_task(self._outgoing_message_handler())
         
         # Wait for SSE connection to establish
         try:
             await asyncio.wait_for(self._connected.wait(), timeout=self.timeout)
+            logger.info(f"SSE connection established to {self.base_url}")
             return self
+                
         except asyncio.TimeoutError:
+            logger.error(f"Timeout waiting for SSE connection to {self.base_url}")
             raise RuntimeError("Timeout waiting for SSE connection")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context and cleanup."""
+        # Cancel pending requests
+        for future in self._pending_requests.values():
+            if not future.done():
+                future.cancel()
+        self._pending_requests.clear()
+        
         # Cancel tasks
         if self._sse_task and not self._sse_task.done():
             self._sse_task.cancel()
@@ -125,22 +143,16 @@ class SSETransport(Transport):
             await self._client.aclose()
             self._client = None
 
-        # Clear state
-        self._message_url = None
-        self._session_id = None
-        self._connected.clear()
-        self._pending_requests.clear()
-
         return False
 
     def set_protocol_version(self, version: str) -> None:
         """Set the negotiated protocol version."""
-        # SSE transport doesn't need special version handling
         pass
 
-    async def _sse_connection_handler(self) -> None:
-        """Handle the SSE connection and message routing."""
+    async def _handle_sse_connection(self) -> None:
+        """Handle the SSE connection for universal response patterns."""
         if not self._client:
+            logger.error("No HTTP client available for SSE connection")
             return
 
         try:
@@ -149,70 +161,157 @@ class SSETransport(Transport):
                 "Cache-Control": "no-cache"
             }
             
+            logger.info(f"Connecting to SSE endpoint: {self.base_url}/sse")
+            
             async with self._client.stream(
                 "GET", f"{self.base_url}/sse", headers=headers
             ) as response:
                 response.raise_for_status()
+                logger.info(f"SSE stream connected, status: {response.status_code}")
                 
-                event_type = None
-                async for line in response.aiter_lines():
-                    if not line:
+                # Parse SSE events - handle both event: and data: patterns
+                current_event = None
+                buffer = ""
+                
+                async for chunk in response.aiter_text():
+                    if not chunk:
                         continue
+                    
+                    buffer += chunk
+                    
+                    # Process complete lines
+                    while '\n' in buffer:
+                        line, buffer = buffer.split('\n', 1)
+                        line = line.rstrip('\r')  # Remove \r if present
                         
-                    if line.startswith("event: "):
-                        event_type = line[7:].strip()
+                        logger.debug(f"SSE line: '{line}'")
                         
-                    elif line.startswith("data: ") and event_type:
-                        data = line[6:].strip()
-                        
-                        if event_type == "endpoint":
-                            # Got the endpoint URL for messages (should be /mcp?session_id=...)
-                            if not data.startswith("/mcp"):
-                                # Handle legacy format
-                                if "/messages?" in data:
-                                    # Convert legacy /messages?session_id=... to /mcp?session_id=...
-                                    session_part = data.split("session_id=")[1] if "session_id=" in data else ""
-                                    data = f"/mcp?session_id={session_part}"
-                                else:
-                                    # Default fallback
-                                    data = "/mcp"
+                        if not line:
+                            # Empty line marks end of event
+                            current_event = None
+                            continue
                             
-                            self._message_url = f"{self.base_url}{data}"
+                        # Parse SSE format
+                        if line.startswith("event: "):
+                            current_event = line[7:].strip()
+                            logger.debug(f"SSE event type: {current_event}")
                             
-                            # Extract session_id if present
-                            if "session_id=" in data:
-                                self._session_id = data.split("session_id=")[1].split("&")[0]
+                        elif line.startswith("data: "):
+                            data = line[6:].strip()
+                            logger.debug(f"SSE data for event '{current_event}': {data}")
                             
-                            # Set connected event
-                            self._connected.set()
-                            
-                        elif event_type == "message":
-                            # Incoming JSON-RPC message
-                            try:
-                                message_data = json.loads(data)
-                                await self._handle_incoming_message(message_data)
-                            except json.JSONDecodeError:
-                                pass
+                            if current_event == "endpoint":
+                                await self._handle_endpoint_event(data)
                                 
+                            elif current_event == "message":
+                                await self._handle_message_event(data)
+                                
+                            elif current_event == "keepalive":
+                                logger.debug("Received keepalive")
+                            
+                            else:
+                                # Handle JSON data without explicit event type
+                                # Some servers send responses without event: lines
+                                if data.startswith('{') and '"jsonrpc"' in data:
+                                    logger.info(f"Handling JSON-RPC message without event type: {data[:100]}...")
+                                    await self._handle_message_event(data)
+                                else:
+                                    logger.debug(f"Unknown data format: {data}")
+                        
+                        elif line.startswith("id: "):
+                            # SSE event ID - we can ignore this for now
+                            event_id = line[4:].strip()
+                            logger.debug(f"SSE event ID: {event_id}")
+                        
+                        elif line.startswith(": "):
+                            # SSE comment - ignore
+                            logger.debug(f"SSE comment: {line}")
+                        
+                        else:
+                            logger.debug(f"Unknown SSE line format: {line}")
+                        
         except asyncio.CancelledError:
-            pass
-        except Exception:
-            # Set connected even on error to prevent hanging
+            logger.info("SSE connection cancelled")
+        except Exception as e:
+            logger.error(f"SSE connection error: {e}")
+            import traceback
+            logger.debug(f"SSE error traceback: {traceback.format_exc()}")
+        finally:
             if not self._connected.is_set():
+                logger.warning("Setting connected event in SSE handler finally block")
                 self._connected.set()
-          
+
+    async def _handle_endpoint_event(self, data: str) -> None:
+        """Handle the endpoint event from SSE."""
+        logger.info(f"Processing endpoint event: '{data}'")
+        
+        try:
+            # The server sends the endpoint path like "/mcp?session_id=abc123"
+            endpoint_path = data.strip()
+            
+            if endpoint_path.startswith('/'):
+                self._message_url = f"{self.base_url}{endpoint_path}"
+            else:
+                # Fallback for other formats
+                self._message_url = f"{self.base_url}/mcp?{endpoint_path}" if '=' in endpoint_path else f"{self.base_url}/mcp"
+            
+            # Extract session ID
+            if 'session_id=' in endpoint_path:
+                self._session_id = endpoint_path.split('session_id=')[1].split('&')[0]
+                logger.info(f"Session ID: {self._session_id}")
+            
+            logger.info(f"Message URL set to: {self._message_url}")
+            
+            # Signal connection is ready
+            self._connected.set()
+            
+        except Exception as e:
+            logger.error(f"Error handling endpoint event: {e}")
+
+    async def _handle_message_event(self, data: str) -> None:
+        """Handle a message event from SSE."""
+        logger.debug(f"Processing message event: {data}")
+        
+        try:
+            message_data = json.loads(data)
+            logger.info(f"Received SSE message: {message_data.get('method', 'response')} (id: {message_data.get('id')})")
+            
+            # Handle response for pending requests FIRST
+            message_id = message_data.get("id")
+            if message_id:
+                async with self._message_lock:
+                    if message_id in self._pending_requests:
+                        future = self._pending_requests.pop(message_id)
+                        if not future.done():
+                            future.set_result(message_data)
+                            logger.info(f"✅ Completed pending request {message_id} via SSE")
+                        return  # Don't route to incoming stream - this was a response
+            
+            # If not a response to pending request, route to incoming stream
+            # This handles server-initiated messages (notifications, requests)
+            await self._handle_incoming_message(message_data)
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse message JSON: {e}")
+            logger.error(f"Raw data: {data}")
+        except Exception as e:
+            logger.error(f"Error handling message event: {e}")
+            import traceback
+            logger.debug(f"Message handling traceback: {traceback.format_exc()}")
+
     async def _handle_incoming_message(self, message_data: Dict[str, Any]) -> None:
         """Route incoming message to the appropriate handler."""
-        # Convert to JSONRPCMessage and send to incoming stream
         try:
             from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
             message = JSONRPCMessage.model_validate(message_data)
             
             if self._incoming_send:
                 await self._incoming_send.send(message)
+                logger.debug(f"Routed incoming message: {message.method or 'response'}")
                 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error routing incoming message: {e}")
+            logger.error(f"Message data: {message_data}")
 
     async def _outgoing_message_handler(self) -> None:
         """Handle outgoing messages from the write stream."""
@@ -224,37 +323,108 @@ class SSETransport(Transport):
                 await self._send_message_via_http(message)
         except asyncio.CancelledError:
             pass
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Error in outgoing message handler: {e}")
 
     async def _send_message_via_http(self, message) -> None:
-        """Send a message via HTTP POST to the message endpoint."""
+        """Send a message via HTTP POST with universal response handling."""
         if not self._client or not self._message_url:
+            logger.error("Cannot send message: client or message URL not available")
             return
 
         try:
-            # Convert message to dict for JSON serialization
+            # Convert message to dict
             if hasattr(message, 'model_dump'):
                 message_dict = message.model_dump(exclude_none=True)
-            elif hasattr(message, 'dict'):
-                message_dict = message.dict(exclude_none=True)
-            else:
+            elif isinstance(message, dict):
                 message_dict = message
+            else:
+                logger.error(f"Cannot serialize message of type {type(message)}")
+                return
 
             headers = {"Content-Type": "application/json"}
             
-            # Send the message
-            response = await self._client.post(
-                self._message_url,
-                json=message_dict,
-                headers=headers
-            )
+            logger.info(f"Sending message to {self._message_url}: {message_dict.get('method')} (id: {message_dict.get('id')})")
             
-            # For SSE, we expect 202 Accepted (async response via SSE)
-            # or immediate response for some message types
-            if response.status_code not in (200, 202):
-                response.raise_for_status()
+            # Handle different message types
+            message_id = message_dict.get('id')
+            
+            if message_id:
+                # Request - setup for response handling
+                future = asyncio.Future()
+                async with self._message_lock:
+                    self._pending_requests[message_id] = future
+                    logger.debug(f"Added pending request: {message_id}")
+
+                try:
+                    # Send the request
+                    response = await self._client.post(
+                        self._message_url,
+                        json=message_dict,
+                        headers=headers
+                    )
+                    
+                    logger.debug(f"Message sent, status: {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        # IMMEDIATE HTTP RESPONSE (like your example server)
+                        response_data = response.json()
+                        logger.info(f"Got immediate HTTP response for {message_id}")
+                        # Cancel the future since we got immediate response
+                        async with self._message_lock:
+                            if message_id in self._pending_requests:
+                                future = self._pending_requests.pop(message_id)
+                                if not future.done():
+                                    future.cancel()
+                        # Send response back via incoming stream
+                        await self._handle_incoming_message(response_data)
+                        
+                    elif response.status_code == 202:
+                        # ASYNC SSE RESPONSE - wait for response on existing SSE connection
+                        logger.info(f"Server accepted message {message_id} - waiting for response via SSE")
+                        try:
+                            # Wait for SSE response with timeout
+                            response_message = await asyncio.wait_for(future, timeout=self.timeout)
+                            logger.info(f"✅ Got async SSE response for {message_id}")
+                            # Route the response to the incoming stream for protocol handling
+                            await self._handle_incoming_message(response_message)
+                        except asyncio.TimeoutError:
+                            logger.error(f"❌ Timeout waiting for SSE response to message {message_id}")
+                            # Clean up the pending request
+                            async with self._message_lock:
+                                self._pending_requests.pop(message_id, None)
+                            raise
+                        except asyncio.CancelledError:
+                            logger.debug(f"Request {message_id} was cancelled")
+                            
+                    else:
+                        logger.warning(f"Unexpected response status: {response.status_code}")
+                        # Clean up pending request
+                        async with self._message_lock:
+                            self._pending_requests.pop(message_id, None)
+                        # Try to parse as JSON anyway
+                        try:
+                            response_data = response.json()
+                            await self._handle_incoming_message(response_data)
+                        except:
+                            logger.error(f"Could not parse response for status {response.status_code}")
+                        
+                except Exception as e:
+                    # Clean up pending request on error
+                    async with self._message_lock:
+                        self._pending_requests.pop(message_id, None)
+                    raise
+                    
+            else:
+                # Notification - no response expected
+                response = await self._client.post(
+                    self._message_url,
+                    json=message_dict,
+                    headers=headers
+                )
+                logger.debug(f"Notification sent, status: {response.status_code}")
                 
-        except Exception:
-            # Silently fail - let the protocol layer handle timeouts
-            pass
+        except Exception as e:
+            logger.error(f"Error sending message via HTTP: {e}")
+            import traceback
+            traceback.print_exc()

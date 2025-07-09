@@ -101,7 +101,7 @@ def create_client(transport_type: str, parameters):
         transport_type: Type of transport ("stdio", "http", "sse")
         parameters: Transport parameters object
         
-    Returns:
+    Returns:a
         Client context manager that yields (read_stream, write_stream)
         
     Raises:
