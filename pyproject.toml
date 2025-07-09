@@ -9,7 +9,7 @@ description = "Model Context Provider Client"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-  { name = "Chris Hay", email = "chrishayuk@googlemail.com" }
+  { name = "Chris Hay", email = "chrishayuk@somejunkmailbox.com" }
 ]
 keywords = ["llm", "openai", "claude", "mcp", "client"]
 license = "MIT"
