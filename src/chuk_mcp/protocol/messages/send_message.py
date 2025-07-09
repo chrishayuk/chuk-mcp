@@ -49,7 +49,7 @@ class CancelledError(Exception):
 
 
 ###############################################################################
-# Public API – Enhanced JSON-RPC send/receive
+# Public API - Enhanced JSON-RPC send/receive
 ###############################################################################
 async def send_message(
     read_stream: MemoryObjectReceiveStream,
@@ -168,7 +168,7 @@ async def send_message(
     raise last_exc
 
 ###############################################################################
-# Helper – iterative receive with sub-timeout
+# Helper - iterative receive with sub-timeout
 ###############################################################################
 async def _await_response(
     read_stream: MemoryObjectReceiveStream,
@@ -213,7 +213,7 @@ async def _await_response(
         return _process_response(msg)
 
 ###############################################################################
-# Common – response error handling
+# Common - response error handling
 ###############################################################################
 
 def _process_response(resp: JSONRPCMessage) -> Union[Dict[str, Any], Any]:

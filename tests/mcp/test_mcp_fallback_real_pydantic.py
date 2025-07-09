@@ -17,9 +17,9 @@ def test_mcp_pydantic_base_real_pydantic():
     # 1. Import check
     # ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
     try:
-        import pydantic  # noqa: WPS433 – runtime import for version detection
+        import pydantic  # noqa: WPS433 - runtime import for version detection
     except ImportError:
-        pytest.skip("Pydantic not installed – cannot exercise real‐Pydantic branch.")
+        pytest.skip("Pydantic not installed - cannot exercise real‐Pydantic branch.")
 
     # Clear cached *mcp_pydantic_base* in case earlier tests forced fallback.
     sys.modules.pop("chuk_mcp.protocol.mcp_pydantic_base", None)
@@ -46,7 +46,7 @@ def test_mcp_pydantic_base_real_pydantic():
         class RealModel(McpPydanticBase):
             x: int = Field(default=123)
 
-            class Config:  # noqa: D401 – Pydantic v1 config style
+            class Config:  # noqa: D401 - Pydantic v1 config style
                 extra = "forbid"
 
     else:  # v2

@@ -371,7 +371,7 @@ class StdioClient:
                         await self.process.wait()
                 except TimeoutError:
                     # Changed from WARNING to DEBUG level
-                    logger.debug("Graceful term timed out – killing …")
+                    logger.debug("Graceful term timed out - killing …")
                     self.process.kill()
                     try:
                         # Reduced timeout from 5s to 1s  

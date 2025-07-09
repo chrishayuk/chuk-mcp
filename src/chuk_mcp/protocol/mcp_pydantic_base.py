@@ -109,7 +109,7 @@ else:
     # Field descriptor (subset of pydantic.Field)
     # ────────────────────────────────────────────────────────────────────
 
-    class Field:  # noqa: D101 – minimal drop-in
+    class Field:  # noqa: D101 - minimal drop-in
         __slots__ = ("default", "default_factory", "kwargs", "required", "alias")
 
         def __init__(self, default: Any = None, default_factory: Optional[Any] = None, 

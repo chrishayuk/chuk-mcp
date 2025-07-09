@@ -18,7 +18,7 @@ def _reload_with_fallback(monkeypatch):
             sys.modules.pop(m, None)
 
     # 3. (Re)import
-    import chuk_mcp.protocol.mcp_pydantic_base as mpb  # noqa: WPS433 – runtime import needed
+    import chuk_mcp.protocol.mcp_pydantic_base as mpb  # noqa: WPS433 - runtime import needed
 
     importlib.reload(mpb)
     return mpb

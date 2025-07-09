@@ -15,7 +15,7 @@ from chuk_mcp.protocol.mcp_pydantic_base import (
 ###############################################################################
 # Test helpers                                                                 
 ###############################################################################
-class _ModelWrapper:  # noqa: D401 – helper
+class _ModelWrapper:  # noqa: D401 - helper
     """Normalises *model_dump_json* across Pydantic-v1, v2 and the fallback."""
 
     def __init__(self, instance):
@@ -60,7 +60,7 @@ def test_exclude_none():
         y: Optional[int] = None
 
     mdl = _new(Demo, x="a")
-    assert "y" in json.loads(mdl.model_dump_json())  # default – included
+    assert "y" in json.loads(mdl.model_dump_json())  # default - included
     assert "y" not in json.loads(mdl.model_dump_json(exclude_none=True))
 
 
@@ -131,7 +131,7 @@ def test_type_validation_raises():
         Types(num="bad", tags=[1, 2])  # type: ignore[arg-type]
 
 ###############################################################################
-# Param grid – indent × exclude_none                                          
+# Param grid - indent × exclude_none                                          
 ###############################################################################
 @pytest.mark.parametrize("indent, exclude_none", [(2, False), (None, False), (4, True)])
 def test_param_grid(indent, exclude_none):

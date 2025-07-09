@@ -18,7 +18,7 @@ async def test_send_tools_list_fallback(monkeypatch):
 
     # 2) Also remove any of your chuk_mcp modules that might be cached
     #    so that on reload, they see pydantic is missing.
-    #    (Remove whichever submodules are relevant – e.g. chuk_mcp.mcp_client, chuk_mcp.protocol.messages, etc.)
+    #    (Remove whichever submodules are relevant - e.g. chuk_mcp.mcp_client, chuk_mcp.protocol.messages, etc.)
     for mod_name in list(sys.modules):
         if mod_name.startswith("chuk_mcp.mcp_client"):
             del sys.modules[mod_name]

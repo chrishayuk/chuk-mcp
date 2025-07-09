@@ -4,29 +4,29 @@ src_size.py  <path-or-vcs-url>
 ================================
 Measure how much space a Python package (plus its **runtime** dependencies)
 occupies when built **from source**, without counting the extra build tools we
-install inside a temporary virtual‑env (``pip``, ``setuptools``, ``wheel``,
+install inside a temporary virtual-env (``pip``, ``setuptools``, ``wheel``,
 etc.).
 
 What you get
 ------------
-1. **Raw source** – size of the directory / checkout you point at.
-2. **Built artefacts** – combined size of the sdist + wheel produced by
+1. **Raw source** - size of the directory / checkout you point at.
+2. **Built artefacts** - combined size of the sdist + wheel produced by
    ``python -m build``.
-3. **Runtime tree** – bytes taken by the package **and its runtime deps** once
-   installed, *excluding* build‑time tooling.
+3. **Runtime tree** - bytes taken by the package **and its runtime deps** once
+   installed, *excluding* build-time tooling.
 4. *(optional)* a **breakdown** of every runtime distribution, sorted
    large → small.
 
 CLI flags
 ---------
 ```
---no-deps        Skip installing dependencies (handy for library‑only size)
---breakdown, -b  Show per‑package size table
+--no-deps        Skip installing dependencies (handy for library-only size)
+--breakdown, -b  Show per-package size table
 --include-tools  Include build tools (pip/setuptools/wheel) in totals + table
 ```
 
-> **Note**  The script still seeds pip inside the venv so it works on
-> pip‑less interpreters – those files are just ignored by default in the
+> **Note** The script still seeds pip inside the venv so it works on
+> pip-less interpreters - those files are just ignored by default in the
 > final numbers.
 """
 
@@ -147,10 +147,10 @@ def main(src: str, include_deps: bool, show_breakdown: bool, include_tools: bool
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser(description="Measure on‑disk size of a Python package built from source.")
+    p = argparse.ArgumentParser(description="Measure on-disk size of a Python package built from source.")
     p.add_argument("source", help="Path, git/https URL, or anything pip understands.")
     p.add_argument("--no-deps", action="store_true", help="Skip installing dependencies inside the tmp venv.")
-    p.add_argument("--breakdown", "-b", action="store_true", help="Show per‑package size contribution (runtime only).")
+    p.add_argument("--breakdown", "-b", action="store_true", help="Show per-package size contribution (runtime only).")
     p.add_argument("--include-tools", action="store_true", help="Include build tools (pip/setuptools/wheel) in totals and table.")
     args = p.parse_args()
     main(args.source, include_deps=not args.no_deps, show_breakdown=args.breakdown, include_tools=args.include_tools)
