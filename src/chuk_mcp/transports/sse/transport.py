@@ -1,10 +1,8 @@
-# chuk_mcp/transports/sse/transport.py - CORRECTLY FIXED VERSION
+# chuk_mcp/transports/sse/transport.py
 """
 Universal SSE transport that handles both SSE response patterns:
 1. Immediate HTTP responses (like your example server)
 2. Async SSE message events (like the queue-based server)
-
-FIXED: Properly handles async responses on the same SSE connection
 """
 from __future__ import annotations
 

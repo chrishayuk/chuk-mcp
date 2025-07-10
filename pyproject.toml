@@ -4,37 +4,79 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chuk-mcp"
-version = "0.2.4"
-description = "Model Context Provider Client"
-requires-python = ">=3.11"
+version = "0.5"
+description = "Model Context Protocol Client with Optional Pydantic Support"
 readme = "README.md"
+license = {text = "MIT"}
 authors = [
-  { name = "Chris Hay", email = "chrishayuk@somejunkmailbox.com" }
+    {name = "Chris Hay", email = "chrishayuk@somejunkmailbox.com"}
 ]
-keywords = ["llm", "openai", "claude", "mcp", "client"]
-license = "MIT"
+
+requires-python = ">=3.11"
+
+# Core dependencies only - Pydantic is optional!
 dependencies = [
-  "anyio>=4.9.0",
-  "httpx>=0.28.1",
-  "typing-extensions>=4.7.1,<5.0.0",
+    "anyio>=4.9.0",
+    "typing-extensions>=4.7.1,<5.0.0",
+]
+
+keywords = ["llm", "openai", "claude", "mcp", "client", "protocol"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Communications",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/chrishayuk/chuk-mcp"
+Repository = "https://github.com/chrishayuk/chuk-mcp"
+"Bug Tracker" = "https://github.com/chrishayuk/chuk-mcp/issues"
+
+[project.scripts]
+chuk-mcp = "chuk_mcp.__main__:run"
+
+# Optional dependency groups
+[project.optional-dependencies]
+# Pydantic validation support (recommended for production)
+pydantic = [
+    "pydantic>=2.11.1",
+]
+
+# HTTP/SSE transport support
+http = [
+    "httpx>=0.28.1",
+]
+
+# Full feature set (Pydantic + HTTP)
+full = [
+    "pydantic>=2.11.1",
+    "httpx>=0.28.1",
+]
+
+# Development dependencies
+dev = [
+    "pydantic>=2.11.1",
+    "httpx>=0.28.1",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "fastapi>=0.116.0",
+    "uvicorn>=0.35.0",
+    "pytz>=2025.2",
 ]
 
 [tool.setuptools]
-package-dir = { "" = "src" }
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["chuk_mcp*"]
-
-[dependency-groups]
-dev = [
-  "fastapi>=0.116.0",
-  "pydantic>=2.11.1",
-  "pytest>=8.3.5",
-  "pytest-asyncio>=0.26.0",
-  "pytz>=2025.2",
-  "uvicorn>=0.35.0",
-]
 
 [project.entry-points.console_scripts]
 chuk-mcp = "chuk_mcp.__main__:run"
