@@ -78,5 +78,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["chuk_mcp*"]
 
+[dependency-groups]
+dev = [
+    "numpy>=2.3.1",
+]
+
 [project.entry-points.console_scripts]
 chuk-mcp = "chuk_mcp.__main__:run"

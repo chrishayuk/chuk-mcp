@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 Distributed AI Mesh Network</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(circle at 20% 80%, #120033 0%, #000000 50%, #1a0033 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #ffffff;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px 0;
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(45deg, #00d4ff, #9d4edd, #ff006e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .subtitle {
+            font-size: 1.3rem;
+            color: #a0a0a0;
+            margin-bottom: 30px;
+        }
+
+        .network-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: scan 3s infinite;
+        }
+
+        @keyframes scan {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .status-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+
+        .status-label {
+            color: #a0a0a0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .control-btn {
+            background: linear-gradient(45deg, #9d4edd, #7209b7);
+            border: none;
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(157, 78, 221, 0.4);
+        }
+
+        .control-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.5s ease;
+        }
+
+        .control-btn:active::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .mesh-visualization {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+            position: relative;
+            height: 400px;
+            overflow: hidden;
+        }
+
+        .node {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #00d4ff;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #00d4ff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.3); opacity: 1; }
+        }
+
+        .connection {
+            position: absolute;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #9d4edd, transparent);
+            animation: dataFlow 2s infinite;
+        }
+
+        @keyframes dataFlow {
+            0% { opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+
+        .log-panel {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-info { color: #00d4ff; }
+        .log-success { color: #4ade80; }
+        .log-warning { color: #fbbf24; }
+        .log-error { color: #ef4444; }
+
+        .performance-graph {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            height: 200px;
+            position: relative;
+        }
+
+        .graph-line {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            height: 2px;
+            background: linear-gradient(90deg, #9d4edd, #00d4ff, #ff006e);
+            border-radius: 1px;
+            animation: graphPulse 3s infinite;
+        }
+
+        @keyframes graphPulse {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(3); }
+        }
+
+        .floating-particle {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: #9d4edd;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 10s linear infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .ai-status {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(157, 78, 221, 0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(157, 78, 221, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated stars background -->
+    <div class="stars" id="stars"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Distributed AI Mesh</h1>
+            <div class="subtitle">Transforming Every Browser Into a Neural Network Node</div>
+            <div class="ai-status" id="aiStatus">
+                🧠 Initializing Collective Intelligence...
+            </div>
+        </div>
+
+        <div class="network-status">
+            <div class="status-card">
+                <div class="status-value" id="nodeCount">0</div>
+                <div class="status-label">Active Nodes</div>
+            </div>
+            <div class="status-card">
+                <div class="status-value" id="computePower">0</div>
+                <div class="status-label">Compute Power (TFLOPS)</div>
+            </div>
+            <div class="status-card">
+                <div class="status-value" id="tasksCompleted">0</div>
+                <div class="status-label">Tasks Completed</div>
+            </div>
+            <div class="status-card">
+                <div class="status-value" id="networkLatency">0ms</div>
+                <div class="status-label">Network Latency</div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <h3 style="margin-bottom: 20px; color: #00d4ff;">🎛️ Node Control Center</h3>
+            
+            <div class="control-grid">
+                <button class="control-btn" onclick="initializeMeshNode()" id="initBtn">
+                    🚀 Initialize Node
+                </button>
+                <button class="control-btn" onclick="joinMeshNetwork()" id="joinBtn" disabled>
+                    🌐 Join Mesh Network
+                </button>
+                <button class="control-btn" onclick="startDistributedTraining()" id="trainBtn" disabled>
+                    🧠 Start AI Training
+                </button>
+                <button class="control-btn" onclick="contributeCompute()" id="computeBtn" disabled>
+                    ⚡ Contribute Compute
+                </button>
+                <button class="control-btn" onclick="runInference()" id="inferenceBtn" disabled>
+                    🎯 Run Inference
+                </button>
+                <button class="control-btn" onclick="shareModel()" id="shareBtn" disabled>
+                    📤 Share Model
+                </button>
+            </div>
+
+            <div class="mesh-visualization" id="meshViz">
+                <h4 style="color: #a0a0a0; margin-bottom: 20px;">🕸️ Network Topology</h4>
+                <!-- Nodes and connections will be dynamically generated -->
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h3 style="color: #00d4ff; margin-bottom: 15px;">📊 Network Activity Log</h3>
+                <div class="log-panel" id="logPanel">
+                    <div class="log-entry log-info">🌍 Mesh network system initialized</div>
+                    <div class="log-entry log-info">📡 Scanning for peer nodes...</div>
+                </div>
+            </div>
+            
+            <div>
+                <h3 style="color: #00d4ff; margin-bottom: 15px;">⚡ Performance Metrics</h3>
+                <div class="performance-graph">
+                    <div style="color: #a0a0a0; text-align: center; margin-top: 60px;">
+                        Real-time performance visualization
+                    </div>
+                    <div class="graph-line"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pyodide;
+        let meshNode = null;
+        let isInitialized = false;
+        let nodeId = null;
+        let connectedPeers = new Set();
+        let simulationInterval = null;
+
+        // Create animated background
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.animationDelay = Math.random() * 3 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+
+        function createFloatingParticles() {
+            setInterval(() => {
+                const particle = document.createElement('div');
+                particle.className = 'floating-particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+                document.body.appendChild(particle);
+                
+                setTimeout(() => particle.remove(), 20000);
+            }, 2000);
+        }
+
+        async function initializeMeshNode() {
+            try {
+                updateAIStatus("🔄 Loading Pyodide and chuk-mcp...");
+                addLog("🚀 Initializing distributed AI node...", "info");
+                
+                // Load Pyodide
+                pyodide = await loadPyodide();
+                await pyodide.loadPackage("micropip");
+                
+                // Initialize mesh node with chuk-mcp
+                await pyodide.runPython(`
+import sys
+import uuid
+import time
+import json
+import random
+from typing import Dict, List, Any, Optional
+
+# Initialize chuk-mcp protocol for mesh networking
+class MeshNode:
+    def __init__(self):
+        self.node_id = str(uuid.uuid4())[:8]
+        self.peers = {}
+        self.compute_power = random.uniform(0.1, 2.5)  # TFLOPS
+        self.tasks_completed = 0
+        self.models = {}
+        self.training_data = []
+        self.is_training = False
+        self.mesh_protocol_version = "1.0.0"
+        
+    def get_node_info(self):
+        return {
+            "node_id": self.node_id,
+            "compute_power": self.compute_power,
+            "tasks_completed": self.tasks_completed,
+            "models": list(self.models.keys()),
+            "status": "active",
+            "mesh_version": self.mesh_protocol_version
+        }
+    
+    def add_peer(self, peer_id, peer_info):
+        self.peers[peer_id] = peer_info
+        return f"Connected to peer {peer_id}"
+    
+    def simulate_training_task(self, model_name, epochs=1):
+        """Simulate distributed training task"""
+        self.is_training = True
+        training_log = []
+        
+        for epoch in range(epochs):
+            # Simulate training metrics
+            loss = 1.0 - (epoch * 0.1) + random.uniform(-0.05, 0.05)
+            accuracy = min(0.95, 0.6 + (epoch * 0.08) + random.uniform(-0.02, 0.02))
+            
+            training_log.append({
+                "epoch": epoch + 1,
+                "loss": round(loss, 4),
+                "accuracy": round(accuracy, 4),
+                "compute_time": random.uniform(0.5, 2.0)
+            })
+        
+        self.models[model_name] = {
+            "trained_epochs": epochs,
+            "final_accuracy": training_log[-1]["accuracy"],
+            "model_size": random.uniform(10, 500)  # MB
+        }
+        
+        self.tasks_completed += 1
+        self.is_training = False
+        
+        return {
+            "model_name": model_name,
+            "training_log": training_log,
+            "model_info": self.models[model_name]
+        }
+    
+    def run_inference(self, model_name, input_data):
+        """Simulate inference on distributed model"""
+        if model_name not in self.models:
+            return {"error": f"Model {model_name} not found"}
+        
+        # Simulate inference
+        processing_time = random.uniform(0.1, 0.5)
+        confidence = random.uniform(0.7, 0.99)
+        
+        result = {
+            "model": model_name,
+            "input_processed": True,
+            "processing_time": round(processing_time, 3),
+            "confidence": round(confidence, 3),
+            "output": f"Processed by node {self.node_id}"
+        }
+        
+        return result
+    
+    def contribute_compute_cycle(self):
+        """Simulate contributing compute power to the mesh"""
+        cycle_contribution = {
+            "node_id": self.node_id,
+            "compute_contributed": round(random.uniform(0.1, self.compute_power), 3),
+            "timestamp": time.time(),
+            "task_type": random.choice(["training", "inference", "data_processing"])
+        }
+        
+        return cycle_contribution
+
+# Create global mesh node instance
+mesh_node = MeshNode()
+node_id = mesh_node.node_id
+
+print(f"✅ Mesh node {node_id} initialized successfully")
+print(f"💪 Compute power: {mesh_node.compute_power:.2f} TFLOPS")
+                `);
+
+                nodeId = pyodide.runPython('node_id');
+                isInitialized = true;
+                
+                updateAIStatus(`🎉 Node ${nodeId} is online and ready!`);
+                addLog(`✅ Node ${nodeId} initialized with ${pyodide.runPython('round(mesh_node.compute_power, 2)')} TFLOPS`, "success");
+                
+                // Enable next step
+                document.getElementById('joinBtn').disabled = false;
+                document.getElementById('initBtn').textContent = '✅ Node Active';
+                document.getElementById('initBtn').disabled = true;
+                
+                // Update metrics
+                updateMetrics();
+                
+            } catch (error) {
+                updateAIStatus("❌ Initialization failed");
+                addLog(`❌ Error: ${error.message}`, "error");
+            }
+        }
+
+        async function joinMeshNetwork() {
+            try {
+                updateAIStatus("🌐 Joining distributed AI mesh network...");
+                addLog("🔗 Discovering peer nodes...", "info");
+                
+                const networkResult = pyodide.runPython(`
+# Simulate network discovery and connection
+import time
+
+discovery_log = []
+
+# Simulate finding peer nodes
+peer_nodes = [
+    {"id": "ai-node-7a2b", "compute": 1.8, "location": "San Francisco"},
+    {"id": "ai-node-9c4f", "compute": 0.9, "location": "London"}, 
+    {"id": "ai-node-3e8d", "compute": 2.1, "location": "Tokyo"},
+    {"id": "ai-node-6f1a", "compute": 1.2, "location": "Berlin"},
+    {"id": "ai-node-8b5c", "compute": 0.7, "location": "Sydney"}
+]
+
+connected_peers = []
+
+for peer in peer_nodes:
+    # Simulate connection process
+    connection_time = random.uniform(0.1, 0.8)
+    success_rate = random.uniform(0.7, 0.95)
+    
+    if success_rate > 0.75:  # Successful connection
+        mesh_node.add_peer(peer["id"], peer)
+        connected_peers.append(peer)
+        discovery_log.append(f"✅ Connected to {peer['id']} ({peer['location']}) - {peer['compute']} TFLOPS")
+    else:
+        discovery_log.append(f"⚠️ Failed to connect to {peer['id']} - timeout")
+
+# Calculate network stats
+total_network_compute = sum(peer["compute"] for peer in connected_peers) + mesh_node.compute_power
+network_latency = random.uniform(50, 200)
+
+{
+    "connected_peers": len(connected_peers),
+    "total_compute": round(total_network_compute, 2),
+    "network_latency": round(network_latency),
+    "discovery_log": discovery_log,
+    "peer_list": connected_peers
+}
+                `);
+
+                // Update UI with network results
+                for (const logEntry of networkResult.discovery_log) {
+                    addLog(logEntry, logEntry.includes('✅') ? 'success' : 'warning');
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+                
+                updateAIStatus(`🌐 Connected to ${networkResult.connected_peers} peer nodes`);
+                addLog(`🎯 Network total: ${networkResult.total_compute} TFLOPS`, "info");
+                
+                // Enable training and compute buttons
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('computeBtn').disabled = false;
+                document.getElementById('inferenceBtn').disabled = false;
+                document.getElementById('shareBtn').disabled = false;
+                
+                document.getElementById('joinBtn').textContent = '✅ Network Joined';
+                document.getElementById('joinBtn').disabled = true;
+                
+                // Update metrics
+                updateNodeCount(networkResult.connected_peers + 1);
+                updateComputePower(networkResult.total_compute);
+                updateNetworkLatency(networkResult.network_latency);
+                
+                // Visualize network
+                visualizeMeshNetwork(networkResult.peer_list);
+                
+                // Start background activity simulation
+                startBackgroundActivity();
+                
+            } catch (error) {
+                updateAIStatus("❌ Network join failed");
+                addLog(`❌ Network error: ${error.message}`, "error");
+            }
+        }
+
+        async function startDistributedTraining() {
+            try {
+                updateAIStatus("🧠 Starting distributed AI training...");
+                addLog("🎯 Initiating distributed training session", "info");
+                
+                const trainingResult = pyodide.runPython(`
+# Simulate distributed training across the mesh
+model_name = f"distributed_model_{int(time.time())}"
+training_result = mesh_node.simulate_training_task(model_name, epochs=5)
+
+# Simulate coordination with other nodes
+coordination_log = []
+coordination_log.append(f"📡 Broadcasting training task to {len(mesh_node.peers)} peers")
+coordination_log.append(f"🔄 Synchronizing gradients across network")
+coordination_log.append(f"📊 Aggregating model updates from peers")
+coordination_log.append(f"✅ Training completed: {model_name}")
+
+{
+    "model_name": model_name,
+    "training_log": training_result["training_log"],
+    "coordination_log": coordination_log,
+    "final_accuracy": training_result["model_info"]["final_accuracy"],
+    "model_size": training_result["model_info"]["model_size"]
+}
+                `);
+
+                // Show training progress
+                for (const logEntry of trainingResult.coordination_log) {
+                    addLog(logEntry, "info");
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                // Show training epochs
+                for (const epoch of trainingResult.training_log) {
+                    addLog(`📈 Epoch ${epoch.epoch}: Loss=${epoch.loss}, Accuracy=${epoch.accuracy}`, "success");
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+
+                updateAIStatus(`🎉 Model trained: ${(trainingResult.final_accuracy * 100).toFixed(1)}% accuracy`);
+                addLog(`🚀 Model '${trainingResult.model_name}' ready for inference`, "success");
+                
+                updateTasksCompleted();
+                
+            } catch (error) {
+                updateAIStatus("❌ Training failed");
+                addLog(`❌ Training error: ${error.message}`, "error");
+            }
+        }
+
+        async function contributeCompute() {
+            try {
+                updateAIStatus("⚡ Contributing compute cycles to mesh...");
+                
+                const contribution = pyodide.runPython(`
+# Simulate compute contribution
+contribution = mesh_node.contribute_compute_cycle()
+contribution
+                `);
+
+                addLog(`⚡ Contributed ${contribution.compute_contributed} TFLOPS to ${contribution.task_type}`, "success");
+                updateAIStatus("💪 Compute contribution active");
+                
+                updateTasksCompleted();
+                
+            } catch (error) {
+                addLog(`❌ Compute error: ${error.message}`, "error");
+            }
+        }
+
+        async function runInference() {
+            try {
+                updateAIStatus("🎯 Running distributed inference...");
+                
+                const inferenceResult = pyodide.runPython(`
+# Get available models and run inference
+available_models = list(mesh_node.models.keys())
+if available_models:
+    model_name = available_models[0]
+    result = mesh_node.run_inference(model_name, {"test": "data"})
+    result
+else:
+    {"error": "No trained models available"}
+                `);
+
+                if (inferenceResult.error) {
+                    addLog("⚠️ No models available for inference", "warning");
+                    updateAIStatus("⚠️ Train a model first");
+                } else {
+                    addLog(`🎯 Inference completed in ${inferenceResult.processing_time}s`, "success");
+                    addLog(`📊 Confidence: ${(inferenceResult.confidence * 100).toFixed(1)}%`, "info");
+                    updateAIStatus("✅ Inference successful");
+                    updateTasksCompleted();
+                }
+                
+            } catch (error) {
+                addLog(`❌ Inference error: ${error.message}`, "error");
+            }
+        }
+
+        async function shareModel() {
+            try {
+                updateAIStatus("📤 Sharing model with network...");
+                
+                const shareResult = pyodide.runPython(`
+# Simulate model sharing
+available_models = list(mesh_node.models.keys())
+if available_models:
+    model_name = available_models[0]
+    model_info = mesh_node.models[model_name]
+    
+    # Simulate broadcasting to peers
+    share_log = []
+    for peer_id in mesh_node.peers:
+        share_log.append(f"📤 Uploading {model_name} to {peer_id}")
+    
+    {
+        "model_shared": model_name,
+        "model_size": model_info["model_size"],
+        "peers_updated": len(mesh_node.peers),
+        "share_log": share_log
+    }
+else:
+    {"error": "No models to share"}
+                `);
+
+                if (shareResult.error) {
+                    addLog("⚠️ No models available to share", "warning");
+                } else {
+                    for (const logEntry of shareResult.share_log) {
+                        addLog(logEntry, "info");
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                    
+                    addLog(`✅ Model shared with ${shareResult.peers_updated} peers`, "success");
+                    updateAIStatus("🌍 Model distributed across network");
+                }
+                
+            } catch (error) {
+                addLog(`❌ Share error: ${error.message}`, "error");
+            }
+        }
+
+        function visualizeMeshNetwork(peerList) {
+            const meshViz = document.getElementById('meshViz');
+            
+            // Clear existing nodes
+            const existingNodes = meshViz.querySelectorAll('.node, .connection');
+            existingNodes.forEach(node => node.remove());
+            
+            // Create central node (this browser)
+            const centralNode = document.createElement('div');
+            centralNode.className = 'node';
+            centralNode.style.left = '50%';
+            centralNode.style.top = '50%';
+            centralNode.style.background = '#ff006e';
+            centralNode.style.boxShadow = '0 0 20px #ff006e';
+            centralNode.title = `This Node (${nodeId})`;
+            meshViz.appendChild(centralNode);
+            
+            // Create peer nodes
+            peerList.forEach((peer, index) => {
+                const angle = (index / peerList.length) * 2 * Math.PI;
+                const radius = 120;
+                const x = 50 + (radius * Math.cos(angle)) / meshViz.offsetWidth * 100;
+                const y = 50 + (radius * Math.sin(angle)) / meshViz.offsetHeight * 100;
+                
+                const peerNode = document.createElement('div');
+                peerNode.className = 'node';
+                peerNode.style.left = x + '%';
+                peerNode.style.top = y + '%';
+                peerNode.title = `${peer.id} (${peer.location})`;
+                meshViz.appendChild(peerNode);
+                
+                // Create connection line
+                const connection = document.createElement('div');
+                connection.className = 'connection';
+                const dx = (x - 50) * meshViz.offsetWidth / 100;
+                const dy = (y - 50) * meshViz.offsetHeight / 100;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const angle_deg = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                connection.style.width = length + 'px';
+                connection.style.left = '50%';
+                connection.style.top = '50%';
+                connection.style.transformOrigin = '0 0';
+                connection.style.transform = `rotate(${angle_deg}deg)`;
+                meshViz.appendChild(connection);
+            });
+        }
+
+        function startBackgroundActivity() {
+            simulationInterval = setInterval(() => {
+                // Simulate random network activity
+                const activities = [
+                    "📊 Processing gradient updates",
+                    "🔄 Synchronizing model weights", 
+                    "📡 Heartbeat from peer nodes",
+                    "⚡ Compute cycle completed",
+                    "🧠 Inference request processed"
+                ];
+                
+                const activity = activities[Math.floor(Math.random() * activities.length)];
+                addLog(activity, "info");
+                
+                // Randomly update metrics
+                if (Math.random() > 0.7) {
+                    updateTasksCompleted();
+                }
+            }, 3000);
+        }
+
+        function updateMetrics() {
+            if (!isInitialized) return;
+            
+            try {
+                const nodeInfo = pyodide.runPython(`
+{
+    "compute_power": mesh_node.compute_power,
+    "tasks_completed": mesh_node.tasks_completed
+}
+                `);
+                
+                updateComputePower(nodeInfo.compute_power);
+                document.getElementById('tasksCompleted').textContent = nodeInfo.tasks_completed;
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+            }
+        }
+
+        function updateNodeCount(count) {
+            document.getElementById('nodeCount').textContent = count;
+        }
+
+        function updateComputePower(power) {
+            document.getElementById('computePower').textContent = power.toFixed(1);
+        }
+
+        function updateTasksCompleted() {
+            const current = parseInt(document.getElementById('tasksCompleted').textContent);
+            document.getElementById('tasksCompleted').textContent = current + 1;
+        }
+
+        function updateNetworkLatency(latency) {
+            document.getElementById('networkLatency').textContent = latency + 'ms';
+        }
+
+        function updateAIStatus(status) {
+            document.getElementById('aiStatus').textContent = status;
+        }
+
+        function addLog(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            logPanel.appendChild(logEntry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            
+            // Remove old entries to prevent memory issues
+            if (logPanel.children.length > 50) {
+                logPanel.removeChild(logPanel.firstChild);
+            }
+        }
+
+        // Initialize visual effects
+        window.addEventListener('load', () => {
+            createStars();
+            createFloatingParticles();
+            addLog("🌍 Distributed AI Mesh Network initialized", "info");
+            addLog("👆 Click 'Initialize Node' to join the collective intelligence", "info");
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+            }
+        });
+    </script>
+</body>
+</html>
