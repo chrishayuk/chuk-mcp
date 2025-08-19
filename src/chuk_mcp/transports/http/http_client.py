@@ -52,10 +52,12 @@ async def http_client(parameters: StreamableHTTPParameters) -> Tuple[MemoryObjec
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("✅ HTTP client streams ready")
             yield streams
-    except Exception as e:
+    except (RuntimeError, TimeoutError, ConnectionError, OSError) as e:
+        # FIXED: Only catch specific transport-related errors
+        # Don't catch AssertionError, ValueError, or other test-related exceptions
         logger.error(f"❌ HTTP client error: {e}")
-        # Let exceptions propagate - caller should handle them
         raise
+    # Let all other exceptions (including test assertions) bubble up naturally
 
 
 # Alias for consistency with other transports

@@ -1,12 +1,15 @@
 # tests/mcp/transport/http/test_http_transport.py
 """
-Tests for Streamable HTTP transport implementation.
+Tests for Streamable HTTP transport implementation - Fixed version.
+
+These tests are updated to work with the simplified transport that creates
+a new HTTP client per request.
 """
 import pytest
 import asyncio
 import json
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, call
 
 from chuk_mcp.transports.http.parameters import StreamableHTTPParameters
 from chuk_mcp.transports.http.transport import StreamableHTTPTransport
@@ -58,7 +61,7 @@ def test_streamable_http_transport_creation():
     assert transport.endpoint_url == "http://localhost:3000/mcp"
     assert transport.timeout == 60.0
     assert transport.enable_streaming is True
-    assert transport._client is None
+    # Note: _client no longer exists in simplified version
     assert transport._session_id is None
 
 def test_streamable_http_transport_with_options():
@@ -87,7 +90,7 @@ def test_streamable_http_transport_protocol_version():
     
     # Test set_protocol_version (should not raise)
     transport.set_protocol_version("2025-06-18")
-    # Streamable HTTP transport doesn't maintain version state like the old HTTP transport
+    # Streamable HTTP transport doesn't maintain version state
 
 ###############################################################################
 # Context Manager Tests
@@ -99,21 +102,11 @@ async def test_streamable_http_transport_context_manager():
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
     transport = StreamableHTTPTransport(params)
     
-    with patch('httpx.AsyncClient') as mock_client_class:
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        async with transport:
-            # Verify client was created
-            assert transport._client == mock_client
-            
-            # Verify streams are available
-            read_stream, write_stream = await transport.get_streams()
-            assert read_stream is not None
-            assert write_stream is not None
-        
-        # Verify cleanup
-        assert mock_client.aclose.called
+    async with transport:
+        # Verify streams are available
+        read_stream, write_stream = await transport.get_streams()
+        assert read_stream is not None
+        assert write_stream is not None
 
 @pytest.mark.asyncio
 async def test_streamable_http_transport_with_auth_headers():
@@ -124,32 +117,49 @@ async def test_streamable_http_transport_with_auth_headers():
     )
     transport = StreamableHTTPTransport(params)
     
-    with patch('httpx.AsyncClient') as mock_client_class:
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        async with transport:
-            # Verify client was created with correct headers
-            client_args = mock_client_class.call_args
-            headers = client_args[1]["headers"]
-            assert headers["Authorization"] == "Bearer token123"
+    # The auth headers are stored and will be used when making requests
+    assert transport.headers["Authorization"] == "Bearer token123"
 
 @pytest.mark.asyncio
 async def test_streamable_http_transport_env_bearer_token():
     """Test automatic bearer token from environment."""
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
-    transport = StreamableHTTPTransport(params)
     
     with patch.dict(os.environ, {"MCP_BEARER_TOKEN": "env-token-456"}):
+        # Mock httpx.AsyncClient to verify headers
         with patch('httpx.AsyncClient') as mock_client_class:
             mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_class.return_value = mock_client
             
+            transport = StreamableHTTPTransport(params)
             async with transport:
-                # Verify env token was used
-                client_args = mock_client_class.call_args
-                headers = client_args[1]["headers"]
-                assert headers["Authorization"] == "Bearer env-token-456"
+                # Send a message to trigger client creation
+                message = JSONRPCMessage.model_validate({
+                    "jsonrpc": "2.0",
+                    "id": "test",
+                    "method": "ping"
+                })
+                
+                # Mock the response
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.headers = {"content-type": "application/json"}
+                mock_response.json.return_value = {"jsonrpc": "2.0", "id": "test", "result": {}}
+                mock_response.text = '{"jsonrpc": "2.0", "id": "test", "result": {}}'
+                mock_client.post.return_value = mock_response
+                
+                read_stream, write_stream = await transport.get_streams()
+                await write_stream.send(message)
+                await asyncio.sleep(0.1)
+                
+                # Check that the post was called with the right headers
+                mock_client.post.assert_called()
+                call_args = mock_client.post.call_args
+                headers = call_args[1]["headers"]
+                # The bearer token from env should be in the headers
+                assert "Bearer env-token-456" in headers.get("Authorization", "")
 
 ###############################################################################
 # HTTP Client Context Manager Tests
@@ -198,18 +208,19 @@ async def test_http_client_error_propagation():
                 pass
 
 ###############################################################################
-# Message Flow Tests
+# Message Flow Tests - Fixed to work with per-request client
 ###############################################################################
 
 @pytest.mark.asyncio
 async def test_streamable_http_message_flow():
     """Test message flow through Streamable HTTP transport."""
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
-    transport = StreamableHTTPTransport(params)
     
     with patch('httpx.AsyncClient') as mock_client_class:
+        # Setup mock client
         mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
         
         # Mock successful JSON response
         mock_response = MagicMock()
@@ -220,8 +231,12 @@ async def test_streamable_http_message_flow():
             "id": "test-123",
             "result": {"status": "ok"}
         }
+        mock_response.text = json.dumps(mock_response.json.return_value)
         mock_client.post.return_value = mock_response
         
+        mock_client_class.return_value = mock_client
+        
+        transport = StreamableHTTPTransport(params)
         async with transport:
             read_stream, write_stream = await transport.get_streams()
             
@@ -244,41 +259,38 @@ async def test_streamable_http_message_flow():
             
             assert response.id == "test-123"
             assert response.result == {"status": "ok"}
+            
+            # Verify the client was created and used
+            assert mock_client_class.called
+            assert mock_client.post.called
 
 @pytest.mark.asyncio
 async def test_streamable_http_sse_flow():
     """Test SSE streaming flow."""
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
-    transport = StreamableHTTPTransport(params)
     
     with patch('httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
         
-        # Mock SSE response
-        mock_response = AsyncMock()
+        # Mock SSE response with proper text attribute
+        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.headers = {"content-type": "text/event-stream"}
-        mock_response.is_closed = False
-        
-        # Mock SSE stream data - include the actual JSON-RPC message first
-        sse_data = [
-            'event: message\n',
-            'data: {"jsonrpc":"2.0","id":"test-sse","result":{"status":"streaming"}}\n',
-            '\n',
-            'event: completion\n', 
-            'data: {"type":"completion","timestamp":"2025-07-09T14:00:00Z"}\n',
+        mock_response.text = (
+            'event: message\n'
+            'data: {"jsonrpc":"2.0","id":"test-sse","result":{"status":"streaming"}}\n'
             '\n'
-        ]
+            'event: completion\n'
+            'data: {"type":"completion","timestamp":"2025-07-09T14:00:00Z"}\n'
+            '\n'
+        )
         
-        async def mock_aiter_text(chunk_size=1024):
-            for chunk in sse_data:
-                yield chunk
-        
-        mock_response.aiter_text = mock_aiter_text
-        mock_response.aclose = AsyncMock()
         mock_client.post.return_value = mock_response
+        mock_client_class.return_value = mock_client
         
+        transport = StreamableHTTPTransport(params)
         async with transport:
             read_stream, write_stream = await transport.get_streams()
             
@@ -292,21 +304,15 @@ async def test_streamable_http_sse_flow():
             await write_stream.send(test_message)
             
             # Give time for SSE processing
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.1)
             
             # Should receive streaming response
             import anyio
-            with anyio.fail_after(3.0):
+            with anyio.fail_after(1.0):
                 response = await read_stream.receive()
             
             assert response.id == "test-sse"
-            # The response could be either the original streaming result or completion format
-            if "content" in response.result:
-                # It's a completion event response
-                assert "completion" in response.result["content"][0]["text"].lower()
-            else:
-                # It's the original streaming response
-                assert response.result == {"status": "streaming"}
+            assert response.result == {"status": "streaming"}
 
 ###############################################################################
 # Error Handling Tests
@@ -317,9 +323,20 @@ async def test_streamable_http_connection_error():
     """Test handling of connection errors."""
     params = StreamableHTTPParameters(url="http://localhost:9999/mcp", timeout=1.0)
     
-    # Test that the transport handles errors gracefully without crashing
-    try:
-        async with http_client(params) as (read_stream, write_stream):
+    # Test that the transport handles errors gracefully
+    transport = StreamableHTTPTransport(params)
+    async with transport:
+        read_stream, write_stream = await transport.get_streams()
+        
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            
+            # Mock connection error
+            mock_client.post.side_effect = Exception("Connection refused")
+            mock_client_class.return_value = mock_client
+            
             test_message = JSONRPCMessage.model_validate({
                 "jsonrpc": "2.0",
                 "id": "test-fail",
@@ -327,25 +344,21 @@ async def test_streamable_http_connection_error():
             })
             await write_stream.send(test_message)
             
-            # The error should be handled gracefully - no response should come back
+            # Should receive error response
             import anyio
-            with pytest.raises(anyio.TimeoutError):
-                with anyio.fail_after(2.0):
-                    await read_stream.receive()
-                    
-    except Exception as e:
-        # Connection setup failure is also acceptable
-        assert any(word in str(e).lower() for word in ["connection", "timeout", "failed"])
+            with anyio.fail_after(2.0):
+                response = await read_stream.receive()
+                assert response.error is not None
 
 @pytest.mark.asyncio 
 async def test_streamable_http_http_error_status():
     """Test handling of HTTP error status codes."""
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
-    transport = StreamableHTTPTransport(params)
     
     with patch('httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
         
         # Mock 500 error response
         mock_response = MagicMock()
@@ -353,6 +366,9 @@ async def test_streamable_http_http_error_status():
         mock_response.text = "Internal Server Error"
         mock_client.post.return_value = mock_response
         
+        mock_client_class.return_value = mock_client
+        
+        transport = StreamableHTTPTransport(params)
         async with transport:
             read_stream, write_stream = await transport.get_streams()
             
@@ -368,8 +384,12 @@ async def test_streamable_http_http_error_status():
             # Give time for processing
             await asyncio.sleep(0.1)
             
-            # Error should be handled gracefully (no exception raised)
-            # The transport should handle the error internally
+            # Should receive error response
+            import anyio
+            with anyio.fail_after(1.0):
+                response = await read_stream.receive()
+                assert response.error is not None
+                assert "500" in response.error["message"]
 
 ###############################################################################
 # Session Management Tests
@@ -379,11 +399,11 @@ async def test_streamable_http_http_error_status():
 async def test_streamable_http_session_management():
     """Test session ID management."""
     params = StreamableHTTPParameters(url="http://localhost:3000/mcp")
-    transport = StreamableHTTPTransport(params)
     
     with patch('httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
         
         # Mock response with session ID
         mock_response = MagicMock()
@@ -397,8 +417,12 @@ async def test_streamable_http_session_management():
             "id": "init",
             "result": {"status": "initialized"}
         }
+        mock_response.text = json.dumps(mock_response.json.return_value)
         mock_client.post.return_value = mock_response
         
+        mock_client_class.return_value = mock_client
+        
+        transport = StreamableHTTPTransport(params)
         async with transport:
             # Initially no session ID
             assert transport.get_session_id() is None
@@ -470,56 +494,42 @@ async def test_streamable_http_full_integration():
     
     with patch('httpx.AsyncClient') as mock_client_class:
         mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
         
         # Mock various responses
         responses = [
             # Initialize response
-            {
-                "status_code": 200,
-                "headers": {"content-type": "application/json", "mcp-session-id": "session-123"},
-                "json_data": {
+            MagicMock(
+                status_code=200,
+                headers={"content-type": "application/json", "mcp-session-id": "session-123"},
+                json=lambda: {
                     "jsonrpc": "2.0",
                     "id": "init",
                     "result": {
                         "protocolVersion": "2025-06-18",
                         "serverInfo": {"name": "test-server", "version": "1.0.0"}
                     }
-                }
-            },
+                },
+                text='{"jsonrpc":"2.0","id":"init","result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"test-server","version":"1.0.0"}}}'
+            ),
             # Tools list response
-            {
-                "status_code": 200,
-                "headers": {"content-type": "application/json"},
-                "json_data": {
+            MagicMock(
+                status_code=200,
+                headers={"content-type": "application/json"},
+                json=lambda: {
                     "jsonrpc": "2.0", 
                     "id": "tools",
                     "result": {
                         "tools": [{"name": "echo", "description": "Echo tool"}]
                     }
-                }
-            }
+                },
+                text='{"jsonrpc":"2.0","id":"tools","result":{"tools":[{"name":"echo","description":"Echo tool"}]}}'
+            )
         ]
         
-        response_iter = iter(responses)
-        
-        def create_mock_response():
-            try:
-                resp_data = next(response_iter)
-                mock_resp = MagicMock()
-                mock_resp.status_code = resp_data["status_code"]
-                mock_resp.headers = resp_data["headers"]
-                mock_resp.json.return_value = resp_data["json_data"]
-                return mock_resp
-            except StopIteration:
-                # Default response
-                mock_resp = MagicMock()
-                mock_resp.status_code = 200
-                mock_resp.headers = {"content-type": "application/json"}
-                mock_resp.json.return_value = {"jsonrpc": "2.0", "id": "default", "result": {}}
-                return mock_resp
-        
-        mock_client.post.side_effect = lambda *args, **kwargs: create_mock_response()
+        mock_client.post.side_effect = responses
+        mock_client_class.return_value = mock_client
         
         async with http_client(params) as (read_stream, write_stream):
             # Send initialize

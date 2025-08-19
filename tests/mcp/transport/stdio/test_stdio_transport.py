@@ -13,6 +13,12 @@ from typing import Dict, Any
 
 import anyio
 
+# Add ValidationError import
+try:
+    from pydantic import ValidationError
+except ImportError:
+    from chuk_mcp.protocol.mcp_pydantic_base import ValidationError
+
 # Import the new transport APIs
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 from chuk_mcp.transports.stdio.transport import StdioTransport
@@ -59,6 +65,17 @@ class TestStdioParameters:
         data = params.model_dump()
         assert data["command"] == "python"
         assert data["args"] == []
+    
+    def test_invalid_parameters(self):
+        """Test parameter validation with invalid inputs."""
+        # FIXED: Test parameter validation during creation, not after
+        with pytest.raises(ValidationError, match="Input should be a valid list"):
+            StdioParameters(command="python", args="not a list")
+        
+        # Test that valid parameters work
+        valid_params = StdioParameters(command="python", args=["--version"])
+        assert valid_params.command == "python"
+        assert valid_params.args == ["--version"]
 
 
 class TestStdioClient:
@@ -80,11 +97,15 @@ class TestStdioClient:
         with pytest.raises(ValueError, match="Server command must not be empty"):
             StdioClient(StdioParameters(command=""))
         
-        # Invalid args type should raise error
-        params = StdioParameters(command="python")
-        params.args = "not a list"  # Force invalid type
-        with pytest.raises(ValueError, match="Server arguments must be a list or tuple"):
-            StdioClient(params)
+        # FIXED: Test parameter validation during creation, not after
+        with pytest.raises(ValidationError, match="Input should be a valid list"):
+            StdioParameters(command="python", args="not a list")
+        
+        # Test that valid parameters work
+        valid_params = StdioParameters(command="python", args=["--version"])
+        client = StdioClient(valid_params)
+        assert client.server.command == "python"
+        assert client.server.args == ["--version"]
     
     def test_protocol_version_setting(self):
         """Test protocol version setting."""

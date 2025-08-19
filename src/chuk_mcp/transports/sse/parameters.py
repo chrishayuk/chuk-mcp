@@ -109,15 +109,24 @@ class SSEParameters(TransportParameters, McpPydanticBase):
     @model_validator(mode='after')
     def setup_auth_headers(self):
         """Set up authentication headers after model creation."""
+        # FIXED: Don't directly assign to self.headers (causes recursion)
+        # Instead, use object.__setattr__ to bypass validation
+        
         if self.bearer_token:
-            if not self.headers:
-                self.headers = {}
+            if self.headers is None:
+                object.__setattr__(self, 'headers', {})
+            
+            # Make a copy to avoid modifying during iteration
+            headers = dict(self.headers)
             
             # Add Authorization header if not already present
-            if not any(key.lower() == 'authorization' for key in self.headers.keys()):
+            if not any(key.lower() == 'authorization' for key in headers.keys()):
                 if self.bearer_token.startswith('Bearer '):
-                    self.headers['Authorization'] = self.bearer_token
+                    headers['Authorization'] = self.bearer_token
                 else:
-                    self.headers['Authorization'] = f'Bearer {self.bearer_token}'
+                    headers['Authorization'] = f'Bearer {self.bearer_token}'
+            
+            # Update headers using object.__setattr__ to avoid recursion
+            object.__setattr__(self, 'headers', headers)
         
         return self
