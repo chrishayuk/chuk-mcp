@@ -220,3 +220,33 @@ async def test_send_tools_call_protocol_error():
 
     # Verify error message
     assert "Unknown tool" in str(exc_info.value)
+
+
+async def test_send_tools_call_invalid_name_type():
+    """Test tools/call with invalid name type"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    # Attempt to send with invalid name type should raise TypeError
+    with pytest.raises(TypeError, match="Tool name must be a string"):
+        await send_tools_call(
+            read_stream=read_receive,
+            write_stream=write_send,
+            name=123,  # Invalid: not a string
+            arguments={},
+        )
+
+
+async def test_send_tools_call_invalid_arguments_type():
+    """Test tools/call with invalid arguments type"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    # Attempt to send with invalid arguments type should raise TypeError
+    with pytest.raises(TypeError, match="Tool arguments must be a dictionary"):
+        await send_tools_call(
+            read_stream=read_receive,
+            write_stream=write_send,
+            name="test_tool",
+            arguments="invalid",  # Invalid: not a dict
+        )

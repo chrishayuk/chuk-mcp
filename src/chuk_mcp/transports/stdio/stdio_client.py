@@ -249,9 +249,13 @@ class StdioClient:
 
                     # Enhanced logging for debugging
                     if hasattr(message, "method"):
-                        logger.debug(
-                            f"Sent: {message.method or 'response'} (id: {message.id})"
-                        )
+                        msg_id = getattr(message, "id", None)
+                        if msg_id is not None:
+                            logger.debug(
+                                f"Sent: {message.method or 'response'} (id: {msg_id})"
+                            )
+                        else:
+                            logger.debug(f"Sent notification: {message.method}")
                     elif isinstance(message, dict) and "method" in message:
                         logger.debug(
                             f"Sent: {message.get('method', 'response')} (id: {message.get('id')})"

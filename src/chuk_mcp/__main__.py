@@ -290,5 +290,10 @@ Examples:
         sys.exit(1)
 
 
+def run():
+    """Entry point for console script."""
+    main()
+
+
 if __name__ == "__main__":
     main()
