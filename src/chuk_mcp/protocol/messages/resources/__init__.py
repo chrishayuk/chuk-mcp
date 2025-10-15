@@ -2,8 +2,8 @@
 """
 Resources module for the Model Context Protocol client.
 
-This module provides functionality for working with MCP resources, which are 
-data that servers can provide to clients. Resources can be files, database 
+This module provides functionality for working with MCP resources, which are
+data that servers can provide to clients. Resources can be files, database
 records, API responses, or any other data that can be read by URI.
 
 Key features:
@@ -41,16 +41,14 @@ from .resource_content import ResourceContent
 __all__ = [
     # Core data models
     "Resource",
-    "ResourceTemplate", 
+    "ResourceTemplate",
     "ResourceContent",
-    
     # Resource messaging functions
     "send_resources_list",
     "send_resources_read",
     "send_resources_templates_list",
     "send_resources_subscribe",
     "send_resources_unsubscribe",
-    
     # Notification handlers
     "handle_resources_list_changed_notification",
     "handle_resources_updated_notification",

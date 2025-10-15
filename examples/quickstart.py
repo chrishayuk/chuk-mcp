@@ -5,13 +5,10 @@ chuk-mcp Quickstart Script
 Updated to use the new transport and protocol APIs exclusively.
 """
 
-import asyncio
 import tempfile
 import os
-import json
 import sys
 import logging
-from pathlib import Path
 
 # Set up logging to see what's happening
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +17,11 @@ logging.basicConfig(level=logging.INFO)
 print("🔧 Loading chuk-mcp with new APIs...")
 try:
     import anyio
-    
+
     # New transport layer imports
     from chuk_mcp.transports.stdio import stdio_client
     from chuk_mcp.transports.stdio.parameters import StdioParameters
-    
+
     # New protocol layer imports
     from chuk_mcp.protocol.messages import (
         send_initialize,
@@ -32,9 +29,9 @@ try:
         send_tools_list,
         send_tools_call,
     )
-    
+
     print("✅ New chuk-mcp APIs loaded successfully!")
-    
+
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("\n🔍 Troubleshooting:")
@@ -289,53 +286,52 @@ async def quickstart_demo():
     print("   • chuk_mcp.transports.stdio")
     print("   • chuk_mcp.protocol.messages")
     print("=" * 40)
-    
+
     # Create temporary server
     print("📝 Creating quickstart MCP server...")
     server_code = create_modern_server()
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(server_code)
         server_file = f.name
-    
+
     print(f"📄 Server file: {server_file}")
-    
+
     try:
         print("🔧 Setting up server parameters...")
         # Use new StdioParameters class
-        server_params = StdioParameters(
-            command="python",
-            args=[server_file]
-        )
-        
+        server_params = StdioParameters(command="python", args=[server_file])
+
         print("📡 Connecting to server...")
         print("   (Using new stdio_client transport...)")
-        
+
         # Use new stdio_client context manager
         async with stdio_client(server_params) as (read_stream, write_stream):
             print("   ✅ Connection established!")
-            
+
             # Test 1: Initialize
             print("\\n1️⃣  Testing initialization...")
             try:
                 init_result = await send_initialize(read_stream, write_stream)
                 print(f"   ✅ Server: {init_result.serverInfo.name}")
                 print(f"   📋 Protocol: {init_result.protocolVersion}")
-                if hasattr(init_result, 'instructions') and init_result.instructions:
+                if hasattr(init_result, "instructions") and init_result.instructions:
                     print(f"   💡 Instructions: {init_result.instructions}")
             except Exception as e:
                 print(f"   ❌ Initialization failed: {e}")
                 raise
-            
+
             # Test 2: Ping
             print("\\n2️⃣  Testing ping...")
             try:
                 ping_success = await send_ping(read_stream, write_stream)
-                print(f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}")
+                print(
+                    f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}"
+                )
             except Exception as e:
                 print(f"   ❌ Ping failed: {e}")
                 # Continue anyway
-            
+
             # Test 3: List tools
             print("\\n3️⃣  Testing tools...")
             try:
@@ -347,33 +343,34 @@ async def quickstart_demo():
             except Exception as e:
                 print(f"   ❌ Tools list failed: {e}")
                 raise
-            
+
             # Test 4: Call hello tool
             print("\\n4️⃣  Testing tool execution...")
             try:
                 hello_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "hello", {"name": "New API User"}
+                    read_stream, write_stream, "hello", {"name": "New API User"}
                 )
                 result_text = hello_response["content"][0]["text"]
                 print(f"   📤 Hello result: {result_text}")
             except Exception as e:
                 print(f"   ❌ Hello tool failed: {e}")
                 raise
-            
+
             # Test 5: Call echo tool
             print("\\n5️⃣  Testing echo tool...")
             try:
                 echo_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "echo", {"message": "Testing new chuk-mcp APIs!"}
+                    read_stream,
+                    write_stream,
+                    "echo",
+                    {"message": "Testing new chuk-mcp APIs!"},
                 )
                 echo_text = echo_response["content"][0]["text"]
                 print(f"   📤 Echo result: {echo_text}")
             except Exception as e:
                 print(f"   ❌ Echo tool failed: {e}")
                 raise
-            
+
             print("\\n🎉 Quickstart demo completed successfully!")
             print("\\n💡 Your new chuk-mcp APIs are working correctly!")
             print("\\n📊 Summary:")
@@ -383,7 +380,7 @@ async def quickstart_demo():
             print("   ✅ stdio_client context manager: Working")
             print("   ✅ Message handling: Working")
             print("   ✅ Tool execution: Working")
-    
+
     except Exception as e:
         print(f"\\n❌ Error during demo: {str(e)}")
         print("\\n🔍 Troubleshooting:")
@@ -391,31 +388,32 @@ async def quickstart_demo():
         print("   • Try running the server manually:")
         print(f"     python {server_file}")
         print("   • Check for any error messages above")
-        
+
         # Show some debugging info
         print("\\n🔧 Debug info:")
         print(f"   • Python path: {sys.executable}")
         print(f"   • Working directory: {os.getcwd()}")
         print(f"   • Server file exists: {os.path.exists(server_file)}")
-        
+
         # Show import status
         print("\\n📦 Import status:")
         try:
             import chuk_mcp
+
             print(f"   • chuk_mcp location: {chuk_mcp.__file__}")
             print("   • New transport APIs: Available")
             print("   • New protocol APIs: Available")
         except ImportError:
             print("   • chuk_mcp not found in Python path")
-        
+
         raise
-    
+
     finally:
         # Clean up
         if os.path.exists(server_file):
             try:
                 os.unlink(server_file)
-                print(f"🧹 Cleaned up temporary file")
+                print("🧹 Cleaned up temporary file")
             except Exception as e:
                 print(f"⚠️  Could not clean up {server_file}: {e}")
 
@@ -426,7 +424,7 @@ def main():
     print("=" * 50)
     print("Testing your new chuk-mcp transport and protocol APIs...")
     print("=" * 50)
-    
+
     try:
         anyio.run(quickstart_demo)
         print("\\n" + "=" * 50)

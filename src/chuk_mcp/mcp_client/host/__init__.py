@@ -49,7 +49,6 @@ from .environment import (
 __all__ = [
     # Server management
     "run_command",
-    
     # Environment configuration
     "get_default_environment",
     "DEFAULT_INHERITED_ENV_VARS",

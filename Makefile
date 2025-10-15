@@ -3,17 +3,25 @@
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  clean       - Remove Python bytecode and basic artifacts"
-	@echo "  clean-all   - Deep clean everything (pyc, build, test, cache)"
-	@echo "  clean-pyc   - Remove Python bytecode files"
-	@echo "  clean-build - Remove build artifacts"
-	@echo "  clean-test  - Remove test artifacts"
-	@echo "  install     - Install package in current environment"
-	@echo "  dev-install - Install package in development mode"
-	@echo "  test        - Run tests"
-	@echo "  run         - Run the server"
-	@echo "  build       - Build the project"
-	@echo "  publish     - Build and publish to PyPI"
+	@echo "  clean           - Remove Python bytecode and basic artifacts"
+	@echo "  clean-all       - Deep clean everything (pyc, build, test, cache)"
+	@echo "  clean-pyc       - Remove Python bytecode files"
+	@echo "  clean-build     - Remove build artifacts"
+	@echo "  clean-test      - Remove test artifacts"
+	@echo "  install         - Install package in current environment"
+	@echo "  dev-install     - Install package in development mode"
+	@echo "  test            - Run tests"
+	@echo "  test-cov        - Run tests with coverage report"
+	@echo "  coverage-report - Show current coverage report"
+	@echo "  lint            - Run code linters"
+	@echo "  format          - Auto-format code"
+	@echo "  typecheck       - Run type checking"
+	@echo "  check           - Run all checks (lint, typecheck, test)"
+	@echo "  run             - Run the server"
+	@echo "  build           - Build the project"
+	@echo "  publish         - Build and publish to PyPI"
+	@echo "  publish-test    - Build and publish to test PyPI"
+	@echo "  info            - Show project information"
 
 # Basic clean - Python bytecode and common artifacts
 clean: clean-pyc clean-build
@@ -61,12 +69,20 @@ clean-all: clean-pyc clean-build clean-test
 # Install package
 install:
 	@echo "Installing package..."
-	pip install .
+	@if command -v uv >/dev/null 2>&1; then \
+		uv pip install .; \
+	else \
+		pip install .; \
+	fi
 
 # Install package in development mode
 dev-install:
 	@echo "Installing package in development mode..."
-	pip install -e .
+	@if command -v uv >/dev/null 2>&1; then \
+		uv pip install -e .; \
+	else \
+		pip install -e .; \
+	fi
 
 # Run tests
 test:
@@ -79,13 +95,41 @@ test:
 		python -m pytest; \
 	fi
 
+# Show current coverage report
+coverage-report:
+	@echo "Coverage Report:"
+	@echo "================"
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run coverage report --omit="tests/*" || echo "No coverage data found. Run 'make test-cov' first."; \
+	else \
+		coverage report --omit="tests/*" || echo "No coverage data found. Run 'make test-cov' first."; \
+	fi
+
 # Run tests with coverage
 test-cov:
 	@echo "Running tests with coverage..."
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run pytest --cov=src --cov-report=html --cov-report=term; \
+		uv run pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing:skip-covered; \
+		exit_code=$$?; \
+		echo ""; \
+		echo "=========================="; \
+		echo "Coverage Summary:"; \
+		echo "=========================="; \
+		uv run coverage report --omit="tests/*" | tail -5; \
+		echo ""; \
+		echo "HTML coverage report saved to: htmlcov/index.html"; \
+		exit $$exit_code; \
 	else \
-		pytest --cov=src --cov-report=html --cov-report=term; \
+		pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing:skip-covered; \
+		exit_code=$$?; \
+		echo ""; \
+		echo "=========================="; \
+		echo "Coverage Summary:"; \
+		echo "=========================="; \
+		coverage report --omit="tests/*" | tail -5; \
+		echo ""; \
+		echo "HTML coverage report saved to: htmlcov/index.html"; \
+		exit $$exit_code; \
 	fi
 
 # Run the server launcher
@@ -138,26 +182,22 @@ publish-test: build
 lint:
 	@echo "Running linters..."
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run ruff check .; \
-		uv run ruff format --check .; \
+		uv run ruff check . && uv run ruff format --check . && echo "All checks passed!"; \
 	elif command -v ruff >/dev/null 2>&1; then \
-		ruff check .; \
-		ruff format --check .; \
+		ruff check . && ruff format --check . && echo "All checks passed!"; \
 	else \
-		echo "Ruff not found. Install with: pip install ruff"; \
+		echo "Ruff not found. Install with: uv pip install ruff"; \
 	fi
 
 # Fix code formatting
 format:
 	@echo "Formatting code..."
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run ruff format .; \
-		uv run ruff check --fix .; \
+		uv run ruff format . && uv run ruff check --fix . && echo "Formatting complete!"; \
 	elif command -v ruff >/dev/null 2>&1; then \
-		ruff format .; \
-		ruff check --fix .; \
+		ruff format . && ruff check --fix . && echo "Formatting complete!"; \
 	else \
-		echo "Ruff not found. Install with: pip install ruff"; \
+		echo "Ruff not found. Install with: uv pip install ruff"; \
 	fi
 
 # Type checking
@@ -168,7 +208,7 @@ typecheck:
 	elif command -v mypy >/dev/null 2>&1; then \
 		mypy src; \
 	else \
-		echo "MyPy not found. Install with: pip install mypy"; \
+		echo "MyPy not found. Install with: uv pip install mypy"; \
 	fi
 
 # Run all checks

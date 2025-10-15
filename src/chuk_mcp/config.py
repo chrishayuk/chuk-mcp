@@ -5,6 +5,7 @@ import logging
 # mcp_client imports
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 
+
 async def load_config(config_path: str, server_name: str) -> StdioParameters:
     """Load the server configuration from a JSON file."""
     try:

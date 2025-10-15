@@ -33,22 +33,17 @@ from .send_messages import (
     Reference,
     ArgumentInfo,
     CompletionResult,
-    
     # Main completion function
     send_completion_complete,
-    
     # Helper creation functions
     create_resource_reference,
     create_prompt_reference,
     create_argument_info,
-    
     # Convenience completion functions
     complete_resource_argument,
     complete_prompt_argument,
-    
     # Server-side provider
     CompletionProvider,
-    
     # Utility completion functions
     complete_file_path,
     complete_enum_value,
@@ -57,26 +52,21 @@ from .send_messages import (
 __all__ = [
     # Core data models
     "ResourceReference",
-    "PromptReference", 
+    "PromptReference",
     "Reference",
     "ArgumentInfo",
     "CompletionResult",
-    
     # Primary completion function
     "send_completion_complete",
-    
     # Object creation helpers
     "create_resource_reference",
     "create_prompt_reference",
     "create_argument_info",
-    
     # Convenience functions
     "complete_resource_argument",
     "complete_prompt_argument",
-    
     # Server implementation utilities
     "CompletionProvider",
-    
     # Common completion utilities
     "complete_file_path",
     "complete_enum_value",

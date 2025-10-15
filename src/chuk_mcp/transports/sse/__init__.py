@@ -2,7 +2,7 @@
 """
 SSE (Server-Sent Events) Transport for MCP
 
-⚠️ DEPRECATION NOTICE: 
+⚠️ DEPRECATION NOTICE:
 The SSE transport has been deprecated as of MCP specification version 2025-03-26.
 Please consider migrating to the Streamable HTTP transport when available.
 
@@ -18,19 +18,19 @@ Key Features:
 """
 
 from .transport import SSETransport
-from .parameters import SSEParameters  
+from .parameters import SSEParameters
 from .sse_client import (
-    sse_client, 
+    sse_client,
     try_sse_with_fallback,
     create_sse_parameters_from_url,
-    is_sse_url
+    is_sse_url,
 )
 
 __all__ = [
-    "SSETransport", 
-    "SSEParameters", 
+    "SSETransport",
+    "SSEParameters",
     "sse_client",
     "try_sse_with_fallback",
-    "create_sse_parameters_from_url", 
-    "is_sse_url"
+    "create_sse_parameters_from_url",
+    "is_sse_url",
 ]

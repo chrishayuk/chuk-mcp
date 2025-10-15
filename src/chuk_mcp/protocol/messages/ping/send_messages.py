@@ -6,6 +6,7 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
 
+
 async def send_ping(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
@@ -14,13 +15,13 @@ async def send_ping(
 ) -> bool:
     """
     Send a ping message to the server and return success status.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         timeout: Timeout in seconds for the ping response
         retries: Number of retry attempts
-        
+
     Returns:
         bool: True if ping was successful, False otherwise
     """
@@ -35,7 +36,7 @@ async def send_ping(
             timeout=timeout,
             retries=retries,
         )
-        
+
         # Return True if we got a response (regardless of content)
         return response is not None
     except Exception as e:

@@ -1,7 +1,6 @@
 # tests/test_mcp_real_pydantic.py
 import os
 import sys
-import importlib
 
 import pytest
 
@@ -18,7 +17,7 @@ class TestRealPydanticIntegration:
         """Ensure we're using real Pydantic for these tests."""
         # Remove fallback forcing
         os.environ.pop("MCP_FORCE_FALLBACK", None)
-        
+
         # Clear cached modules
         modules_to_clear = [
             "chuk_mcp.protocol.mcp_pydantic_base",
@@ -32,80 +31,84 @@ class TestRealPydanticIntegration:
         try:
             import pydantic  # noqa: F401
         except ImportError:
-            pytest.skip("Pydantic not installed - cannot test real Pydantic integration.")
+            pytest.skip(
+                "Pydantic not installed - cannot test real Pydantic integration."
+            )
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         # Should detect Pydantic as available
         assert mpb.PYDANTIC_AVAILABLE is True
-        
+
         # Should be using real Pydantic classes
         assert issubclass(mpb.McpPydanticBase, mpb.PydanticBase)
 
     def test_inheritance_hierarchy(self):
         """Test that McpPydanticBase properly inherits from Pydantic BaseModel."""
         try:
-            import pydantic
+            import pydantic  # noqa: F401
         except ImportError:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         # McpPydanticBase should inherit from pydantic.BaseModel
         assert issubclass(mpb.McpPydanticBase, pydantic.BaseModel)
-        
+
         # Should have Pydantic methods
         class TestModel(mpb.McpPydanticBase):
             name: str
             value: int = 42
 
         instance = TestModel(name="test")
-        
+
         # Should have real Pydantic methods
-        assert hasattr(instance, 'model_dump')
-        assert hasattr(instance, 'model_dump_json')
-        assert hasattr(TestModel, 'model_validate')
+        assert hasattr(instance, "model_dump")
+        assert hasattr(instance, "model_dump_json")
+        assert hasattr(TestModel, "model_validate")
 
     def test_pydantic_v1_v2_compatibility(self):
         """Test compatibility with both Pydantic v1 and v2."""
         try:
-            import pydantic
+            import pydantic  # noqa: F401
         except ImportError:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         # Check Pydantic version
-        is_v2 = hasattr(pydantic, '__version__') and pydantic.__version__.startswith('2.')
-        
+        is_v2 = hasattr(pydantic, "__version__") and pydantic.__version__.startswith(
+            "2."
+        )
+
         class TestModel(mpb.McpPydanticBase):
             name: str
             value: int = 42
 
         instance = TestModel(name="test")
-        
+
         if is_v2:
             # Pydantic v2 methods
-            assert hasattr(instance, 'model_dump')
+            assert hasattr(instance, "model_dump")
             data = instance.model_dump()
         else:
             # Pydantic v1 compatibility
-            if hasattr(instance, 'model_dump'):
+            if hasattr(instance, "model_dump"):
                 data = instance.model_dump()
             else:
                 data = instance.dict()
-        
+
         assert data == {"name": "test", "value": 42}
 
     def test_enhanced_validation_with_real_pydantic(self):
         """Test enhanced validation features when using real Pydantic."""
         try:
-            import pydantic
+            import pydantic  # noqa: F401
         except ImportError:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         class ValidatedModel(mpb.McpPydanticBase):
             email: str = mpb.Field(..., description="User email")
             age: int = mpb.Field(ge=0, le=150, description="User age")
@@ -113,9 +116,7 @@ class TestRealPydanticIntegration:
 
         # Valid data should work
         valid_instance = ValidatedModel(
-            email="test@example.com",
-            age=25,
-            name="John Doe"
+            email="test@example.com", age=25, name="John Doe"
         )
         assert valid_instance.email == "test@example.com"
 
@@ -124,25 +125,25 @@ class TestRealPydanticIntegration:
             ValidatedModel(
                 email="invalid-email",  # Invalid email format (if Pydantic validates this)
                 age=-5,  # Invalid age
-                name=""  # Empty name
+                name="",  # Empty name
             )
 
     def test_config_dict_usage(self):
         """Test ConfigDict usage with real Pydantic."""
         try:
-            import pydantic
+            import pydantic  # noqa: F401
         except ImportError:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         class ConfiguredModel(mpb.McpPydanticBase):
             name: str
             value: int
-            
+
             model_config = mpb.ConfigDict(
                 extra="forbid",  # Don't allow extra fields
-                validate_assignment=True
+                validate_assignment=True,
             )
 
         # Should work with valid data
@@ -161,23 +162,27 @@ class TestRealPydanticIntegration:
     def test_field_types_and_metadata(self):
         """Test Field types and metadata with real Pydantic."""
         try:
-            import pydantic
+            import pydantic  # noqa: F401
         except ImportError:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
         from typing import List, Optional
-        
+
         class FieldModel(mpb.McpPydanticBase):
             # Basic field with default
             name: str = mpb.Field(default="default_name", description="The name field")
-            
+
             # Field with default_factory
-            tags: List[str] = mpb.Field(default_factory=list, description="List of tags")
-            
+            tags: List[str] = mpb.Field(
+                default_factory=list, description="List of tags"
+            )
+
             # Optional field
-            description: Optional[str] = mpb.Field(None, description="Optional description")
-            
+            description: Optional[str] = mpb.Field(
+                None, description="Optional description"
+            )
+
             # Field with alias
             internal_id: int = mpb.Field(alias="id", description="Internal ID")
 
@@ -189,10 +194,10 @@ class TestRealPydanticIntegration:
         assert instance.internal_id == 123
 
         # Test field metadata access (if available in Pydantic version)
-        if hasattr(FieldModel, 'model_fields'):
+        if hasattr(FieldModel, "model_fields"):
             fields = FieldModel.model_fields
-            if 'name' in fields:
-                assert fields['name'].description == "The name field"
+            if "name" in fields:
+                assert fields["name"].description == "The name field"
 
     def test_json_rpc_message_with_real_pydantic(self):
         """Test JSONRPCMessage functionality with real Pydantic."""
@@ -202,7 +207,7 @@ class TestRealPydanticIntegration:
             pytest.skip("Pydantic not installed")
 
         from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
-        
+
         # Test creation
         msg = JSONRPCMessage.create_request("test_method", {"param": "value"})
         assert msg.jsonrpc == "2.0"
@@ -222,9 +227,9 @@ class TestRealPydanticIntegration:
             "jsonrpc": "2.0",
             "id": "test-123",
             "method": "tools/list",
-            "params": {}
+            "params": {},
         }
-        
+
         validated_msg = JSONRPCMessage.model_validate(msg_data)
         assert validated_msg.jsonrpc == "2.0"
         assert validated_msg.id == "test-123"
@@ -239,7 +244,7 @@ class TestRealPydanticIntegration:
 
         import time
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         class PerfTestModel(mpb.McpPydanticBase):
             name: str
             value: int
@@ -249,11 +254,11 @@ class TestRealPydanticIntegration:
         start_time = time.time()
         for _ in range(100):
             instance = PerfTestModel(name="test", value=42, tags=["a", "b"])
-            data = instance.model_dump()
+            _data = instance.model_dump()
         end_time = time.time()
-        
+
         pydantic_time = end_time - start_time
-        
+
         # This is mainly a smoke test to ensure performance is reasonable
         # Real performance testing should be done separately
         assert pydantic_time < 1.0  # Should complete 100 iterations in under 1 second
@@ -267,14 +272,14 @@ class TestRealPydanticIntegration:
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
         from typing import Union, List, Dict, Any, Optional
-        
+
         class ComplexModel(mpb.McpPydanticBase):
             # Union type
             flexible_value: Union[str, int, float]
-            
+
             # Complex nested structure
             data: Dict[str, List[Dict[str, Any]]]
-            
+
             # Optional union
             maybe_value: Optional[Union[str, int]] = None
 
@@ -284,12 +289,12 @@ class TestRealPydanticIntegration:
             "data": {
                 "users": [
                     {"name": "Alice", "age": 30, "active": True},
-                    {"name": "Bob", "age": 25, "active": False}
+                    {"name": "Bob", "age": 25, "active": False},
                 ]
             },
-            "maybe_value": 42
+            "maybe_value": 42,
         }
-        
+
         instance = ComplexModel.model_validate(complex_data)
         assert instance.flexible_value == "string_value"
         assert len(instance.data["users"]) == 2
@@ -309,7 +314,7 @@ class TestRealPydanticIntegration:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         class StrictModel(mpb.McpPydanticBase):
             name: str
             age: int
@@ -318,7 +323,7 @@ class TestRealPydanticIntegration:
         # Test validation errors provide useful information
         with pytest.raises(mpb.ValidationError) as exc_info:
             StrictModel(name="John", age="not_an_int", email="john@test.com")
-        
+
         # Error should contain field information
         error_str = str(exc_info.value)
         # Exact error format depends on Pydantic version, but should mention the field
@@ -332,17 +337,17 @@ class TestRealPydanticIntegration:
             pytest.skip("Pydantic not installed")
 
         import chuk_mcp.protocol.mcp_pydantic_base as mpb
-        
+
         class ConvenienceModel(mpb.McpPydanticBase):
             name: str
             value: int = 42
 
         instance = ConvenienceModel(name="test")
-        
+
         # Test convenience method exists and works
-        assert hasattr(instance, 'model_dump_mcp')
+        assert hasattr(instance, "model_dump_mcp")
         mcp_data = instance.model_dump_mcp()
         regular_data = instance.model_dump()
-        
+
         # Should produce same result as regular model_dump
         assert mcp_data == regular_data

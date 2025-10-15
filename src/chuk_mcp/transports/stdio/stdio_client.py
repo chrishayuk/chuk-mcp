@@ -4,10 +4,16 @@ import logging
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Any, AsyncGenerator
 
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
+
+# BaseExceptionGroup is Python 3.11+
+try:
+    from builtins import BaseExceptionGroup  # type: ignore[attr-defined]
+except (ImportError, AttributeError):
+    BaseExceptionGroup = Exception  # type: ignore[misc,assignment]
 
 # Import version-aware batching
 from chuk_mcp.protocol.features.batching import BatchProcessor, supports_batching
@@ -47,15 +53,19 @@ class StdioClient:
         # Main communication streams - use buffer to prevent deadlock
         self._incoming_send: MemoryObjectSendStream
         self._incoming_recv: MemoryObjectReceiveStream
-        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(100)
+        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(
+            100
+        )
 
         self._outgoing_send: MemoryObjectSendStream
         self._outgoing_recv: MemoryObjectReceiveStream
-        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(100)
+        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(
+            100
+        )
 
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
-        
+
         # Version-aware batch processing
         self.batch_processor = BatchProcessor()
         logger.debug("StdioClient initialized with version-aware batching")
@@ -63,23 +73,28 @@ class StdioClient:
     def set_protocol_version(self, version: str) -> None:
         """Set the negotiated protocol version and update batching behavior."""
         self.batch_processor.update_protocol_version(version)
-        logger.info(f"Protocol version set to: {version}, batching enabled: {self.batch_processor.batching_enabled}")
+        logger.debug(
+            f"Protocol version set to: {version}, batching enabled: {self.batch_processor.batching_enabled}"
+        )
 
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
-    
+
     async def _route_message(self, msg: JSONRPCMessage) -> None:
         """Fast routing with minimal overhead."""
-        
+
         # Main stream (always)
         try:
             await self._incoming_send.send(msg)
         except anyio.BrokenResourceError:
             return
 
+        # Type narrowing - get ID with getattr to handle unions
+        msg_id = getattr(msg, "id", None)
+
         # Notifications
-        if msg.id is None:
+        if msg_id is None:
             try:
                 self._notify_send.send_nowait(msg)
             except (anyio.WouldBlock, anyio.BrokenResourceError):
@@ -87,7 +102,7 @@ class StdioClient:
             return
 
         # Legacy streams (handle responses and requests with IDs)
-        legacy_stream = self._pending.pop(str(msg.id), None)
+        legacy_stream = self._pending.pop(str(msg_id), None)
         if legacy_stream:
             try:
                 await legacy_stream.send(msg)
@@ -96,7 +111,7 @@ class StdioClient:
                 pass
         else:
             # Log warning for unknown IDs (needed for tests)
-            logger.debug(f"Received message for unknown id: {msg.id}")
+            logger.debug(f"Received message for unknown id: {msg_id}")
 
     async def _stdout_reader(self) -> None:
         """Read server stdout and route JSON-RPC messages with version-aware batch support."""
@@ -109,14 +124,14 @@ class StdioClient:
             async for chunk in self.process.stdout:
                 # Handle both bytes and string chunks
                 if isinstance(chunk, bytes):
-                    buffer += chunk.decode('utf-8')
+                    buffer += chunk.decode("utf-8")
                 else:
                     buffer += chunk
 
                 # Split on newlines
-                lines = buffer.split('\n')
+                lines = buffer.split("\n")
                 buffer = lines[-1]
-                
+
                 for line in lines[:-1]:
                     line = line.strip()
                     if not line:
@@ -124,7 +139,7 @@ class StdioClient:
                     try:
                         data = json.loads(line)
                         await self._process_message_data(data)
-                            
+
                     except json.JSONDecodeError as exc:
                         logger.error("JSON decode error: %s  [line: %.120s]", exc, line)
                     except Exception as exc:
@@ -138,37 +153,57 @@ class StdioClient:
 
     async def _process_message_data(self, data) -> None:
         """Process message data with version-aware batching support."""
-        
+
         # Check if we can process this message
         if not self.batch_processor.can_process_batch(data):
-            logger.warning(f"Rejecting batch message in protocol version {self.batch_processor.protocol_version}")
-            
+            logger.warning(
+                f"Rejecting batch message in protocol version {self.batch_processor.protocol_version}"
+            )
+
             # Send error response back to server
             error_response = self.batch_processor.create_batch_rejection_error()
             await self._send_error_response(error_response)
             return
-        
+
         # Handle JSON-RPC batch messages (if supported by version)
         if isinstance(data, list):
             if self.batch_processor.batching_enabled:
-                logger.debug(f"Processing batch with {len(data)} messages (protocol: {self.batch_processor.protocol_version})")
+                logger.debug(
+                    f"Processing batch with {len(data)} messages (protocol: {self.batch_processor.protocol_version})"
+                )
                 for item in data:
                     try:
-                        msg = JSONRPCMessage.model_validate(item)
-                        await self._route_message(msg)
-                        logger.debug(f"Batch item: {msg.method or 'response'} (id: {msg.id})")
+                        # Import parse_message to handle unions properly
+                        from chuk_mcp.protocol.messages.json_rpc_message import (
+                            parse_message,
+                        )
+
+                        msg = parse_message(item)  # type: ignore[arg-type]
+                        await self._route_message(msg)  # type: ignore[arg-type]
+                        msg_method = getattr(msg, "method", None)
+                        msg_id = getattr(msg, "id", None)
+                        logger.debug(
+                            f"Batch item: {msg_method or 'response'} (id: {msg_id})"
+                        )
                     except Exception as exc:
                         logger.error("Error processing batch item: %s", exc)
                         logger.debug("Invalid batch item: %.120s", json.dumps(item))
             else:
                 # This should not happen as we check can_process_batch above
-                logger.error(f"Unexpected batch message in version {self.batch_processor.protocol_version}")
+                logger.error(
+                    f"Unexpected batch message in version {self.batch_processor.protocol_version}"
+                )
         else:
             # Single message
             try:
-                msg = JSONRPCMessage.model_validate(data)
-                await self._route_message(msg)
-                logger.debug(f"Received: {msg.method or 'response'} (id: {msg.id})")
+                # Import parse_message to handle unions properly
+                from chuk_mcp.protocol.messages.json_rpc_message import parse_message
+
+                msg = parse_message(data)  # type: ignore[arg-type]
+                await self._route_message(msg)  # type: ignore[arg-type]
+                msg_method = getattr(msg, "method", None)
+                msg_id = getattr(msg, "id", None)
+                logger.debug(f"Received: {msg_method or 'response'} (id: {msg_id})")
             except Exception as exc:
                 logger.error("Error processing single message: %s", exc)
 
@@ -178,7 +213,9 @@ class StdioClient:
             if self.process and self.process.stdin:
                 json_str = json.dumps(error_response)
                 await self.process.stdin.send(f"{json_str}\n".encode())
-                logger.debug(f"Sent error response: {error_response.get('error', {}).get('message', 'Unknown error')}")
+                logger.debug(
+                    f"Sent error response: {error_response.get('error', {}).get('message', 'Unknown error')}"
+                )
         except Exception as e:
             logger.error(f"Failed to send error response: {e}")
 
@@ -194,10 +231,10 @@ class StdioClient:
                     if isinstance(message, str):
                         # Raw string message (already JSON)
                         json_str = message
-                    elif hasattr(message, 'model_dump_json'):
+                    elif hasattr(message, "model_dump_json"):
                         # Pydantic model (JSONRPCMessage) - use model_dump_json
                         json_str = message.model_dump_json(exclude_none=True)
-                    elif hasattr(message, 'model_dump'):
+                    elif hasattr(message, "model_dump"):
                         # Pydantic model - convert to dict first, then to JSON
                         json_str = json.dumps(message.model_dump(exclude_none=True))
                     elif isinstance(message, dict):
@@ -206,18 +243,22 @@ class StdioClient:
                     else:
                         # Other object types - try to serialize
                         json_str = json.dumps(message)
-                    
+
                     # Send the JSON string
                     await self.process.stdin.send(f"{json_str}\n".encode())
-                    
+
                     # Enhanced logging for debugging
-                    if hasattr(message, 'method'):
-                        logger.debug(f"Sent: {message.method or 'response'} (id: {message.id})")
-                    elif isinstance(message, dict) and 'method' in message:
-                        logger.debug(f"Sent: {message.get('method', 'response')} (id: {message.get('id')})")
+                    if hasattr(message, "method"):
+                        logger.debug(
+                            f"Sent: {message.method or 'response'} (id: {message.id})"
+                        )
+                    elif isinstance(message, dict) and "method" in message:
+                        logger.debug(
+                            f"Sent: {message.get('method', 'response')} (id: {message.get('id')})"
+                        )
                     else:
                         logger.debug(f"Sent raw message: {json_str[:100]}...")
-                        
+
                 except Exception as exc:
                     logger.error("Error serializing message in stdin_writer: %s", exc)
                     logger.debug("Failed message type: %s", type(message))
@@ -241,6 +282,8 @@ class StdioClient:
         The caller can await .receive() to get the JSONRPCMessage.
         """
         # Use buffer size of 1 to avoid deadlock in tests
+        send_s: MemoryObjectSendStream
+        recv_s: MemoryObjectReceiveStream
         send_s, recv_s = anyio.create_memory_object_stream(1)
         self._pending[req_id] = send_s
         return recv_s
@@ -268,17 +311,19 @@ class StdioClient:
     def get_protocol_version(self) -> Optional[str]:
         """Get the current protocol version."""
         return self.batch_processor.protocol_version
-    
+
     def is_batching_enabled(self) -> bool:
         """Check if batching is currently enabled."""
         return self.batch_processor.batching_enabled
-    
-    def get_batching_info(self) -> Dict[str, any]:
+
+    def get_batching_info(self) -> Dict[str, Any]:
         """Get information about batching support."""
         return {
             "protocol_version": self.batch_processor.protocol_version,
             "batching_enabled": self.batch_processor.batching_enabled,
-            "supports_batch_function": supports_batching(self.batch_processor.protocol_version)
+            "supports_batch_function": supports_batching(
+                self.batch_processor.protocol_version
+            ),
         }
 
     # ------------------------------------------------------------------ #
@@ -292,7 +337,9 @@ class StdioClient:
                 stderr=sys.stderr,
                 start_new_session=True,
             )
-            logger.debug("Subprocess PID %s (%s)", self.process.pid, self.server.command)
+            logger.debug(
+                "Subprocess PID %s (%s)", self.process.pid, self.server.command
+            )
 
             self.tg = anyio.create_task_group()
             await self.tg.__aenter__()
@@ -309,11 +356,11 @@ class StdioClient:
         try:
             # Close outgoing stream to signal stdin_writer to exit
             await self._outgoing_send.aclose()
-            
+
             if self.tg:
                 # Cancel all tasks
                 self.tg.cancel_scope.cancel()
-                
+
                 # CRITICAL FIX: Do NOT use asyncio.wait_for() with anyio task groups!
                 # This was causing the "cancel scope in different task" error.
                 # Just handle the BaseExceptionGroup properly.
@@ -328,33 +375,41 @@ class StdioClient:
                             if "cancel scope" in error_msg.lower():
                                 # CRITICAL: Log cancel scope issues as DEBUG, not ERROR
                                 # This eliminates the misleading error message
-                                logger.debug(f"Cancel scope issue during shutdown (expected): {exc}")
+                                logger.debug(
+                                    f"Cancel scope issue during shutdown (expected): {exc}"
+                                )
                             elif "json object must be str" in error_msg.lower():
                                 # JSON serialization errors are actual bugs
-                                logger.error(f"JSON serialization error during shutdown: {exc}")
+                                logger.error(
+                                    f"JSON serialization error during shutdown: {exc}"
+                                )
                             else:
                                 # Only real errors should be logged as ERROR
                                 logger.error(f"Task error during shutdown: {exc}")
-                            
+
                 except Exception as e:
                     # Handle regular exceptions for older anyio versions
                     if not isinstance(e, anyio.get_cancelled_exc_class()):
                         error_msg = str(e)
                         if "cancel scope" in error_msg.lower():
                             # CRITICAL: Log cancel scope issues as DEBUG, not ERROR
-                            logger.debug(f"Cancel scope issue during shutdown (expected): {e}")
+                            logger.debug(
+                                f"Cancel scope issue during shutdown (expected): {e}"
+                            )
                         elif "json object must be str" in error_msg.lower():
                             # JSON serialization errors are actual bugs
-                            logger.error(f"JSON serialization error during shutdown: {e}")
+                            logger.error(
+                                f"JSON serialization error during shutdown: {e}"
+                            )
                         else:
                             logger.error(f"Task error during shutdown: {e}")
-                
+
             if self.process and self.process.returncode is None:
                 await self._terminate_process()
-                
+
         except Exception as e:
             logger.debug(f"Error during stdio client shutdown: {e}")
-            
+
         return False
 
     async def _terminate_process(self) -> None:
@@ -374,7 +429,7 @@ class StdioClient:
                     logger.debug("Graceful term timed out - killing …")
                     self.process.kill()
                     try:
-                        # Reduced timeout from 5s to 1s  
+                        # Reduced timeout from 5s to 1s
                         with anyio.fail_after(1.0):
                             await self.process.wait()
                     except TimeoutError:
@@ -388,19 +443,21 @@ class StdioClient:
 # Convenience context-manager that returns streams for send_message
 # ---------------------------------------------------------------------- #
 @asynccontextmanager
-async def stdio_client(server: StdioParameters) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
+async def stdio_client(
+    server: StdioParameters,
+) -> AsyncGenerator[Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream], None]:
     """
     Create a stdio client and return streams that work with send_message.
-    
+
     Usage:
         async with stdio_client(server_params) as (read_stream, write_stream):
             response = await send_message(read_stream, write_stream, "ping")
-    
+
     Returns:
         Tuple of (read_stream, write_stream) for JSON-RPC communication
     """
     client = StdioClient(server)
-    
+
     try:
         async with client:
             # Return the streams that send_message expects
@@ -411,7 +468,9 @@ async def stdio_client(server: StdioParameters) -> Tuple[MemoryObjectReceiveStre
             if not isinstance(exc, anyio.get_cancelled_exc_class()):
                 error_msg = str(exc)
                 if "cancel scope" in error_msg.lower():
-                    logger.debug(f"stdio_client cancel scope issue (expected during shutdown): {exc}")
+                    logger.debug(
+                        f"stdio_client cancel scope issue (expected during shutdown): {exc}"
+                    )
                 elif "json object must be str" in error_msg.lower():
                     logger.error(f"JSON serialization error in stdio_client: {exc}")
                     raise  # Re-raise JSON errors as they indicate bugs
@@ -423,7 +482,9 @@ async def stdio_client(server: StdioParameters) -> Tuple[MemoryObjectReceiveStre
         if not isinstance(e, anyio.get_cancelled_exc_class()):
             error_msg = str(e)
             if "cancel scope" in error_msg.lower():
-                logger.debug(f"stdio_client cancel scope issue (expected during shutdown): {e}")
+                logger.debug(
+                    f"stdio_client cancel scope issue (expected during shutdown): {e}"
+                )
             elif "json object must be str" in error_msg.lower():
                 logger.error(f"JSON serialization error in stdio_client: {e}")
                 raise  # Re-raise JSON errors as they indicate bugs
@@ -441,38 +502,40 @@ async def stdio_client_with_initialize(
 ):
     """
     Create a stdio client and automatically send initialization.
-    
+
     This combines stdio_client with send_initialize_with_client_tracking
     to provide a convenient way to start an MCP server with proper
     initialization and version tracking.
-    
+
     Usage:
         async with stdio_client_with_initialize(server_params) as (read_stream, write_stream, init_result):
             # init_result contains the server capabilities and protocol version
             response = await send_message(read_stream, write_stream, "tools/list")
-    
+
     Args:
         server: Server parameters for starting the subprocess
         timeout: Timeout for initialization in seconds
         supported_versions: List of supported protocol versions
         preferred_version: Preferred protocol version to negotiate
-        
+
     Yields:
         Tuple of (read_stream, write_stream, init_result)
-        
+
     Raises:
         VersionMismatchError: If version negotiation fails
         TimeoutError: If initialization times out
         Exception: For other initialization failures
     """
-    from chuk_mcp.protocol.messages.initialize.send_messages import send_initialize_with_client_tracking
-    
+    from chuk_mcp.protocol.messages.initialize.send_messages import (
+        send_initialize_with_client_tracking,
+    )
+
     client = StdioClient(server)
-    
+
     try:
         async with client:
             read_stream, write_stream = client.get_streams()
-            
+
             # Perform initialization with version tracking
             init_result = await send_initialize_with_client_tracking(
                 read_stream=read_stream,
@@ -482,22 +545,26 @@ async def stdio_client_with_initialize(
                 supported_versions=supported_versions,
                 preferred_version=preferred_version,
             )
-            
+
             if not init_result:
                 raise Exception("Initialization failed")
-            
+
             # Yield the streams and initialization result
             yield read_stream, write_stream, init_result
-            
+
     except BaseExceptionGroup as eg:
         # FIXED: Handle exception groups by changing log levels appropriately
         for exc in eg.exceptions:
             if not isinstance(exc, anyio.get_cancelled_exc_class()):
                 error_msg = str(exc)
                 if "cancel scope" in error_msg.lower():
-                    logger.debug(f"stdio_client_with_initialize cancel scope issue (expected): {exc}")
+                    logger.debug(
+                        f"stdio_client_with_initialize cancel scope issue (expected): {exc}"
+                    )
                 elif "json object must be str" in error_msg.lower():
-                    logger.error(f"JSON serialization error in stdio_client_with_initialize: {exc}")
+                    logger.error(
+                        f"JSON serialization error in stdio_client_with_initialize: {exc}"
+                    )
                     raise  # Re-raise JSON errors as they indicate bugs
                 else:
                     logger.error(f"stdio_client_with_initialize error: {exc}")
@@ -507,9 +574,13 @@ async def stdio_client_with_initialize(
         if not isinstance(e, anyio.get_cancelled_exc_class()):
             error_msg = str(e)
             if "cancel scope" in error_msg.lower():
-                logger.debug(f"stdio_client_with_initialize cancel scope issue (expected): {e}")
+                logger.debug(
+                    f"stdio_client_with_initialize cancel scope issue (expected): {e}"
+                )
             elif "json object must be str" in error_msg.lower():
-                logger.error(f"JSON serialization error in stdio_client_with_initialize: {e}")
+                logger.error(
+                    f"JSON serialization error in stdio_client_with_initialize: {e}"
+                )
                 raise  # Re-raise JSON errors as they indicate bugs
             else:
                 logger.error(f"stdio_client_with_initialize error: {e}")
@@ -522,13 +593,14 @@ async def stdio_client_with_initialize(
 def _supports_batch_processing(protocol_version: Optional[str]) -> bool:
     """
     Legacy function for backward compatibility.
-    
+
     Use BatchProcessor or supports_batching() function instead.
     """
     import warnings
+
     warnings.warn(
         "_supports_batch_processing is deprecated. Use supports_batching() or BatchProcessor instead.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     return supports_batching(protocol_version)

@@ -6,12 +6,8 @@ This script demonstrates a complete working example of using the chuk-mcp
 SSE client to connect to and interact with an MCP server via Server-Sent Events.
 """
 
-import asyncio
-import os
 import sys
 import logging
-import json
-from typing import Optional
 
 import anyio
 
@@ -492,12 +488,13 @@ async def run_sse_example():
     """Run the complete SSE client example."""
     print("🌊 SSE Client E2E Example")
     print("=" * 50)
-    
+
     # Check if server is running
     print("🔍 Checking if SSE server is available...")
-    
+
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:8000/", timeout=5.0)
             if response.status_code == 200:
@@ -506,7 +503,7 @@ async def run_sse_example():
             else:
                 raise Exception(f"Server returned status {response.status_code}")
     except Exception as e:
-        print(f"   ❌ SSE server not available at http://localhost:8000")
+        print("   ❌ SSE server not available at http://localhost:8000")
         print(f"   Error: {e}")
         print("\\n💡 To run this example:")
         print("   1. Install FastAPI and uvicorn: pip install fastapi uvicorn")
@@ -517,7 +514,7 @@ async def run_sse_example():
         print("-" * 50)
         print(create_sse_server_example())
         return
-    
+
     try:
         # Set up SSE parameters
         print("🔧 Setting up SSE parameters...")
@@ -525,30 +522,32 @@ async def run_sse_example():
             url="http://localhost:8000",
             timeout=30.0,
             auto_reconnect=True,
-            max_reconnect_attempts=3
+            max_reconnect_attempts=3,
         )
-        
+
         print(f"   URL: {sse_params.url}")
         print(f"   Timeout: {sse_params.timeout}s")
         print(f"   Auto-reconnect: {sse_params.auto_reconnect}")
-        
+
         # Connect and run example
         print("\\n📡 Connecting to SSE server...")
         async with sse_client(sse_params) as (read_stream, write_stream):
             print("   ✅ SSE connection established!")
-            
+
             # 1. Initialize
             print("\\n1️⃣  Initializing connection...")
             init_result = await send_initialize(read_stream, write_stream)
             print(f"   ✅ Server: {init_result.serverInfo.name}")
             print(f"   📋 Protocol: {init_result.protocolVersion}")
             print(f"   💡 Instructions: {init_result.instructions}")
-            
+
             # 2. Test ping
             print("\\n2️⃣  Testing connectivity...")
             ping_success = await send_ping(read_stream, write_stream)
-            print(f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}")
-            
+            print(
+                f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}"
+            )
+
             # 3. Explore tools
             print("\\n3️⃣  Exploring SSE-specific tools...")
             tools_response = await send_tools_list(read_stream, write_stream)
@@ -556,44 +555,46 @@ async def run_sse_example():
             print(f"   📋 Found {len(tools)} tools:")
             for tool in tools:
                 print(f"      • {tool['name']}: {tool['description']}")
-            
+
             # 4. Use SSE-specific tools
             print("\\n4️⃣  Using SSE tools...")
-            
+
             # SSE Greeting
             print("   👋 Testing SSE greeting...")
             greet_response = await send_tools_call(
-                read_stream, write_stream,
-                "sse_greet", {"name": "SSE User", "message": "Welcome"}
+                read_stream,
+                write_stream,
+                "sse_greet",
+                {"name": "SSE User", "message": "Welcome"},
             )
             result = greet_response["content"][0]["text"]
             print(f"      {result}")
-            
+
             # Session info
             print("   📊 Getting session information...")
             session_response = await send_tools_call(
-                read_stream, write_stream,
-                "session_info", {}
+                read_stream, write_stream, "session_info", {}
             )
             session_info = session_response["content"][0]["text"]
             print(f"      {session_info}")
-            
+
             # Counter test
             print("   🔢 Testing SSE counter...")
             counter_response = await send_tools_call(
-                read_stream, write_stream,
-                "sse_counter", {"increment": 3}
+                read_stream, write_stream, "sse_counter", {"increment": 3}
             )
             print(f"      {counter_response['content'][0]['text']}")
-            
+
             # Broadcast test
             print("   📢 Testing broadcast capability...")
             broadcast_response = await send_tools_call(
-                read_stream, write_stream,
-                "broadcast_test", {"message": "Hello from SSE client!"}
+                read_stream,
+                write_stream,
+                "broadcast_test",
+                {"message": "Hello from SSE client!"},
             )
             print(f"      {broadcast_response['content'][0]['text']}")
-            
+
             # 5. Explore resources
             print("\\n5️⃣  Exploring SSE resources...")
             resources_response = await send_resources_list(read_stream, write_stream)
@@ -601,28 +602,31 @@ async def run_sse_example():
             print(f"   📂 Found {len(resources)} resources:")
             for resource in resources:
                 print(f"      • {resource['name']}: {resource['description']}")
-            
+
             # Read resources
             print("   📖 Reading SSE resources...")
             for resource in resources:
                 uri = resource["uri"]
-                content_response = await send_resources_read(read_stream, write_stream, uri)
+                content_response = await send_resources_read(
+                    read_stream, write_stream, uri
+                )
                 content = content_response["contents"][0]["text"]
                 print(f"      {resource['name']}:")
                 if resource.get("mimeType") == "application/json":
                     # Pretty print JSON
                     import json
+
                     data = json.loads(content)
                     print(f"         {json.dumps(data, indent=8)}")
                 else:
                     # Show first few lines of text
-                    lines = content.split('\\n')[:3]
+                    lines = content.split("\\n")[:3]
                     for line in lines:
                         if line.strip():
                             print(f"         {line}")
-                    if len(content.split('\\n')) > 3:
+                    if len(content.split("\\n")) > 3:
                         print("         ...")
-            
+
             # 6. Explore prompts
             print("\\n6️⃣  Exploring SSE prompts...")
             prompts_response = await send_prompts_list(read_stream, write_stream)
@@ -630,56 +634,63 @@ async def run_sse_example():
             print(f"   📝 Found {len(prompts)} prompts:")
             for prompt in prompts:
                 print(f"      • {prompt['name']}: {prompt['description']}")
-            
+
             # Get prompts
             print("   💬 Getting SSE prompts...")
-            
+
             # Status report prompt
             status_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "sse_status_report", {"detail_level": "detailed"}
+                read_stream,
+                write_stream,
+                "sse_status_report",
+                {"detail_level": "detailed"},
             )
             print(f"      Status Report: {status_prompt['description']}")
-            print(f"         Content: {status_prompt['messages'][0]['content']['text'][:100]}...")
-            
+            print(
+                f"         Content: {status_prompt['messages'][0]['content']['text'][:100]}..."
+            )
+
             # Real-time prompt
             realtime_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "realtime_prompt", {"topic": "data streaming"}
+                read_stream,
+                write_stream,
+                "realtime_prompt",
+                {"topic": "data streaming"},
             )
             print(f"      Real-time Prompt: {realtime_prompt['description']}")
-            print(f"         Content: {realtime_prompt['messages'][0]['content']['text'][:100]}...")
-            
+            print(
+                f"         Content: {realtime_prompt['messages'][0]['content']['text'][:100]}..."
+            )
+
             # 7. Test concurrent operations over SSE
             print("\\n7️⃣  Testing concurrent SSE operations...")
-            
+
             async with anyio.create_task_group() as tg:
                 results = []
-                
+
                 async def concurrent_ping():
                     result = await send_ping(read_stream, write_stream)
                     results.append(f"Ping: {'✅' if result else '❌'}")
-                
+
                 async def concurrent_counter():
-                    response = await send_tools_call(
-                        read_stream, write_stream,
-                        "sse_counter", {"increment": 1}
+                    _response = await send_tools_call(
+                        read_stream, write_stream, "sse_counter", {"increment": 1}
                     )
-                    results.append(f"Counter: ✅")
-                
+                    results.append("Counter: ✅")
+
                 async def concurrent_tools_list():
                     response = await send_tools_list(read_stream, write_stream)
                     results.append(f"Tools: ✅ ({len(response['tools'])})")
-                
+
                 # Start concurrent operations
                 tg.start_soon(concurrent_ping)
                 tg.start_soon(concurrent_counter)
                 tg.start_soon(concurrent_tools_list)
-            
+
             print("   📊 Concurrent operation results:")
             for result in results:
                 print(f"      {result}")
-        
+
         print("\\n🎉 SSE client example completed successfully!")
         print("\\n📊 Summary:")
         print("   ✅ Connection via Server-Sent Events")
@@ -688,10 +699,11 @@ async def run_sse_example():
         print("   ✅ Real-time communication capabilities")
         print("   ✅ Concurrent operations over SSE")
         print("   ✅ Clean connection teardown")
-        
+
     except Exception as e:
         print(f"\\n❌ Error during SSE example: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -702,7 +714,7 @@ def main():
     print("=" * 60)
     print("Demonstrating complete SSE transport functionality")
     print("=" * 60)
-    
+
     try:
         anyio.run(run_sse_example)
         print("\\n" + "=" * 60)

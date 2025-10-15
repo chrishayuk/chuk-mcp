@@ -1,12 +1,14 @@
 # tests/mcp/test_send_prompts_enhanced.py
 import pytest
 import anyio
-import base64
 
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.protocol.messages.message_method import MessageMethod
-from chuk_mcp.protocol.messages.prompts.send_messages import send_prompts_list, send_prompts_get
+from chuk_mcp.protocol.messages.prompts.send_messages import (
+    send_prompts_list,
+    send_prompts_get,
+)
 
 # Force asyncio only for all tests in this file
 pytestmark = [pytest.mark.asyncio]
@@ -28,8 +30,8 @@ async def test_send_prompts_get_multi_message_types():
                 "role": "user",
                 "content": {
                     "type": "text",
-                    "text": "Analyze this code sample and explain the image below:"
-                }
+                    "text": "Analyze this code sample and explain the image below:",
+                },
             },
             {
                 "role": "user",
@@ -38,26 +40,26 @@ async def test_send_prompts_get_multi_message_types():
                     "resource": {
                         "uri": "resource://code-samples/example.py",
                         "mimeType": "text/plain",
-                        "text": "def hello_world():\n    print('Hello, world!')"
-                    }
-                }
+                        "text": "def hello_world():\n    print('Hello, world!')",
+                    },
+                },
             },
             {
                 "role": "user",
                 "content": {
                     "type": "image",
                     "data": sample_base64_image,
-                    "mimeType": "image/png"
-                }
+                    "mimeType": "image/png",
+                },
             },
             {
                 "role": "assistant",
                 "content": {
                     "type": "text",
-                    "text": "The code defines a simple function that prints 'Hello, world!'."
-                }
-            }
-        ]
+                    "text": "The code defines a simple function that prints 'Hello, world!'.",
+                },
+            },
+        ],
     }
 
     # Test prompt name and arguments
@@ -69,14 +71,14 @@ async def test_send_prompts_get_multi_message_types():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Verify it's a prompts/get method
             assert req.method == MessageMethod.PROMPTS_GET
-            
+
             # Check the prompt name and arguments
             assert req.params.get("name") == test_prompt_name
             assert req.params.get("arguments") == test_prompt_args
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=complex_prompt_result)
             await read_send.send(response)
@@ -86,34 +88,37 @@ async def test_send_prompts_get_multi_message_types():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_get(
             read_stream=read_receive,
             write_stream=write_send,
             name=test_prompt_name,
-            arguments=test_prompt_args
+            arguments=test_prompt_args,
         )
-    
+
     # Check if response is correct
     assert result == complex_prompt_result
-    
+
     # Verify multiple message types
     assert len(result["messages"]) == 4
-    
+
     # Check text content message
     assert result["messages"][0]["content"]["type"] == "text"
-    
+
     # Check resource content
     assert result["messages"][1]["content"]["type"] == "resource"
-    assert result["messages"][1]["content"]["resource"]["uri"] == "resource://code-samples/example.py"
+    assert (
+        result["messages"][1]["content"]["resource"]["uri"]
+        == "resource://code-samples/example.py"
+    )
     assert result["messages"][1]["content"]["resource"]["mimeType"] == "text/plain"
-    
+
     # Check image content
     assert result["messages"][2]["content"]["type"] == "image"
     assert result["messages"][2]["content"]["data"] == sample_base64_image
     assert result["messages"][2]["content"]["mimeType"] == "image/png"
-    
+
     # Check assistant message
     assert result["messages"][3]["role"] == "assistant"
 
@@ -128,14 +133,14 @@ async def test_send_prompts_get_missing_required_argument():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send protocol error response
             response = JSONRPCMessage(
-                id=req.id, 
+                id=req.id,
                 error={
                     "code": -32602,
-                    "message": "Invalid params: Missing required argument 'code'"
-                }
+                    "message": "Invalid params: Missing required argument 'code'",
+                },
             )
             await read_send.send(response)
         except Exception as e:
@@ -144,7 +149,7 @@ async def test_send_prompts_get_missing_required_argument():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request should raise an exception for missing argument
         with pytest.raises(Exception) as exc_info:
             await send_prompts_get(
@@ -152,9 +157,9 @@ async def test_send_prompts_get_missing_required_argument():
                 write_stream=write_send,
                 name="code_review",
                 arguments={"language": "python"},  # Missing 'code' argument
-                retries=1  # Only retry once to avoid timeout errors in test
+                retries=1,  # Only retry once to avoid timeout errors in test
             )
-    
+
     # Verify error message
     assert "Missing required argument" in str(exc_info.value)
 
@@ -165,7 +170,9 @@ async def test_send_prompts_get_resource_blob():
     write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Sample blob data (binary content as base64)
-    sample_blob_data = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"  # 1x1 GIF
+    sample_blob_data = (
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"  # 1x1 GIF
+    )
 
     # Sample prompt with binary resource
     resource_prompt_result = {
@@ -173,10 +180,7 @@ async def test_send_prompts_get_resource_blob():
         "messages": [
             {
                 "role": "user",
-                "content": {
-                    "type": "text",
-                    "text": "Here's an example binary file:"
-                }
+                "content": {"type": "text", "text": "Here's an example binary file:"},
             },
             {
                 "role": "user",
@@ -185,11 +189,11 @@ async def test_send_prompts_get_resource_blob():
                     "resource": {
                         "uri": "resource://examples/sample.bin",
                         "mimeType": "application/octet-stream",
-                        "blob": sample_blob_data
-                    }
-                }
-            }
-        ]
+                        "blob": sample_blob_data,
+                    },
+                },
+            },
+        ],
     }
 
     # Define server behavior
@@ -197,7 +201,7 @@ async def test_send_prompts_get_resource_blob():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=resource_prompt_result)
             await read_send.send(response)
@@ -207,17 +211,18 @@ async def test_send_prompts_get_resource_blob():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_get(
-            read_stream=read_receive,
-            write_stream=write_send,
-            name="binary_example"
+            read_stream=read_receive, write_stream=write_send, name="binary_example"
         )
-    
+
     # Check if response has the correct binary resource
     assert result["messages"][1]["content"]["type"] == "resource"
-    assert result["messages"][1]["content"]["resource"]["mimeType"] == "application/octet-stream"
+    assert (
+        result["messages"][1]["content"]["resource"]["mimeType"]
+        == "application/octet-stream"
+    )
     assert result["messages"][1]["content"]["resource"]["blob"] == sample_blob_data
 
 
@@ -231,10 +236,10 @@ async def test_send_prompts_get_server_resource_error():
         "isError": True,
         "content": [
             {
-                "type": "text", 
-                "text": "Error accessing resource: Resource not found or access denied"
+                "type": "text",
+                "text": "Error accessing resource: Resource not found or access denied",
             }
-        ]
+        ],
     }
 
     # Define server behavior
@@ -242,7 +247,7 @@ async def test_send_prompts_get_server_resource_error():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with resource error
             response = JSONRPCMessage(id=req.id, result=resource_error_result)
             await read_send.send(response)
@@ -252,15 +257,15 @@ async def test_send_prompts_get_server_resource_error():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_get(
             read_stream=read_receive,
             write_stream=write_send,
             name="restricted_resource",
-            arguments={"resourceId": "secure-123"}
+            arguments={"resourceId": "secure-123"},
         )
-    
+
     # Should return the error without raising an exception (tool error vs protocol error)
     assert result == resource_error_result
     assert result["isError"] is True
@@ -282,20 +287,20 @@ async def test_send_prompts_list_extensive():
                     {
                         "name": "code",
                         "description": "The code to review",
-                        "required": True
+                        "required": True,
                     },
                     {
                         "name": "language",
                         "description": "Programming language of the code",
-                        "required": False
+                        "required": False,
                     },
                     {
                         "name": "focus",
                         "description": "Review focus (e.g., 'performance', 'security', 'readability')",
                         "required": False,
-                        "enum": ["performance", "security", "readability", "all"]
-                    }
-                ]
+                        "enum": ["performance", "security", "readability", "all"],
+                    },
+                ],
             },
             {
                 "name": "image_analysis",
@@ -304,18 +309,18 @@ async def test_send_prompts_list_extensive():
                     {
                         "name": "imageData",
                         "description": "Base64-encoded image data",
-                        "required": True
+                        "required": True,
                     },
                     {
                         "name": "format",
                         "description": "Format of the analysis (brief or detailed)",
                         "required": False,
-                        "default": "brief"
-                    }
-                ]
-            }
+                        "default": "brief",
+                    },
+                ],
+            },
         ],
-        "nextCursor": "next-page-cursor"
+        "nextCursor": "next-page-cursor",
     }
 
     # Define server behavior
@@ -323,7 +328,7 @@ async def test_send_prompts_list_extensive():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=extensive_prompts)
             await read_send.send(response)
@@ -333,16 +338,15 @@ async def test_send_prompts_list_extensive():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_list(
-            read_stream=read_receive,
-            write_stream=write_send
+            read_stream=read_receive, write_stream=write_send
         )
-    
+
     # Verify response has extensive argument definitions
     assert result == extensive_prompts
-    
+
     # Check code_review prompt
     code_review = result["prompts"][0]
     assert len(code_review["arguments"]) == 3
@@ -350,7 +354,7 @@ async def test_send_prompts_list_extensive():
     assert code_review["arguments"][1]["required"] is False
     assert "enum" in code_review["arguments"][2]
     assert len(code_review["arguments"][2]["enum"]) == 4
-    
+
     # Check image_analysis prompt
     image_analysis = result["prompts"][1]
     assert len(image_analysis["arguments"]) == 2

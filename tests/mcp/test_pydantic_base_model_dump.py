@@ -12,8 +12,9 @@ from chuk_mcp.protocol.mcp_pydantic_base import (
     PYDANTIC_AVAILABLE,
 )
 
+
 ###############################################################################
-# Test helpers                                                                 
+# Test helpers
 ###############################################################################
 class _ModelWrapper:  # noqa: D401 - helper
     """Normalises *model_dump_json* across Pydantic-v1, v2 and the fallback."""
@@ -41,9 +42,11 @@ def _new(model_cls, **kwargs):
     """Instantiate *model_cls* and wrap it for uniform API access."""
     return _ModelWrapper(model_cls(**kwargs))
 
+
 ###############################################################################
-# Positive-path tests                                                         
+# Positive-path tests
 ###############################################################################
+
 
 def test_basic_dump():
     class Simple(McpPydanticBase):
@@ -107,12 +110,16 @@ def test_complex_types_roundtrip():
         ints: List[int]
         mapping: Dict[str, Dict[str, int]]
 
-    dumped = json.loads(_new(Big, ints=[1, 2], mapping={"a": {"x": 3}}).model_dump_json())
+    dumped = json.loads(
+        _new(Big, ints=[1, 2], mapping={"a": {"x": 3}}).model_dump_json()
+    )
     assert dumped["mapping"]["a"]["x"] == 3
 
+
 ###############################################################################
-# Negative-path / validation tests                                            
+# Negative-path / validation tests
 ###############################################################################
+
 
 def test_missing_required_raises():
     class Req(McpPydanticBase):
@@ -130,8 +137,9 @@ def test_type_validation_raises():
     with pytest.raises(ValidationError):
         Types(num="bad", tags=[1, 2])  # type: ignore[arg-type]
 
+
 ###############################################################################
-# Param grid - indent × exclude_none                                          
+# Param grid - indent × exclude_none
 ###############################################################################
 @pytest.mark.parametrize("indent, exclude_none", [(2, False), (None, False), (4, True)])
 def test_param_grid(indent, exclude_none):
@@ -139,7 +147,9 @@ def test_param_grid(indent, exclude_none):
         x: str
         y: Optional[int] = None
 
-    dumped = json.loads(_new(Tmp, x="z").model_dump_json(indent=indent, exclude_none=exclude_none))
+    dumped = json.loads(
+        _new(Tmp, x="z").model_dump_json(indent=indent, exclude_none=exclude_none)
+    )
     assert dumped["x"] == "z"
     if exclude_none:
         assert "y" not in dumped

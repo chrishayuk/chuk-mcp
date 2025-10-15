@@ -8,11 +8,12 @@ import os
 import tempfile
 from pathlib import Path
 
+
 def test_core_imports():
     """Test that core chuk-mcp modules can be imported."""
     print("🧪 Testing core imports...")
-    
-    test_script = '''
+
+    test_script = """
 import sys
 import os
 
@@ -63,20 +64,22 @@ except Exception as e:
 finally:
     if "MCP_FORCE_FALLBACK" in os.environ:
         del os.environ["MCP_FORCE_FALLBACK"]
-'''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         import subprocess
-        result = subprocess.run([sys.executable, test_file], 
-                              capture_output=True, text=True, timeout=30)
-        
+
+        result = subprocess.run(
+            [sys.executable, test_file], capture_output=True, text=True, timeout=30
+        )
+
         if result.returncode == 0:
             print("   ✅ Core imports test PASSED")
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -84,15 +87,16 @@ finally:
             print("   ❌ Core imports test FAILED")
             print(f"   Error: {result.stderr}")
             return False
-            
+
     finally:
         os.unlink(test_file)
+
 
 def test_no_system_dependencies():
     """Test that code doesn't use system-specific features - FIXED."""
     print("\n🔍 Testing for Pyodide compatibility issues...")
-    
-    test_script = '''
+
+    test_script = """
 import sys
 import os
 import builtins
@@ -174,20 +178,22 @@ finally:
         
     if "MCP_FORCE_FALLBACK" in os.environ:
         del os.environ["MCP_FORCE_FALLBACK"]
-'''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         import subprocess
-        result = subprocess.run([sys.executable, test_file], 
-                              capture_output=True, text=True, timeout=30)
-        
+
+        result = subprocess.run(
+            [sys.executable, test_file], capture_output=True, text=True, timeout=30
+        )
+
         if result.returncode == 0:
             print("   ✅ System dependencies test PASSED")
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -195,15 +201,16 @@ finally:
             print("   ❌ System dependencies test FAILED")
             print(f"   Error: {result.stderr}")
             return False
-            
+
     finally:
         os.unlink(test_file)
+
 
 def test_browser_json_patterns():
     """Test JSON patterns commonly used in browsers."""
     print("\n🌐 Testing browser-friendly JSON patterns...")
-    
-    test_script = '''
+
+    test_script = """
 import os
 import json
 
@@ -310,20 +317,22 @@ except Exception as e:
 finally:
     if "MCP_FORCE_FALLBACK" in os.environ:
         del os.environ["MCP_FORCE_FALLBACK"]
-'''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         import subprocess
-        result = subprocess.run([sys.executable, test_file], 
-                              capture_output=True, text=True, timeout=30)
-        
+
+        result = subprocess.run(
+            [sys.executable, test_file], capture_output=True, text=True, timeout=30
+        )
+
         if result.returncode == 0:
             print("   ✅ Browser JSON patterns test PASSED")
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -331,14 +340,15 @@ finally:
             print("   ❌ Browser JSON patterns test FAILED")
             print(f"   Error: {result.stderr}")
             return False
-            
+
     finally:
         os.unlink(test_file)
+
 
 def test_async_compatibility():
     """Test async/await compatibility."""
     print("\n⚡ Testing async/await compatibility...")
-    
+
     test_script = '''
 import asyncio
 import os
@@ -410,19 +420,21 @@ async def test_async_operations():
 # Run the async test
 asyncio.run(test_async_operations())
 '''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         import subprocess
-        result = subprocess.run([sys.executable, test_file], 
-                              capture_output=True, text=True, timeout=30)
-        
+
+        result = subprocess.run(
+            [sys.executable, test_file], capture_output=True, text=True, timeout=30
+        )
+
         if result.returncode == 0:
             print("   ✅ Async compatibility test PASSED")
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -430,64 +442,66 @@ asyncio.run(test_async_operations())
             print("   ❌ Async compatibility test FAILED")
             print(f"   Error: {result.stderr}")
             return False
-            
+
     finally:
         os.unlink(test_file)
+
 
 def test_bundle_size_estimate():
     """Estimate the bundle size for Pyodide."""
     print("\n📦 Estimating bundle size...")
-    
+
     try:
         # Find the source directory
         current_dir = Path(__file__).parent
         src_dir = current_dir.parent / "src" / "chuk_mcp"
-        
+
         if not src_dir.exists():
             # Try alternative location
             src_dir = current_dir / "src" / "chuk_mcp"
-            
+
         if not src_dir.exists():
             print("   ⚠️  Could not find source directory")
             return True
-        
+
         # Count Python files and estimate size
         python_files = list(src_dir.rglob("*.py"))
         total_size = sum(f.stat().st_size for f in python_files)
-        
+
         print(f"   📄 Found {len(python_files)} Python files")
         print(f"   📊 Total source size: {total_size / 1024:.1f} KB")
-        
+
         # Estimate Pyodide bundle size (source + overhead)
         estimated_bundle = total_size * 2  # Rough estimate with bytecode
         print(f"   📦 Estimated Pyodide bundle: {estimated_bundle / 1024:.1f} KB")
-        
+
         if estimated_bundle < 1024 * 1024:  # Less than 1MB
             print("   ✅ Bundle size looks reasonable for web distribution")
         else:
             print("   ⚠️  Bundle might be large for web distribution")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"   ⚠️  Could not estimate bundle size: {e}")
         return True  # Don't fail the test for this
+
 
 def main():
     """Run all Pyodide compatibility tests."""
     print("🌐 chuk-mcp Pyodide Compatibility Tests (Final)")
     print("=" * 60)
-    
+
     tests = [
         ("Core Imports", test_core_imports),
-        ("System Dependencies", test_no_system_dependencies), 
+        ("System Dependencies", test_no_system_dependencies),
         ("Browser JSON Patterns", test_browser_json_patterns),
         ("Bundle Size", test_bundle_size_estimate),
         ("Async Compatibility", test_async_compatibility),
     ]
-    
+
     results = []
-    
+
     for test_name, test_func in tests:
         print(f"\n🧪 Running {test_name} test...")
         try:
@@ -496,27 +510,27 @@ def main():
         except Exception as e:
             print(f"   ❌ {test_name} failed with exception: {e}")
             results.append((test_name, False))
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("📊 Test Results Summary:")
     print("=" * 60)
-    
+
     passed = 0
     for test_name, result in results:
         status = "✅ PASS" if result else "❌ FAIL"
         print(f"   {status} {test_name}")
         if result:
             passed += 1
-    
+
     print(f"\n📈 Overall: {passed}/{len(results)} tests passed")
-    
+
     if passed == len(results):
         print("\n🎉 ALL TESTS PASSED!")
         print("✅ chuk-mcp is fully Pyodide-compatible!")
         print("\n🚀 Ready for browser implementation:")
         print("   1. ✅ Protocol layer works in browser")
-        print("   2. ✅ Fallback validation aligned with real usage") 
+        print("   2. ✅ Fallback validation aligned with real usage")
         print("   3. ✅ Async patterns work perfectly")
         print("   4. ✅ JSON serialization handles all ID types")
         print("   5. ✅ Bundle size is very reasonable (~750KB)")
@@ -531,9 +545,10 @@ def main():
     else:
         print(f"\n⚠️ {len(results) - passed} test(s) failed")
         print("🔧 Issues need to be resolved before browser testing")
-    
+
     print("=" * 60)
     return passed == len(results)
+
 
 if __name__ == "__main__":
     success = main()

@@ -6,13 +6,9 @@ This script demonstrates a complete working example of using the chuk-mcp
 HTTP client to connect to and interact with an MCP server via HTTP requests.
 """
 
-import asyncio
-import os
 import sys
 import logging
-import json
 import time
-from typing import Optional
 
 import anyio
 
@@ -528,22 +524,25 @@ async def run_http_example():
     """Run the complete HTTP client example."""
     print("🌐 HTTP Client E2E Example")
     print("=" * 50)
-    
+
     # Check if server is running
     print("🔍 Checking if HTTP server is available...")
-    
+
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:8001/", timeout=5.0)
             if response.status_code == 200:
                 server_info = response.json()
                 print(f"   ✅ Server found: {server_info.get('message', 'Unknown')}")
-                print(f"   📊 Requests handled: {server_info.get('requests_handled', 0)}")
+                print(
+                    f"   📊 Requests handled: {server_info.get('requests_handled', 0)}"
+                )
             else:
                 raise Exception(f"Server returned status {response.status_code}")
     except Exception as e:
-        print(f"   ❌ HTTP server not available at http://localhost:8001")
+        print("   ❌ HTTP server not available at http://localhost:8001")
         print(f"   Error: {e}")
         print("\\n💡 To run this example:")
         print("   1. Install FastAPI and uvicorn: pip install fastapi uvicorn")
@@ -554,7 +553,7 @@ async def run_http_example():
         print("-" * 50)
         print(create_http_server_example())
         return
-    
+
     try:
         # Set up HTTP parameters
         print("🔧 Setting up HTTP parameters...")
@@ -564,32 +563,34 @@ async def run_http_example():
             method="POST",
             headers={
                 "Content-Type": "application/json",
-                "X-Session-ID": f"http-client-{int(time.time())}"
-            }
+                "X-Session-ID": f"http-client-{int(time.time())}",
+            },
         )
-        
+
         print(f"   URL: {http_params.url}")
         print(f"   Method: {http_params.method}")
         print(f"   Timeout: {http_params.timeout}s")
         print(f"   Session ID: {http_params.headers.get('X-Session-ID')}")
-        
+
         # Connect and run example
         print("\\n📡 Connecting to HTTP server...")
         async with http_client(http_params) as (read_stream, write_stream):
             print("   ✅ HTTP connection established!")
-            
+
             # 1. Initialize
             print("\\n1️⃣  Initializing connection...")
             init_result = await send_initialize(read_stream, write_stream)
             print(f"   ✅ Server: {init_result.serverInfo.name}")
             print(f"   📋 Protocol: {init_result.protocolVersion}")
             print(f"   💡 Instructions: {init_result.instructions}")
-            
+
             # 2. Test ping
             print("\\n2️⃣  Testing connectivity...")
             ping_success = await send_ping(read_stream, write_stream)
-            print(f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}")
-            
+            print(
+                f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}"
+            )
+
             # 3. Explore tools
             print("\\n3️⃣  Exploring HTTP-specific tools...")
             tools_response = await send_tools_list(read_stream, write_stream)
@@ -597,20 +598,22 @@ async def run_http_example():
             print(f"   📋 Found {len(tools)} tools:")
             for tool in tools:
                 print(f"      • {tool['name']}: {tool['description']}")
-            
+
             # 4. Use HTTP-specific tools
             print("\\n4️⃣  Using HTTP tools...")
-            
+
             # HTTP Greeting with different styles
             print("   👋 Testing HTTP greeting...")
             for style in ["casual", "formal", "technical"]:
                 greet_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "http_greet", {"name": f"HTTP-{style.title()}-User", "style": style}
+                    read_stream,
+                    write_stream,
+                    "http_greet",
+                    {"name": f"HTTP-{style.title()}-User", "style": style},
                 )
                 result = greet_response["content"][0]["text"]
                 print(f"      {style}: {result}")
-            
+
             # Counter operations
             print("   🔢 Testing HTTP counter operations...")
             operations = [
@@ -618,40 +621,42 @@ async def run_http_example():
                 {"action": "increment", "amount": 3},
                 {"action": "get"},
                 {"action": "decrement", "amount": 2},
-                {"action": "get"}
+                {"action": "get"},
             ]
-            
+
             for op in operations:
                 counter_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "http_counter", op
+                    read_stream, write_stream, "http_counter", op
                 )
                 print(f"      {counter_response['content'][0]['text']}")
-            
+
             # Add notes
             print("   📝 Adding HTTP notes...")
             notes = [
                 {"content": "HTTP transport working perfectly", "priority": "high"},
                 {"content": "Session management is stateful", "priority": "medium"},
-                {"content": "Need to test concurrent requests", "priority": "low"}
+                {"content": "Need to test concurrent requests", "priority": "low"},
             ]
-            
+
             for note in notes:
                 note_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "add_http_note", note
+                    read_stream, write_stream, "add_http_note", note
                 )
                 print(f"      {note_response['content'][0]['text']}")
-            
+
             # Request information
             print("   📊 Getting HTTP request information...")
             for detail_level in ["basic", "detailed"]:
                 info_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "http_request_info", {"detail_level": detail_level}
+                    read_stream,
+                    write_stream,
+                    "http_request_info",
+                    {"detail_level": detail_level},
                 )
-                print(f"      {detail_level}: {info_response['content'][0]['text'][:100]}...")
-            
+                print(
+                    f"      {detail_level}: {info_response['content'][0]['text'][:100]}..."
+                )
+
             # 5. Explore resources
             print("\\n5️⃣  Exploring HTTP resources...")
             resources_response = await send_resources_list(read_stream, write_stream)
@@ -659,17 +664,20 @@ async def run_http_example():
             print(f"   📂 Found {len(resources)} resources:")
             for resource in resources:
                 print(f"      • {resource['name']}: {resource['description']}")
-            
+
             # Read resources
             print("   📖 Reading HTTP resources...")
             for resource in resources:
                 uri = resource["uri"]
-                content_response = await send_resources_read(read_stream, write_stream, uri)
+                content_response = await send_resources_read(
+                    read_stream, write_stream, uri
+                )
                 content = content_response["contents"][0]["text"]
                 print(f"      {resource['name']}:")
                 if resource.get("mimeType") == "application/json":
                     # Pretty print JSON
                     import json
+
                     data = json.loads(content)
                     # Show first few keys for brevity
                     preview = {k: v for i, (k, v) in enumerate(data.items()) if i < 3}
@@ -678,13 +686,13 @@ async def run_http_example():
                         print("         ... (more data)")
                 else:
                     # Show first few lines of text
-                    lines = content.split('\\n')[:4]
+                    lines = content.split("\\n")[:4]
                     for line in lines:
                         if line.strip():
                             print(f"         {line}")
-                    if len(content.split('\\n')) > 4:
+                    if len(content.split("\\n")) > 4:
                         print("         ...")
-            
+
             # 6. Explore prompts
             print("\\n6️⃣  Exploring HTTP prompts...")
             prompts_response = await send_prompts_list(read_stream, write_stream)
@@ -692,70 +700,79 @@ async def run_http_example():
             print(f"   📝 Found {len(prompts)} prompts:")
             for prompt in prompts:
                 print(f"      • {prompt['name']}: {prompt['description']}")
-            
+
             # Get prompts
             print("   💬 Getting HTTP prompts...")
-            
+
             # Session summary prompt
             session_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "http_session_summary", {"include_notes": "true"}
+                read_stream,
+                write_stream,
+                "http_session_summary",
+                {"include_notes": "true"},
             )
             print(f"      Session Summary: {session_prompt['description']}")
-            print(f"         Content: {session_prompt['messages'][0]['content']['text'][:150]}...")
-            
+            print(
+                f"         Content: {session_prompt['messages'][0]['content']['text'][:150]}..."
+            )
+
             # API documentation prompt
             api_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "api_documentation", {"format": "markdown"}
+                read_stream, write_stream, "api_documentation", {"format": "markdown"}
             )
             print(f"      API Documentation: {api_prompt['description']}")
-            print(f"         Content: {api_prompt['messages'][0]['content']['text'][:100]}...")
-            
+            print(
+                f"         Content: {api_prompt['messages'][0]['content']['text'][:100]}..."
+            )
+
             # 7. Test concurrent HTTP operations
             print("\\n7️⃣  Testing concurrent HTTP operations...")
-            
+
             start_time = time.time()
-            
+
             async with anyio.create_task_group() as tg:
                 results = []
-                
+
                 async def concurrent_ping():
                     result = await send_ping(read_stream, write_stream)
                     results.append(f"Ping: {'✅' if result else '❌'}")
-                
+
                 async def concurrent_counter():
-                    response = await send_tools_call(
-                        read_stream, write_stream,
-                        "http_counter", {"action": "increment", "amount": 1}
+                    _response = await send_tools_call(
+                        read_stream,
+                        write_stream,
+                        "http_counter",
+                        {"action": "increment", "amount": 1},
                     )
-                    results.append(f"Counter: ✅")
-                
+                    results.append("Counter: ✅")
+
                 async def concurrent_info():
-                    response = await send_tools_call(
-                        read_stream, write_stream,
-                        "http_request_info", {"detail_level": "basic"}
+                    _response = await send_tools_call(
+                        read_stream,
+                        write_stream,
+                        "http_request_info",
+                        {"detail_level": "basic"},
                     )
-                    results.append(f"Info: ✅")
-                
+                    results.append("Info: ✅")
+
                 async def concurrent_tools():
                     response = await send_tools_list(read_stream, write_stream)
                     results.append(f"Tools: ✅ ({len(response['tools'])})")
-                
+
                 # Start concurrent operations
                 for _ in range(2):  # Run each operation twice
                     tg.start_soon(concurrent_ping)
                     tg.start_soon(concurrent_counter)
                     tg.start_soon(concurrent_info)
                     tg.start_soon(concurrent_tools)
-            
+
             elapsed = time.time() - start_time
             print(f"   📊 Concurrent operation results (completed in {elapsed:.2f}s):")
             for result in sorted(results):
                 print(f"      {result}")
-            
+
             print(f"   ⚡ Throughput: {len(results)/elapsed:.1f} operations/second")
-        
+
         print("\\n🎉 HTTP client example completed successfully!")
         print("\\n📊 Summary:")
         print("   ✅ Connection via HTTP POST requests")
@@ -764,10 +781,11 @@ async def run_http_example():
         print("   ✅ Stateless request/response model")
         print("   ✅ High-throughput concurrent operations")
         print("   ✅ Clean connection handling")
-        
+
     except Exception as e:
         print(f"\\n❌ Error during HTTP example: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -778,7 +796,7 @@ def main():
     print("=" * 60)
     print("Demonstrating complete HTTP transport functionality")
     print("=" * 60)
-    
+
     try:
         anyio.run(run_http_example)
         print("\\n" + "=" * 60)

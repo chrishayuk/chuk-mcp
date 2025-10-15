@@ -15,7 +15,7 @@ from .batching import (
 
 __all__ = [
     "BatchProcessor",
-    "supports_batching", 
+    "supports_batching",
     "should_reject_batch",
     "_supports_batch_processing",
 ]

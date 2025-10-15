@@ -4,7 +4,6 @@ import anyio
 import base64
 
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.protocol.messages.message_method import MessageMethod
 from chuk_mcp.protocol.messages.tools.send_messages import send_tools_call
 
 # Force asyncio only for all tests in this file
@@ -22,17 +21,10 @@ async def test_send_tools_call_with_image_result():
     # Sample tool call result with image content
     sample_result = {
         "content": [
-            {
-                "type": "text",
-                "text": "Here's a visualization of the data:"
-            },
-            {
-                "type": "image",
-                "data": sample_base64_image,
-                "mimeType": "image/png"
-            }
+            {"type": "text", "text": "Here's a visualization of the data:"},
+            {"type": "image", "data": sample_base64_image, "mimeType": "image/png"},
         ],
-        "isError": False
+        "isError": False,
     }
 
     # Test tool and arguments
@@ -44,7 +36,7 @@ async def test_send_tools_call_with_image_result():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with image content
             response = JSONRPCMessage(id=req.id, result=sample_result)
             await read_send.send(response)
@@ -54,15 +46,15 @@ async def test_send_tools_call_with_image_result():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_tools_call(
             read_stream=read_receive,
             write_stream=write_send,
             name=test_tool,
-            arguments=test_args
+            arguments=test_args,
         )
-    
+
     # Check if image response is correct
     assert result == sample_result
     assert len(result["content"]) == 2
@@ -87,20 +79,17 @@ async def test_send_tools_call_with_resource_result():
     # Sample tool call result with embedded resource
     sample_result = {
         "content": [
-            {
-                "type": "text",
-                "text": "Here are the query results:"
-            },
+            {"type": "text", "text": "Here are the query results:"},
             {
                 "type": "resource",
                 "resource": {
                     "uri": "resource://query-results/12345",
                     "mimeType": "application/json",
-                    "text": '{\n  "results": [\n    {"id": 1, "name": "Item 1"},\n    {"id": 2, "name": "Item 2"}\n  ]\n}'
-                }
-            }
+                    "text": '{\n  "results": [\n    {"id": 1, "name": "Item 1"},\n    {"id": 2, "name": "Item 2"}\n  ]\n}',
+                },
+            },
         ],
-        "isError": False
+        "isError": False,
     }
 
     # Test tool and arguments
@@ -112,7 +101,7 @@ async def test_send_tools_call_with_resource_result():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with resource content
             response = JSONRPCMessage(id=req.id, result=sample_result)
             await read_send.send(response)
@@ -122,15 +111,15 @@ async def test_send_tools_call_with_resource_result():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_tools_call(
             read_stream=read_receive,
             write_stream=write_send,
             name=test_tool,
-            arguments=test_args
+            arguments=test_args,
         )
-    
+
     # Check if resource response is correct
     assert result == sample_result
     assert len(result["content"]) == 2
@@ -151,25 +140,18 @@ async def test_send_tools_call_with_mixed_content():
     # Sample tool call with mixed content types
     sample_result = {
         "content": [
-            {
-                "type": "text",
-                "text": "Analysis complete. Here are the results:"
-            },
-            {
-                "type": "image",
-                "data": sample_blob,
-                "mimeType": "image/gif"
-            },
+            {"type": "text", "text": "Analysis complete. Here are the results:"},
+            {"type": "image", "data": sample_blob, "mimeType": "image/gif"},
             {
                 "type": "resource",
                 "resource": {
                     "uri": "resource://analysis/full-report",
                     "mimeType": "text/html",
-                    "text": "<html><body><h1>Full Report</h1><p>Details here...</p></body></html>"
-                }
-            }
+                    "text": "<html><body><h1>Full Report</h1><p>Details here...</p></body></html>",
+                },
+            },
         ],
-        "isError": False
+        "isError": False,
     }
 
     # Test tool and arguments
@@ -181,7 +163,7 @@ async def test_send_tools_call_with_mixed_content():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with mixed content
             response = JSONRPCMessage(id=req.id, result=sample_result)
             await read_send.send(response)
@@ -191,27 +173,27 @@ async def test_send_tools_call_with_mixed_content():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_tools_call(
             read_stream=read_receive,
             write_stream=write_send,
             name=test_tool,
-            arguments=test_args
+            arguments=test_args,
         )
-    
+
     # Check if mixed content response is correct
     assert result == sample_result
     assert len(result["content"]) == 3
-    
+
     # Check text content
     assert result["content"][0]["type"] == "text"
     assert "Analysis complete" in result["content"][0]["text"]
-    
+
     # Check image content
     assert result["content"][1]["type"] == "image"
     assert result["content"][1]["data"] == sample_blob
-    
+
     # Check resource content
     assert result["content"][2]["type"] == "resource"
     assert "<h1>Full Report</h1>" in result["content"][2]["resource"]["text"]
@@ -227,23 +209,18 @@ async def test_send_tools_call_with_complex_arguments():
         "query": {
             "filters": [
                 {"field": "category", "operator": "eq", "value": "electronics"},
-                {"field": "price", "operator": "lt", "value": 1000}
+                {"field": "price", "operator": "lt", "value": 1000},
             ],
             "sort": {"field": "rating", "order": "desc"},
-            "pagination": {"page": 1, "limit": 10}
+            "pagination": {"page": 1, "limit": 10},
         },
-        "format": "detailed"
+        "format": "detailed",
     }
 
     # Sample success result
     sample_result = {
-        "content": [
-            {
-                "type": "text",
-                "text": "Found 5 items matching your criteria."
-            }
-        ],
-        "isError": False
+        "content": [{"type": "text", "text": "Found 5 items matching your criteria."}],
+        "isError": False,
     }
 
     # Define server behavior
@@ -251,10 +228,10 @@ async def test_send_tools_call_with_complex_arguments():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Verify the complex arguments are passed correctly
             assert req.params.get("arguments") == complex_args
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=sample_result)
             await read_send.send(response)
@@ -264,15 +241,15 @@ async def test_send_tools_call_with_complex_arguments():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_tools_call(
             read_stream=read_receive,
             write_stream=write_send,
             name="search_products",
-            arguments=complex_args
+            arguments=complex_args,
         )
-    
+
     # Check if response is correct
     assert result == sample_result
     assert not result["isError"]

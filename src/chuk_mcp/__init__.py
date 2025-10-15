@@ -2,8 +2,13 @@
 try:
     from .config import load_config
 except ImportError:
-    def load_config(*args, **kwargs):
-        raise NotImplementedError("load_config not available in this version")# chuk_mcp/__init__.py
+
+    def load_config(*args, **kwargs):  # type: ignore[misc]
+        raise NotImplementedError(
+            "load_config not available in this version"
+        )  # chuk_mcp/__init__.py
+
+
 """
 Chuk MCP - A Comprehensive Model Context Protocol Implementation
 
@@ -86,28 +91,30 @@ try:
         MCPClient,
         connect_to_server,
     )
+
     _NEW_CLIENT_AVAILABLE = True
 except ImportError:
     # Fallback: create basic implementations using legacy code
     _NEW_CLIENT_AVAILABLE = False
-    
-    # We'll define these after legacy imports
-    MCPClient = None
-    connect_to_server = None
 
-# Server exports - graceful fallback if new structure isn't ready  
+    # We'll define these after legacy imports
+    MCPClient = None  # type: ignore[assignment, misc]
+    connect_to_server = None  # type: ignore[assignment, misc]
+
+# Server exports - graceful fallback if new structure isn't ready
 try:
     from .server import (
         MCPServer,
         ProtocolHandler,
         SessionManager,
     )
+
     _NEW_SERVER_AVAILABLE = True
 except ImportError:
     _NEW_SERVER_AVAILABLE = False
-    MCPServer = None
-    ProtocolHandler = None
-    SessionManager = None
+    MCPServer = None  # type: ignore[assignment, misc]
+    ProtocolHandler = None  # type: ignore[assignment, misc]
+    SessionManager = None  # type: ignore[assignment, misc]
 
 # Transport exports - graceful fallback
 try:
@@ -118,13 +125,14 @@ try:
         Transport,
         TransportParameters,
     )
+
     _NEW_TRANSPORTS_AVAILABLE = True
 except ImportError:
     _NEW_TRANSPORTS_AVAILABLE = False
     # Will be defined after legacy imports
-    StdioTransport = None
-    Transport = None
-    TransportParameters = None
+    StdioTransport = None  # type: ignore[assignment, misc]
+    Transport = None  # type: ignore[assignment, misc]
+    TransportParameters = None  # type: ignore[assignment, misc]
 
 # Protocol exports (for advanced usage) - with graceful fallback
 try:
@@ -148,8 +156,9 @@ try:
         NonRetryableError,
         VersionMismatchError,
     )
+
     _PROTOCOL_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     _PROTOCOL_AVAILABLE = False
     # Will be imported from mcp_client compatibility layer
 
@@ -158,10 +167,10 @@ try:
     from .protocol.types.errors import ValidationError
 except ImportError:
     try:
-        from .protocol.mcp_pydantic_base import ValidationError
+        from .protocol.mcp_pydantic_base import ValidationError  # type: ignore[assignment]
     except ImportError:
         # Create a minimal ValidationError for compatibility
-        class ValidationError(ValueError):
+        class ValidationError(ValueError):  # type: ignore[no-redef]
             pass
 
 # ============================================================================
@@ -169,57 +178,53 @@ except ImportError:
 # ============================================================================
 
 # Legacy imports from old mcp_client structure - these should always work
-from .mcp_client import (
+from .mcp_client import (  # noqa: E402
     # Core client functionality (legacy)
     stdio_client as _legacy_stdio_client,
-    StdioClient,
+    StdioClient,  # noqa: F401
     StdioServerParameters,
-    
     # Common data types (legacy)
-    Tool,
-    ToolResult,
-    Resource,
-    ResourceContent,
-    InitializeResult,
-    MCPClientCapabilities,
-    MCPServerCapabilities,
-    
+    Tool,  # noqa: F401
+    ToolResult,  # noqa: F401
+    Resource,  # noqa: F401
+    ResourceContent,  # noqa: F401
+    InitializeResult,  # noqa: F401
+    MCPClientCapabilities,  # noqa: F401
+    MCPServerCapabilities,  # noqa: F401
     # Host-level functionality (legacy)
-    run_command,
-    get_default_environment,
-    
-    # Version and feature info
-    __version__,
-    PYDANTIC_AVAILABLE,
+    run_command,  # noqa: F401
+    get_default_environment,  # noqa: F401
+    # Feature info
+    PYDANTIC_AVAILABLE,  # noqa: F401
 )
 
 # Use legacy stdio_client if new transports not available
 if not _NEW_TRANSPORTS_AVAILABLE:
-    stdio_client = _legacy_stdio_client
-    StdioParameters = StdioServerParameters  # Alias for consistency
+    stdio_client = _legacy_stdio_client  # type: ignore[assignment, misc]
+    StdioParameters = StdioServerParameters  # type: ignore[assignment, misc]  # Alias for consistency
 
 # If protocol layer imports failed, import from mcp_client compatibility layer
 if not _PROTOCOL_AVAILABLE:
-    from .mcp_client import (
-        JSONRPCMessage,
-        send_message,
-        send_initialize,
-        send_tools_list,
-        send_tools_call,
-        send_resources_list,
-        send_resources_read,
-        send_prompts_list,
-        send_prompts_get,
-        send_ping,
-        MessageMethod,
-        RetryableError,
-        NonRetryableError,
-        VersionMismatchError,
+    from .mcp_client import (  # noqa: F401  # type: ignore[assignment]
+        JSONRPCMessage,  # noqa: F401
+        send_message,  # noqa: F401
+        send_initialize,  # noqa: F401
+        send_tools_list,  # noqa: F401
+        send_tools_call,  # noqa: F401
+        send_resources_list,  # noqa: F401
+        send_resources_read,  # noqa: F401
+        send_prompts_list,  # noqa: F401
+        send_prompts_get,  # noqa: F401
+        send_ping,  # noqa: F401
+        MessageMethod,  # noqa: F401
+        RetryableError,  # noqa: F401
+        NonRetryableError,  # noqa: F401
+        VersionMismatchError,  # noqa: F401
     )
-    
+
     # Import types from protocol if available
     try:
-        from .protocol.types import (
+        from .protocol.types import (  # type: ignore[assignment]
             ServerInfo,
             ClientInfo,
             ServerCapabilities,
@@ -227,25 +232,26 @@ if not _PROTOCOL_AVAILABLE:
         )
     except ImportError:
         # Create minimal type stubs
-        class ServerInfo:
+        class ServerInfo:  # type: ignore[no-redef]
             def __init__(self, **kwargs):
                 for k, v in kwargs.items():
                     setattr(self, k, v)
-        
-        class ClientInfo:
+
+        class ClientInfo:  # type: ignore[no-redef]
             def __init__(self, **kwargs):
                 for k, v in kwargs.items():
                     setattr(self, k, v)
-                    
-        class ServerCapabilities:
+
+        class ServerCapabilities:  # type: ignore[no-redef]
             def __init__(self, **kwargs):
                 for k, v in kwargs.items():
                     setattr(self, k, v)
-                    
-        class ClientCapabilities:
+
+        class ClientCapabilities:  # type: ignore[no-redef]
             def __init__(self, **kwargs):
                 for k, v in kwargs.items():
                     setattr(self, k, v)
+
 
 # Package metadata
 __title__ = "chuk-mcp"
@@ -266,12 +272,11 @@ _base_exports = [
     # Core always available
     "stdio_client",
     "StdioParameters",
-    
     # Protocol (advanced)
     "JSONRPCMessage",
     "send_message",
     "send_initialize",
-    "send_tools_list", 
+    "send_tools_list",
     "send_tools_call",
     "send_resources_list",
     "send_resources_read",
@@ -279,7 +284,7 @@ _base_exports = [
     "send_prompts_get",
     "send_ping",
     "ServerInfo",
-    "ClientInfo", 
+    "ClientInfo",
     "ServerCapabilities",
     "ClientCapabilities",
     "MessageMethod",
@@ -287,7 +292,6 @@ _base_exports = [
     "NonRetryableError",
     "VersionMismatchError",
     "ValidationError",
-    
     # Legacy API (always available)
     "StdioClient",
     "StdioServerParameters",
@@ -301,7 +305,6 @@ _base_exports = [
     "run_command",
     "get_default_environment",
     "load_config",
-    
     # Package info
     "__version__",
     "__title__",
@@ -332,11 +335,12 @@ __version__ = "0.4.0"
 # Deprecation Warnings for Guidance
 # ============================================================================
 
-import warnings
-import os
+import warnings  # noqa: E402
+import os  # noqa: E402
 
 # Only show deprecation warnings if explicitly enabled
 if os.environ.get("CHUK_MCP_SHOW_DEPRECATIONS", "false").lower() == "true":
+
     def _deprecated_import_warning():
         warnings.warn(
             "Using legacy chuk_mcp imports. Consider migrating to the new API:\n"
@@ -344,8 +348,8 @@ if os.environ.get("CHUK_MCP_SHOW_DEPRECATIONS", "false").lower() == "true":
             "  New: from chuk_mcp import connect_to_server, StdioParameters\n"
             "Set CHUK_MCP_SHOW_DEPRECATIONS=false to disable these warnings.",
             DeprecationWarning,
-            stacklevel=3
+            stacklevel=3,
         )
-    
+
     # This will be called when legacy imports are used
     _deprecated_import_warning()

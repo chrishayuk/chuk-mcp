@@ -1,10 +1,11 @@
 # chuk_mcp/protocol/messages/prompts/send_messages.py
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
+
 
 async def send_prompts_list(
     read_stream: MemoryObjectReceiveStream,
@@ -15,17 +16,17 @@ async def send_prompts_list(
 ) -> Dict[str, Any]:
     """
     Send a 'prompts/list' message to get available prompts.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing 'prompts' list and optional 'nextCursor'
-    
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
@@ -40,7 +41,7 @@ async def send_prompts_list(
         timeout=timeout,
         retries=retries,
     )
-    
+
     # return the response
     return response
 
@@ -55,7 +56,7 @@ async def send_prompts_get(
 ) -> Dict[str, Any]:
     """
     Send a 'prompts/get' message to retrieve a specific prompt by name and apply arguments.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
@@ -63,25 +64,27 @@ async def send_prompts_get(
         arguments: Optional dictionary of arguments to customize the prompt
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing prompt content with messages
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
     # Validate inputs to prevent common errors
     if not isinstance(name, str):
         raise TypeError(f"Prompt name must be a string, got {type(name).__name__}")
-    
+
     if arguments is not None and not isinstance(arguments, dict):
-        raise TypeError(f"Prompt arguments must be a dictionary, got {type(arguments).__name__}")
-    
+        raise TypeError(
+            f"Prompt arguments must be a dictionary, got {type(arguments).__name__}"
+        )
+
     # Construct the parameters with proper validation
-    params = {"name": name}
+    params: Dict[str, Any] = {"name": name}
     if arguments:
         params["arguments"] = arguments
-    
+
     # send the message
     response = await send_message(
         read_stream=read_stream,
@@ -91,6 +94,6 @@ async def send_prompts_get(
         timeout=timeout,
         retries=retries,
     )
-    
+
     # return the response
     return response

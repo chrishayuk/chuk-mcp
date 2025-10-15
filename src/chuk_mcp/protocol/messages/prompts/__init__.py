@@ -2,7 +2,7 @@
 """
 Prompts module for the Model Context Protocol client.
 
-This module provides functionality for working with MCP prompts, which are 
+This module provides functionality for working with MCP prompts, which are
 reusable templates that servers can provide to help clients compose messages
 for LLMs. Prompts can be parameterized with arguments to create dynamic
 content based on user input or context.
@@ -34,7 +34,6 @@ __all__ = [
     # Prompt messaging functions
     "send_prompts_list",
     "send_prompts_get",
-    
     # Notification handlers
     "handle_prompts_list_changed_notification",
 ]
