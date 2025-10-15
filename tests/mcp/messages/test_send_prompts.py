@@ -226,3 +226,32 @@ async def test_send_prompts_list_empty():
     assert result == empty_prompts
     assert len(result["prompts"]) == 0
     assert result["nextCursor"] is None
+
+
+async def test_send_prompts_get_invalid_name_type():
+    """Test prompts/get with invalid name type"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    # Attempt to send with invalid name type should raise TypeError
+    with pytest.raises(TypeError, match="Prompt name must be a string"):
+        await send_prompts_get(
+            read_stream=read_receive,
+            write_stream=write_send,
+            name=123,  # Invalid: not a string
+        )
+
+
+async def test_send_prompts_get_invalid_arguments_type():
+    """Test prompts/get with invalid arguments type"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    # Attempt to send with invalid arguments type should raise TypeError
+    with pytest.raises(TypeError, match="Prompt arguments must be a dictionary"):
+        await send_prompts_get(
+            read_stream=read_receive,
+            write_stream=write_send,
+            name="test_prompt",
+            arguments="invalid",  # Invalid: not a dict
+        )
