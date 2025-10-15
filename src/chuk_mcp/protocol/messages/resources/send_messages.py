@@ -6,6 +6,7 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
 
+
 async def send_resources_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
@@ -15,22 +16,22 @@ async def send_resources_list(
 ) -> Dict[str, Any]:
     """
     Send a 'resources/list' message and return the response.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing 'resources' list and optional 'nextCursor'
-    
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
     params = {"cursor": cursor} if cursor else {}
-    
+
     response = await send_message(
         read_stream=read_stream,
         write_stream=write_stream,
@@ -39,7 +40,7 @@ async def send_resources_list(
         timeout=timeout,
         retries=retries,
     )
-    
+
     # Return the result directly
     return response
 
@@ -53,17 +54,17 @@ async def send_resources_read(
 ) -> Dict[str, Any]:
     """
     Send a 'resources/read' message to retrieve resource contents.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         uri: URI of the resource to read
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing 'contents' list of resource contents
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
@@ -75,7 +76,7 @@ async def send_resources_read(
         timeout=timeout,
         retries=retries,
     )
-    
+
     return response
 
 
@@ -87,16 +88,16 @@ async def send_resources_templates_list(
 ) -> Dict[str, Any]:
     """
     Send a 'resources/templates/list' message to get available resource templates.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing 'resourceTemplates' list
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
@@ -107,7 +108,7 @@ async def send_resources_templates_list(
         timeout=timeout,
         retries=retries,
     )
-    
+
     return response
 
 
@@ -120,17 +121,17 @@ async def send_resources_subscribe(
 ) -> bool:
     """
     Send a 'resources/subscribe' message to subscribe to resource changes.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         uri: URI of the resource to subscribe to
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         bool: True if subscription was successful, False otherwise
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
@@ -143,13 +144,13 @@ async def send_resources_subscribe(
             timeout=timeout,
             retries=retries,
         )
-        
+
         # Any non-error response indicates success
         return response is not None
     except Exception:
         # Subscription failed
         return False
-    
+
 
 async def send_resources_unsubscribe(
     read_stream: MemoryObjectReceiveStream,
@@ -160,17 +161,17 @@ async def send_resources_unsubscribe(
 ) -> bool:
     """
     Send a 'resources/unsubscribe' message to unsubscribe from resource changes.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         uri: URI of the resource to unsubscribe from
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         bool: True if unsubscription was successful, False otherwise
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
@@ -183,12 +184,13 @@ async def send_resources_unsubscribe(
             timeout=timeout,
             retries=retries,
         )
-        
+
         # Any non-error response indicates success
         return response is not None
     except Exception as e:
         # Log the error for debugging
         import logging
+
         logging.error(f"Failed to unsubscribe from resource {uri}: {e}")
         # Unsubscription failed
         return False

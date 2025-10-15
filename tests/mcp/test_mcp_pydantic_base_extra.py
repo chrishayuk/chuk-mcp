@@ -1,6 +1,5 @@
 # tests/test_mcp_pydantic_base_extra.py
-import json
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 import pytest
 
@@ -19,8 +18,10 @@ from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import (
 # 1. default_factory should give each instance its own object
 ###############################################################################
 
+
 def test_default_factory_uniqueness():
     """Test that default_factory creates unique instances for each model."""
+
     class DFModel(McpPydanticBase):
         tags: List[str] = Field(default_factory=list)
 
@@ -29,22 +30,25 @@ def test_default_factory_uniqueness():
     a.tags.append("x")
     assert a.tags == ["x"]
     assert b.tags == []  # Not shared
-    
+
     # This behavior should be consistent across both implementations
+
 
 ###############################################################################
 # 2. Optional field is not required + type-checked
 ###############################################################################
 
+
 def test_optional_not_required_and_type_validation():
     """Test that Optional fields are not required but still type-checked."""
+
     class OptModel(McpPydanticBase):
         opt: Optional[int] = None  # Need explicit default for real Pydantic
 
     # not required - should not raise
     model = OptModel()
     assert model.opt is None
-    
+
     # Test with valid value
     model2 = OptModel(opt=42)
     assert model2.opt == 42
@@ -54,14 +58,16 @@ def test_optional_not_required_and_type_validation():
     # but both should reject invalid types
     with pytest.raises((ValidationError, ValueError, TypeError)) as exc_info:
         OptModel(opt="bad")  # type: ignore[arg-type]
-    
+
     # Verify it's a validation-related error
     error_msg = str(exc_info.value).lower()
     assert any(word in error_msg for word in ["validation", "type", "int", "str"])
 
+
 ###############################################################################
 # 3. exclude argument works in model_dump / dict()
 ###############################################################################
+
 
 def _dump(model, exclude=None):
     """Helper to get a dict representation across impl versions."""
@@ -72,28 +78,32 @@ def _dump(model, exclude=None):
 
 def test_exclude_argument():
     """Test that exclude argument works in model_dump/dict."""
+
     class Secret(McpPydanticBase):
         public: int
         secret: str
 
     model = Secret(public=1, secret="shhh")
-    
+
     # Test without exclude
     full_dump = _dump(model)
     assert full_dump["public"] == 1
     assert full_dump["secret"] == "shhh"
-    
+
     # Test with exclude
     dumped = _dump(model, exclude={"secret"})
     assert dumped == {"public": 1}
     assert "secret" not in dumped
 
+
 ###############################################################################
 # 4. Nested exclude_none behaviour
 ###############################################################################
 
+
 def test_nested_exclude_none():
     """Test that exclude_none works with nested models."""
+
     class Child(McpPydanticBase):
         maybe: Optional[str] = None
 
@@ -108,7 +118,7 @@ def test_nested_exclude_none():
         full_dump = parent.model_dump()
     else:
         full_dump = parent.dict()
-    
+
     assert full_dump["other"] is None
     assert full_dump["child"]["maybe"] is None
 
@@ -128,9 +138,11 @@ def test_nested_exclude_none():
         # unless explicitly configured
         pass
 
+
 ###############################################################################
 # 5. Special-case models get their default tweaks
 ###############################################################################
+
 
 def test_special_case_defaults():
     """Test that special models like JSONRPCMessage get proper defaults."""

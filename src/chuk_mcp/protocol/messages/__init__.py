@@ -14,7 +14,7 @@ from .message_method import MessageMethod
 
 # Error types from the protocol types layer
 from ..types.errors import (
-    RetryableError, 
+    RetryableError,
     NonRetryableError,
     VersionMismatchError,
 )
@@ -54,50 +54,62 @@ from .ping import (
 _optional_exports = []
 
 try:
-    from .sampling import (
-        send_sampling_create_message,
-        SamplingMessage,
-        CreateMessageResult,
+    from .sampling import (  # noqa: F401
+        send_sampling_create_message,  # noqa: F401
+        SamplingMessage,  # noqa: F401
+        CreateMessageResult,  # noqa: F401
     )
-    _optional_exports.extend([
-        "send_sampling_create_message",
-        "SamplingMessage",
-        "CreateMessageResult",
-    ])
+
+    _optional_exports.extend(
+        [
+            "send_sampling_create_message",
+            "SamplingMessage",
+            "CreateMessageResult",
+        ]
+    )
 except ImportError:
     pass
 
 try:
-    from .completions import (
-        send_completion_complete,
-        CompletionResult,
+    from .completions import (  # noqa: F401
+        send_completion_complete,  # noqa: F401
+        CompletionResult,  # noqa: F401
     )
-    _optional_exports.extend([
-        "send_completion_complete",
-        "CompletionResult",
-    ])
+
+    _optional_exports.extend(
+        [
+            "send_completion_complete",
+            "CompletionResult",
+        ]
+    )
 except ImportError:
     pass
 
 try:
-    from .roots import (
-        send_roots_list,
-        Root,
+    from .roots import (  # noqa: F401
+        send_roots_list,  # noqa: F401
+        Root,  # noqa: F401
     )
-    _optional_exports.extend([
-        "send_roots_list",
-        "Root",
-    ])
+
+    _optional_exports.extend(
+        [
+            "send_roots_list",
+            "Root",
+        ]
+    )
 except ImportError:
     pass
 
 try:
-    from .logging import (
-        send_logging_set_level,
+    from .logging import (  # noqa: F401  # type: ignore[import-not-found]
+        send_logging_set_level,  # noqa: F401
     )
-    _optional_exports.extend([
-        "send_logging_set_level",
-    ])
+
+    _optional_exports.extend(
+        [
+            "send_logging_set_level",
+        ]
+    )
 except ImportError:
     pass
 
@@ -106,17 +118,14 @@ __all__ = [
     "JSONRPCMessage",
     "send_message",
     "MessageMethod",
-    
     # Error handling
     "RetryableError",
     "NonRetryableError",
     "VersionMismatchError",
-    
     # Initialization
     "send_initialize",
     "send_initialized_notification",
     "InitializeResult",
-    
     # Core operations
     "send_tools_list",
     "send_tools_call",

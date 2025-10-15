@@ -5,7 +5,10 @@ import anyio
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 from chuk_mcp.protocol.messages.message_method import MessageMethod
-from chuk_mcp.protocol.messages.prompts.send_messages import send_prompts_list, send_prompts_get
+from chuk_mcp.protocol.messages.prompts.send_messages import (
+    send_prompts_list,
+    send_prompts_get,
+)
 
 # Force asyncio only for all tests in this file
 pytestmark = [pytest.mark.asyncio]
@@ -26,9 +29,9 @@ async def test_send_prompts_list():
                     {
                         "name": "code",
                         "description": "The code to review",
-                        "required": True
+                        "required": True,
                     }
-                ]
+                ],
             },
             {
                 "name": "weather_info",
@@ -37,12 +40,12 @@ async def test_send_prompts_list():
                     {
                         "name": "location",
                         "description": "The location to get weather for",
-                        "required": True
+                        "required": True,
                     }
-                ]
-            }
+                ],
+            },
         ],
-        "nextCursor": "next-page-cursor"
+        "nextCursor": "next-page-cursor",
     }
 
     # Define server behavior
@@ -50,15 +53,15 @@ async def test_send_prompts_list():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Verify it's a prompts/list method
             assert req.method == MessageMethod.PROMPTS_LIST
-            
+
             # Check if cursor was included
             cursor = req.params.get("cursor") if req.params else None
             if cursor:
                 assert cursor == "test-cursor"
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=sample_prompts)
             await read_send.send(response)
@@ -68,21 +71,19 @@ async def test_send_prompts_list():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_list(
-            read_stream=read_receive,
-            write_stream=write_send,
-            cursor="test-cursor"
+            read_stream=read_receive, write_stream=write_send, cursor="test-cursor"
         )
-    
+
     # Check if response is correct
     assert result == sample_prompts
     assert len(result["prompts"]) == 2
     assert result["prompts"][0]["name"] == "code_review"
     assert result["prompts"][1]["name"] == "weather_info"
     assert result["nextCursor"] == "next-page-cursor"
-    
+
     # Check for correct structure in prompt definitions
     assert "arguments" in result["prompts"][0]
     assert result["prompts"][0]["arguments"][0]["name"] == "code"
@@ -102,10 +103,10 @@ async def test_send_prompts_get():
                 "role": "user",
                 "content": {
                     "type": "text",
-                    "text": "Provide weather information for New York"
-                }
+                    "text": "Provide weather information for New York",
+                },
             }
-        ]
+        ],
     }
 
     # Test prompt name and arguments
@@ -117,14 +118,14 @@ async def test_send_prompts_get():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Verify it's a prompts/get method
             assert req.method == MessageMethod.PROMPTS_GET
-            
+
             # Check the prompt name and arguments
             assert req.params.get("name") == test_prompt_name
             assert req.params.get("arguments") == test_prompt_args
-            
+
             # Send response
             response = JSONRPCMessage(id=req.id, result=sample_prompt_result)
             await read_send.send(response)
@@ -134,15 +135,15 @@ async def test_send_prompts_get():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_get(
             read_stream=read_receive,
             write_stream=write_send,
             name=test_prompt_name,
-            arguments=test_prompt_args
+            arguments=test_prompt_args,
         )
-    
+
     # Check if response is correct
     assert result == sample_prompt_result
     assert result["description"] == "Weather Information Prompt"
@@ -162,14 +163,14 @@ async def test_send_prompts_get_not_found():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send protocol error response
             response = JSONRPCMessage(
-                id=req.id, 
+                id=req.id,
                 error={
                     "code": -32602,
-                    "message": "Invalid params: Prompt not found: invalid_prompt_name"
-                }
+                    "message": "Invalid params: Prompt not found: invalid_prompt_name",
+                },
             )
             await read_send.send(response)
         except Exception as e:
@@ -178,16 +179,16 @@ async def test_send_prompts_get_not_found():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request should raise an exception for not found error
         with pytest.raises(Exception) as exc_info:
             await send_prompts_get(
                 read_stream=read_receive,
                 write_stream=write_send,
                 name="invalid_prompt_name",
-                retries=1  # Only retry once to avoid timeout errors in test
+                retries=1,  # Only retry once to avoid timeout errors in test
             )
-    
+
     # Verify error message
     assert "Prompt not found" in str(exc_info.value)
 
@@ -198,17 +199,14 @@ async def test_send_prompts_list_empty():
     write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Empty prompts list response
-    empty_prompts = {
-        "prompts": [],
-        "nextCursor": None
-    }
+    empty_prompts = {"prompts": [], "nextCursor": None}
 
     # Define server behavior
     async def server_task():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with empty list
             response = JSONRPCMessage(id=req.id, result=empty_prompts)
             await read_send.send(response)
@@ -218,13 +216,12 @@ async def test_send_prompts_list_empty():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_prompts_list(
-            read_stream=read_receive,
-            write_stream=write_send
+            read_stream=read_receive, write_stream=write_send
         )
-    
+
     # Check if response is correct
     assert result == empty_prompts
     assert len(result["prompts"]) == 0

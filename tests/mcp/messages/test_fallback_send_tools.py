@@ -1,9 +1,9 @@
 # tests/mcp/test_fallback_send_tools.py
 
 import sys
-import importlib
 import pytest
 import anyio
+
 
 @pytest.mark.asyncio
 async def test_send_tools_list_fallback(monkeypatch):
@@ -24,9 +24,7 @@ async def test_send_tools_list_fallback(monkeypatch):
             del sys.modules[mod_name]
 
     # 3) Re-import the modules under test
-    import chuk_mcp.protocol.messages.json_rpc_message  # triggers fallback
     import chuk_mcp.protocol.messages.tools.send_messages as tools_messages
-    from anyio.streams.memory import MemoryObjectSendStream, MemoryObjectReceiveStream
     from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
     from chuk_mcp.protocol.messages.message_method import MessageMethod
 
@@ -45,14 +43,14 @@ async def test_send_tools_list_fallback(monkeypatch):
                     "properties": {
                         "location": {
                             "type": "string",
-                            "description": "City name or zip code"
+                            "description": "City name or zip code",
                         }
                     },
-                    "required": ["location"]
-                }
+                    "required": ["location"],
+                },
             }
         ],
-        "nextCursor": "next-page-cursor"
+        "nextCursor": "next-page-cursor",
     }
 
     async def server_task():

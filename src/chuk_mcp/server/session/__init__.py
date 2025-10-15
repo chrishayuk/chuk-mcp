@@ -4,7 +4,7 @@ Session management for MCP servers.
 
 This module provides session management capabilities including:
 - Base session manager interface
-- In-memory session implementation  
+- In-memory session implementation
 - Session information data structures
 """
 
@@ -15,6 +15,6 @@ from .memory import SessionManager
 __all__ = [
     "SessionInfo",
     "BaseSessionManager",
-    "InMemorySessionManager", 
-    "SessionManager"
+    "InMemorySessionManager",
+    "SessionManager",
 ]

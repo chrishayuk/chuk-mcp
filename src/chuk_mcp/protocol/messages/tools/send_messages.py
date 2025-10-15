@@ -1,12 +1,12 @@
 # chuk_mcp/protocol/messages/tools/send_messages.py
-from typing import Optional, Dict, List, Any, Union
+from typing import Optional, Dict, Any
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
-from chuk_mcp.protocol.messages.tools.tool_input_schema import ToolInputSchema
-    
+
+
 async def send_tools_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
@@ -16,22 +16,22 @@ async def send_tools_list(
 ) -> Dict[str, Any]:
     """
     Send a 'tools/list' message to get available tools.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing 'tools' list and optional 'nextCursor'
-    
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
     params = {"cursor": cursor} if cursor else {}
-    
+
     response = await send_message(
         read_stream=read_stream,
         write_stream=write_stream,
@@ -40,7 +40,7 @@ async def send_tools_list(
         timeout=timeout,
         retries=retries,
     )
-    
+
     return response
 
 
@@ -54,7 +54,7 @@ async def send_tools_call(
 ) -> Dict[str, Any]:
     """
     Send a 'tools/call' message to invoke a tool.
-    
+
     Args:
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
@@ -62,26 +62,25 @@ async def send_tools_call(
         arguments: Dictionary of arguments to pass to the tool
         timeout: Timeout in seconds for the response
         retries: Number of retry attempts
-        
+
     Returns:
         Dict containing tool execution result
-        
+
     Raises:
         Exception: If the server returns an error or the request fails
     """
     # Validate inputs to prevent common errors
     if not isinstance(name, str):
         raise TypeError(f"Tool name must be a string, got {type(name).__name__}")
-    
+
     if not isinstance(arguments, dict):
-        raise TypeError(f"Tool arguments must be a dictionary, got {type(arguments).__name__}")
-    
+        raise TypeError(
+            f"Tool arguments must be a dictionary, got {type(arguments).__name__}"
+        )
+
     # Construct the parameters with proper validation
-    params = {
-        "name": name,
-        "arguments": arguments
-    }
-    
+    params = {"name": name, "arguments": arguments}
+
     response = await send_message(
         read_stream=read_stream,
         write_stream=write_stream,
@@ -90,5 +89,5 @@ async def send_tools_call(
         timeout=timeout,
         retries=retries,
     )
-    
+
     return response

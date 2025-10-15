@@ -1,11 +1,11 @@
 # tests/mcp/test_json_rpc_message.py
-from pydantic import ValidationError
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 
 # Check for Pydantic version to handle compatibility
 try:
     import pydantic
-    PYDANTIC_V2 = pydantic.__version__.startswith('2')
+
+    PYDANTIC_V2 = pydantic.__version__.startswith("2")
 except (ImportError, AttributeError):
     PYDANTIC_V2 = False
 
@@ -70,11 +70,11 @@ class TestJSONRPCMessage:
         )
         # Use model_dump() for Pydantic v2 compatibility
         # Fall back to dict() if model_dump isn't available
-        if hasattr(message, 'model_dump'):
+        if hasattr(message, "model_dump"):
             message_dict = message.model_dump()
         else:
             message_dict = message.dict()
-            
+
         assert message_dict["jsonrpc"] == "2.0"
         assert message_dict["id"] == "123"
         assert message_dict["method"] == "test_method"
@@ -91,11 +91,11 @@ class TestJSONRPCMessage:
         )
         # Use model_dump_json() for Pydantic v2 compatibility
         # Fall back to json() if model_dump_json isn't available
-        if hasattr(message, 'model_dump_json'):
+        if hasattr(message, "model_dump_json"):
             json_str = message.model_dump_json()
         else:
             json_str = message.json()
-            
+
         assert isinstance(json_str, str)
         # Check for content without assuming exact formatting
         assert '"jsonrpc":"2.0"' in json_str
@@ -125,25 +125,16 @@ class TestJSONRPCMessage:
             "user": {
                 "name": "John Doe",
                 "age": 30,
-                "address": {
-                    "street": "123 Main St",
-                    "city": "Anytown",
-                    "zip": "12345"
-                },
-                "hobbies": ["reading", "gaming", "hiking"]
+                "address": {"street": "123 Main St", "city": "Anytown", "zip": "12345"},
+                "hobbies": ["reading", "gaming", "hiking"],
             },
-            "options": {
-                "verbose": True,
-                "count": 5
-            }
+            "options": {"verbose": True, "count": 5},
         }
-        
+
         message = JSONRPCMessage(
-            id="456",
-            method="complex_method",
-            params=nested_params
+            id="456", method="complex_method", params=nested_params
         )
-        
+
         assert message.params == nested_params
         assert message.params["user"]["name"] == "John Doe"
         assert message.params["user"]["address"]["city"] == "Anytown"
@@ -157,20 +148,13 @@ class TestJSONRPCMessage:
             "data": [
                 {"id": 1, "name": "Item 1", "active": True},
                 {"id": 2, "name": "Item 2", "active": False},
-                {"id": 3, "name": "Item 3", "active": True}
+                {"id": 3, "name": "Item 3", "active": True},
             ],
-            "pagination": {
-                "total": 10,
-                "page": 1,
-                "limit": 3
-            }
+            "pagination": {"total": 10, "page": 1, "limit": 3},
         }
-        
-        message = JSONRPCMessage(
-            id="789",
-            result=complex_result
-        )
-        
+
+        message = JSONRPCMessage(id="789", result=complex_result)
+
         assert message.result == complex_result
         assert message.result["status"] == "success"
         assert len(message.result["data"]) == 3
@@ -184,14 +168,11 @@ class TestJSONRPCMessage:
             {"code": -32600, "message": "Invalid Request"},
             {"code": -32601, "message": "Method not found"},
             {"code": -32602, "message": "Invalid params"},
-            {"code": -32603, "message": "Internal error"}
+            {"code": -32603, "message": "Internal error"},
         ]
-        
+
         for error in standard_errors:
-            message = JSONRPCMessage(
-                id="error_test",
-                error=error
-            )
+            message = JSONRPCMessage(id="error_test", error=error)
             assert message.error == error
             assert message.error["code"] == error["code"]
             assert message.error["message"] == error["message"]
@@ -204,15 +185,12 @@ class TestJSONRPCMessage:
             "data": {
                 "exception": "ValueError",
                 "trace": "File 'app.py', line 42",
-                "timestamp": "2025-03-05T12:34:56Z"
-            }
+                "timestamp": "2025-03-05T12:34:56Z",
+            },
         }
-        
-        message = JSONRPCMessage(
-            id="data_error",
-            error=error_with_data
-        )
-        
+
+        message = JSONRPCMessage(id="data_error", error=error_with_data)
+
         assert message.error == error_with_data
         assert message.error["code"] == -32000
         assert message.error["data"]["exception"] == "ValueError"
@@ -221,37 +199,29 @@ class TestJSONRPCMessage:
     def test_request_and_response_roundtrip(self):
         """Test creating a request and then a response."""
         # Create request
-        request = JSONRPCMessage(
-            id="req123",
-            method="get_user",
-            params={"user_id": 42}
-        )
-        
+        request = JSONRPCMessage(id="req123", method="get_user", params={"user_id": 42})
+
         # Create successful response
         success_response = JSONRPCMessage(
             id=request.id,
-            result={"id": 42, "name": "Jane Smith", "email": "jane@example.com"}
+            result={"id": 42, "name": "Jane Smith", "email": "jane@example.com"},
         )
-        
+
         assert success_response.id == request.id
         assert success_response.result["name"] == "Jane Smith"
-        
+
         # Create error response
         error_response = JSONRPCMessage(
-            id=request.id,
-            error={"code": -32001, "message": "User not found"}
+            id=request.id, error={"code": -32001, "message": "User not found"}
         )
-        
+
         assert error_response.id == request.id
         assert error_response.error["code"] == -32001
 
     def test_notification(self):
         """Test JSON-RPC notification (no id)."""
-        notification = JSONRPCMessage(
-            method="update",
-            params={"status": "completed"}
-        )
-        
+        notification = JSONRPCMessage(method="update", params={"status": "completed"})
+
         assert notification.id is None
         assert notification.method == "update"
         assert notification.params["status"] == "completed"

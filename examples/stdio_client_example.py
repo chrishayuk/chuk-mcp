@@ -6,12 +6,10 @@ This script demonstrates a complete working example of using the chuk-mcp
 stdio client to connect to and interact with an MCP server process.
 """
 
-import asyncio
 import tempfile
 import os
 import sys
 import logging
-from pathlib import Path
 
 import anyio
 
@@ -415,45 +413,44 @@ async def run_stdio_example():
     """Run the complete stdio client example."""
     print("🚀 Stdio Client E2E Example")
     print("=" * 50)
-    
+
     # Create the server
     print("📝 Creating example MCP server...")
     server_code = create_example_server()
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(server_code)
         server_file = f.name
-    
+
     print(f"📄 Server file: {server_file}")
-    
+
     try:
         # Set up stdio parameters
         print("🔧 Setting up stdio parameters...")
-        server_params = StdioParameters(
-            command="python",
-            args=[server_file]
-        )
-        
+        server_params = StdioParameters(command="python", args=[server_file])
+
         print(f"   Command: {server_params.command}")
         print(f"   Args: {server_params.args}")
-        
+
         # Connect and run example
         print("\\n📡 Connecting to stdio server...")
         async with stdio_client(server_params) as (read_stream, write_stream):
             print("   ✅ Connection established!")
-            
+
             # 1. Initialize
             print("\\n1️⃣  Initializing connection...")
             init_result = await send_initialize(read_stream, write_stream)
             print(f"   ✅ Server: {init_result.serverInfo.name}")
             print(f"   📋 Protocol: {init_result.protocolVersion}")
             print(f"   💡 Instructions: {init_result.instructions}")
-            
+
             # 2. Test ping
             print("\\n2️⃣  Testing connectivity...")
             ping_success = await send_ping(read_stream, write_stream)
-            print(f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}")
-            
+            print(
+                f"   {'✅' if ping_success else '❌'} Ping: {'Success' if ping_success else 'Failed'}"
+            )
+
             # 3. Explore tools
             print("\\n3️⃣  Exploring available tools...")
             tools_response = await send_tools_list(read_stream, write_stream)
@@ -461,51 +458,53 @@ async def run_stdio_example():
             print(f"   📋 Found {len(tools)} tools:")
             for tool in tools:
                 print(f"      • {tool['name']}: {tool['description']}")
-            
+
             # 4. Use tools
             print("\\n4️⃣  Using tools...")
-            
+
             # Greet with different styles
             print("   🤝 Testing greeting tool...")
             for style in ["casual", "formal", "enthusiastic"]:
                 greet_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "greet", {"name": "Alice", "style": style}
+                    read_stream,
+                    write_stream,
+                    "greet",
+                    {"name": "Alice", "style": style},
                 )
                 result = greet_response["content"][0]["text"]
                 print(f"      {style}: {result}")
-            
+
             # Add some notes
             print("   📝 Adding notes...")
             notes = [
-                {"content": "Remember to test all transport types", "category": "development"},
+                {
+                    "content": "Remember to test all transport types",
+                    "category": "development",
+                },
                 {"content": "SSE support is working great", "category": "progress"},
-                {"content": "Documentation needs updating", "category": "todo"}
+                {"content": "Documentation needs updating", "category": "todo"},
             ]
-            
+
             for note in notes:
                 note_response = await send_tools_call(
-                    read_stream, write_stream,
-                    "add_note", note
+                    read_stream, write_stream, "add_note", note
                 )
                 print(f"      {note_response['content'][0]['text']}")
-            
+
             # Increment counter
             print("   🔢 Testing counter...")
             counter_response = await send_tools_call(
-                read_stream, write_stream,
-                "increment_counter", {"amount": 5}
+                read_stream, write_stream, "increment_counter", {"amount": 5}
             )
             print(f"      {counter_response['content'][0]['text']}")
-            
+
             # Generate UUID
             print("   🆔 Generating UUID...")
             uuid_response = await send_tools_call(
-                read_stream, write_stream,
-                "generate_uuid", {"version": 4}
+                read_stream, write_stream, "generate_uuid", {"version": 4}
             )
             print(f"      {uuid_response['content'][0]['text']}")
-            
+
             # 5. Explore resources
             print("\\n5️⃣  Exploring resources...")
             resources_response = await send_resources_list(read_stream, write_stream)
@@ -513,27 +512,30 @@ async def run_stdio_example():
             print(f"   📂 Found {len(resources)} resources:")
             for resource in resources:
                 print(f"      • {resource['name']}: {resource['description']}")
-            
+
             # Read resources
             print("   📖 Reading resources...")
             for resource in resources:
                 uri = resource["uri"]
-                content_response = await send_resources_read(read_stream, write_stream, uri)
+                content_response = await send_resources_read(
+                    read_stream, write_stream, uri
+                )
                 content = content_response["contents"][0]["text"]
                 print(f"      {resource['name']}:")
                 if resource.get("mimeType") == "application/json":
                     # Pretty print JSON
                     import json
+
                     data = json.loads(content)
                     print(f"         {json.dumps(data, indent=8)}")
                 else:
                     # Show first few lines of text
-                    lines = content.split('\\n')[:3]
+                    lines = content.split("\\n")[:3]
                     for line in lines:
                         print(f"         {line}")
-                    if len(content.split('\\n')) > 3:
+                    if len(content.split("\\n")) > 3:
                         print("         ...")
-            
+
             # 6. Explore prompts
             print("\\n6️⃣  Exploring prompts...")
             prompts_response = await send_prompts_list(read_stream, write_stream)
@@ -541,26 +543,31 @@ async def run_stdio_example():
             print(f"   📝 Found {len(prompts)} prompts:")
             for prompt in prompts:
                 print(f"      • {prompt['name']}: {prompt['description']}")
-            
+
             # Get prompts
             print("   💬 Getting prompts...")
-            
+
             # Note summary prompt
             summary_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "note_summary", {"format": "detailed"}
+                read_stream, write_stream, "note_summary", {"format": "detailed"}
             )
             print(f"      Notes Summary: {summary_prompt['description']}")
-            print(f"         Content: {summary_prompt['messages'][0]['content']['text'][:100]}...")
-            
+            print(
+                f"         Content: {summary_prompt['messages'][0]['content']['text'][:100]}..."
+            )
+
             # Greeting template prompt
             greeting_prompt = await send_prompts_get(
-                read_stream, write_stream,
-                "greeting_template", {"occasion": "birthday", "formality": "casual"}
+                read_stream,
+                write_stream,
+                "greeting_template",
+                {"occasion": "birthday", "formality": "casual"},
             )
             print(f"      Greeting Template: {greeting_prompt['description']}")
-            print(f"         Content: {greeting_prompt['messages'][0]['content']['text']}")
-        
+            print(
+                f"         Content: {greeting_prompt['messages'][0]['content']['text']}"
+            )
+
         print("\\n🎉 Stdio client example completed successfully!")
         print("\\n📊 Summary:")
         print("   ✅ Connection via subprocess stdio")
@@ -569,19 +576,20 @@ async def run_stdio_example():
         print("   ✅ Resource listing and reading")
         print("   ✅ Prompt listing and retrieval")
         print("   ✅ Clean connection teardown")
-        
+
     except Exception as e:
         print(f"\\n❌ Error during stdio example: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise
-    
+
     finally:
         # Clean up
         if os.path.exists(server_file):
             try:
                 os.unlink(server_file)
-                print(f"🧹 Cleaned up server file")
+                print("🧹 Cleaned up server file")
             except Exception as e:
                 print(f"⚠️  Could not clean up {server_file}: {e}")
 
@@ -592,7 +600,7 @@ def main():
     print("=" * 60)
     print("Demonstrating complete stdio transport functionality")
     print("=" * 60)
-    
+
     try:
         anyio.run(run_stdio_example)
         print("\\n" + "=" * 60)

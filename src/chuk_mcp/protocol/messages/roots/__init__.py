@@ -19,17 +19,14 @@ from .send_messages import (
     # Core data models
     Root,
     ListRootsResult,
-    
     # Main messaging functions
     send_roots_list,
     handle_roots_list_request,
     send_roots_list_changed_notification,
-    
     # Helper functions
     create_root,
     create_file_root,
     parse_file_root,
-    
     # Management class
     RootsManager,
 )
@@ -38,17 +35,14 @@ __all__ = [
     # Core data models
     "Root",
     "ListRootsResult",
-    
     # Primary messaging functions
     "send_roots_list",
-    "handle_roots_list_request", 
+    "handle_roots_list_request",
     "send_roots_list_changed_notification",
-    
     # Utility functions
     "create_root",
     "create_file_root",
     "parse_file_root",
-    
     # Management utilities
     "RootsManager",
 ]

@@ -15,13 +15,14 @@ from chuk_mcp.protocol.types.errors import RetryableError, NonRetryableError
 # Cancellation Support
 ###############################################################################
 
+
 class CancellationToken:
     """Token to enable request cancellation."""
-    
+
     def __init__(self):
         self._cancelled = False
         self._callbacks: List[Callable] = []
-    
+
     def cancel(self):
         """Mark this token as cancelled."""
         self._cancelled = True
@@ -30,12 +31,12 @@ class CancellationToken:
                 callback()
             except Exception as e:
                 logging.error(f"Error in cancellation callback: {e}")
-    
+
     @property
     def is_cancelled(self) -> bool:
         """Check if cancellation was requested."""
         return self._cancelled
-    
+
     def add_callback(self, callback: Callable) -> None:
         """Add a callback to be called on cancellation."""
         self._callbacks.append(callback)
@@ -45,6 +46,7 @@ class CancellationToken:
 
 class CancelledError(Exception):
     """Raised when a request is cancelled via CancellationToken."""
+
     pass
 
 
@@ -62,7 +64,9 @@ async def send_message(
     retries: int = 3,
     retry_delay: float = 2.0,
     cancellation_token: Optional[CancellationToken] = None,
-    progress_callback: Optional[Callable[[float, Optional[float], Optional[str]], Awaitable[None]]] = None,
+    progress_callback: Optional[
+        Callable[[float, Optional[float], Optional[str]], Awaitable[None]]
+    ] = None,
 ) -> Union[Dict[str, Any], Any]:
     """Send a JSON-RPC 2.0 request message and await the matching response.
 
@@ -100,29 +104,42 @@ async def send_message(
         if "_meta" not in params:
             params["_meta"] = {}
         params["_meta"]["progressToken"] = progress_token
-    
-    # Prepare request
+
+    # Prepare request - import the actual function
+    from chuk_mcp.protocol.messages.json_rpc_message import create_request
+
     req_id = message_id or str(uuid.uuid4())
-    message = JSONRPCMessage(id=req_id, method=method, params=params)
+    message = create_request(method=method, params=params, id=req_id)
 
     # Track if we've sent a cancellation
     cancellation_sent = False
-    
+
     async def check_and_send_cancellation():
         nonlocal cancellation_sent
-        if cancellation_token and cancellation_token.is_cancelled and not cancellation_sent:
+        if (
+            cancellation_token
+            and cancellation_token.is_cancelled
+            and not cancellation_sent
+        ):
             cancellation_sent = True
             try:
                 # Import here to avoid circular dependency
-                from chuk_mcp.protocol.messages.notifications import send_cancelled_notification
-                await send_cancelled_notification(write_stream, req_id, "Cancelled by client")
+                from chuk_mcp.protocol.messages.notifications import (
+                    send_cancelled_notification,
+                )
+
+                await send_cancelled_notification(
+                    write_stream, req_id, "Cancelled by client"
+                )
             except Exception as e:
                 logging.error(f"Failed to send cancellation notification: {e}")
             raise CancelledError(f"Request {req_id} was cancelled")
-    
+
     # Register cancellation callback if token provided
     if cancellation_token:
-        cancellation_token.add_callback(lambda: None)  # Just to trigger check on next iteration
+        cancellation_token.add_callback(
+            lambda: None
+        )  # Just to trigger check on next iteration
 
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
@@ -130,17 +147,21 @@ async def send_message(
             # Check for cancellation before each attempt
             if cancellation_token:
                 await check_and_send_cancellation()
-            
-            logging.debug("[send_message] attempt %s/%s -> %s", attempt, retries, method)
+
+            logging.debug(
+                "[send_message] attempt %s/%s -> %s", attempt, retries, method
+            )
             await write_stream.send(message)
 
             with anyio.fail_after(timeout):
                 return await _await_response(
-                    read_stream, 
+                    read_stream,
                     req_id,
-                    cancellation_check=check_and_send_cancellation if cancellation_token else None,
+                    cancellation_check=check_and_send_cancellation
+                    if cancellation_token
+                    else None,
                     progress_token=progress_token,
-                    progress_callback=progress_callback
+                    progress_callback=progress_callback,
                 )
 
         except CancelledError:
@@ -154,7 +175,12 @@ async def send_message(
             logging.error("[send_message] retryable error: %s", exc)
         except TimeoutError as exc:
             last_exc = exc
-            logging.error("[send_message] timeout for %s on attempt %s/%s", method, attempt, retries)
+            logging.error(
+                "[send_message] timeout for %s on attempt %s/%s",
+                method,
+                attempt,
+                retries,
+            )
         except Exception as exc:
             last_exc = exc
             logging.error("[send_message] unexpected error: %s", exc)
@@ -167,6 +193,7 @@ async def send_message(
     assert last_exc is not None
     raise last_exc
 
+
 ###############################################################################
 # Helper - iterative receive with sub-timeout
 ###############################################################################
@@ -176,14 +203,16 @@ async def _await_response(
     sub_timeout: float = 0.5,
     cancellation_check: Optional[Callable[[], Awaitable[None]]] = None,
     progress_token: Optional[str] = None,
-    progress_callback: Optional[Callable[[float, Optional[float], Optional[str]], Awaitable[None]]] = None,
+    progress_callback: Optional[
+        Callable[[float, Optional[float], Optional[str]], Awaitable[None]]
+    ] = None,
 ) -> Union[Dict[str, Any], Any]:
     """Loop until a response matching req_id arrives, handling progress notifications."""
     while True:
         # Check for cancellation
         if cancellation_check:
             await cancellation_check()
-        
+
         try:
             with anyio.fail_after(sub_timeout):
                 msg = await read_stream.receive()
@@ -191,40 +220,61 @@ async def _await_response(
             continue  # let outer timer count down
 
         # Handle progress notifications if we're tracking progress
-        if progress_token and progress_callback and msg.method == "notifications/progress":
-            params = msg.params or {}
+        # Type narrowing - only requests/notifications have method
+        msg_method = getattr(msg, "method", None)
+        if (
+            progress_token
+            and progress_callback
+            and msg_method == "notifications/progress"
+        ):
+            params = getattr(msg, "params", None) or {}
             if params.get("progressToken") == progress_token:
                 try:
                     await progress_callback(
                         params.get("progress", 0),
                         params.get("total"),
-                        params.get("message")
+                        params.get("message"),
                     )
                 except Exception as e:
                     logging.error(f"Error in progress callback: {e}")
                 continue  # Keep waiting for the actual response
-        
-        # Filter by matching ID
-        if msg.id != req_id:
-            logging.debug("[send_message] skip unmatched id=%s", msg.id)
+
+        # Filter by matching ID - type narrowing
+        msg_id = getattr(msg, "id", None)
+        if msg_id != req_id:
+            logging.debug("[send_message] skip unmatched id=%s", msg_id)
+            continue
+
+        # For mypy - msg must be a single message, not a list
+        if isinstance(msg, list):
             continue
 
         logging.debug("[send_message] matched response: %s", msg.model_dump())
         return _process_response(msg)
 
+
 ###############################################################################
 # Common - response error handling
 ###############################################################################
 
+
 def _process_response(resp: JSONRPCMessage) -> Union[Dict[str, Any], Any]:
-    if resp.error is not None:
-        code = resp.error.get("code", -32603)
+    # Type narrowing for union - only JSONRPCError and JSONRPCResponse have these attributes
+    error = getattr(resp, "error", None)
+    if error is not None:
+        code = error.get("code", -32603)
         msg = (
-            f"JSON-RPC Error: {resp.error.get('message', get_error_message(code))}"
+            f"JSON-RPC Error: {error.get('message', get_error_message(code))}"
             f" (code: {code})"
         )
         if is_retryable_error(code):
             raise RetryableError(msg, code)
         raise NonRetryableError(msg, code)
     # Successful response
-    return resp.result if resp.result is not None else resp.model_dump()
+    result = getattr(resp, "result", None)
+    if result is not None:
+        return result
+    # For lists and other types, return model_dump if available
+    if hasattr(resp, "model_dump"):
+        return resp.model_dump()  # type: ignore[union-attr]
+    return resp  # type: ignore[return-value]

@@ -12,6 +12,6 @@ from ..transports import stdio_client, StdioParameters
 __all__ = [
     "MCPClient",
     "connect_to_server",
-    "stdio_client", 
+    "stdio_client",
     "StdioParameters",
 ]

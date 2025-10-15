@@ -10,20 +10,17 @@ import os
 import sys
 import subprocess
 import tempfile
-import json
-import traceback
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple, Optional
 
-def run_command(cmd: List[str], cwd: Optional[Path] = None, timeout: int = 120) -> Tuple[bool, str, str]:
+
+def run_command(
+    cmd: List[str], cwd: Optional[Path] = None, timeout: int = 120
+) -> Tuple[bool, str, str]:
     """Run a command and return success, stdout, stderr."""
     try:
         result = subprocess.run(
-            cmd,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
         )
         return result.returncode == 0, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
@@ -31,11 +28,12 @@ def run_command(cmd: List[str], cwd: Optional[Path] = None, timeout: int = 120) 
     except Exception as e:
         return False, "", str(e)
 
+
 def test_fallback_pydantic_features():
     """Test advanced features of the fallback Pydantic implementation."""
     print("\n🧪 Testing Enhanced Fallback Pydantic Features...")
-    
-    test_script = '''
+
+    test_script = """
 import os
 import sys
 from typing import List, Optional, Dict, Union
@@ -160,18 +158,18 @@ finally:
     # Cleanup
     if "MCP_FORCE_FALLBACK" in os.environ:
         del os.environ["MCP_FORCE_FALLBACK"]
-'''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         success, stdout, stderr = run_command([sys.executable, test_file])
-        
+
         if success:
             print("   ✅ Enhanced fallback features test PASSED")
-            for line in stdout.split('\n'):
+            for line in stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -183,10 +181,11 @@ finally:
     finally:
         os.unlink(test_file)
 
+
 def test_performance_comparison():
     """Compare performance between Pydantic and fallback modes."""
     print("\n⚡ Testing Performance Comparison...")
-    
+
     test_script = '''
 import time
 import os
@@ -271,17 +270,17 @@ finally:
 
 print("SUCCESS: Performance testing completed")
 '''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         success, stdout, stderr = run_command([sys.executable, test_file])
-        
+
         if success:
             print("   ✅ Performance comparison PASSED")
-            for line in stdout.split('\n'):
+            for line in stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -292,40 +291,45 @@ print("SUCCESS: Performance testing completed")
     finally:
         os.unlink(test_file)
 
+
 def test_uv_virtual_environment():
     """Test creating and using UV virtual environments."""
     print("\n🔧 Testing UV Virtual Environment Integration...")
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        
+
         # Test UV venv creation
         print("   📦 Creating UV virtual environment...")
-        success, stdout, stderr = run_command([
-            "uv", "venv", str(temp_path / "test_env")
-        ])
-        
+        success, stdout, stderr = run_command(
+            ["uv", "venv", str(temp_path / "test_env")]
+        )
+
         if not success:
             print(f"   ⚠️ UV venv creation failed: {stderr}")
             return False
-        
+
         print("   ✅ UV virtual environment created")
-        
+
         # Find project root
         current_dir = Path(__file__).parent
-        project_root = current_dir.parent if (current_dir.parent / "pyproject.toml").exists() else current_dir
-        
+        project_root = (
+            current_dir.parent
+            if (current_dir.parent / "pyproject.toml").exists()
+            else current_dir
+        )
+
         # Test installation in the venv
         venv_python = temp_path / "test_env" / "bin" / "python"
         if not venv_python.exists():
             venv_python = temp_path / "test_env" / "Scripts" / "python.exe"  # Windows
-        
+
         if venv_python.exists():
             print("   📦 Installing chuk-mcp in virtual environment...")
-            success, stdout, stderr = run_command([
-                "uv", "pip", "install", "-e", str(project_root)
-            ], cwd=temp_path)
-            
+            success, stdout, stderr = run_command(
+                ["uv", "pip", "install", "-e", str(project_root)], cwd=temp_path
+            )
+
             if success:
                 print("   ✅ Installation in UV venv successful")
                 return True
@@ -336,41 +340,46 @@ def test_uv_virtual_environment():
             print("   ⚠️ Could not find Python executable in venv")
             return False
 
+
 def test_dependency_resolution():
     """Test UV dependency resolution with optional dependencies."""
     print("\n📋 Testing UV Dependency Resolution...")
-    
+
     # Test basic dependency check
     success, stdout, stderr = run_command(["uv", "pip", "check"])
-    
+
     if success:
         print("   ✅ No dependency conflicts detected")
     else:
         print(f"   ⚠️ Dependency issues detected: {stderr}")
         # Don't fail the test for this, as it might be environmental
-    
+
     # Test showing dependency tree
     success, stdout, stderr = run_command(["uv", "pip", "list", "--format", "freeze"])
-    
+
     if success:
-        installed_packages = stdout.strip().split('\n')
-        relevant_packages = [pkg for pkg in installed_packages 
-                           if any(name in pkg.lower() for name in ['pydantic', 'chuk-mcp', 'anyio'])]
-        
+        installed_packages = stdout.strip().split("\n")
+        relevant_packages = [
+            pkg
+            for pkg in installed_packages
+            if any(name in pkg.lower() for name in ["pydantic", "chuk-mcp", "anyio"])
+        ]
+
         print("   📦 Relevant installed packages:")
         for pkg in relevant_packages:
             print(f"      {pkg}")
-        
+
         return True
     else:
         print(f"   ❌ Could not list packages: {stderr}")
         return False
 
+
 def test_edge_cases():
     """Test edge cases and error handling."""
     print("\n🎯 Testing Edge Cases...")
-    
-    test_script = '''
+
+    test_script = """
 import os
 import sys
 from typing import Any, Dict, List, Optional
@@ -466,18 +475,18 @@ if "MCP_FORCE_FALLBACK" in os.environ:
     del os.environ["MCP_FORCE_FALLBACK"]
 
 print("\\nSUCCESS: All edge cases handled correctly")
-'''
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(test_script)
         test_file = f.name
-    
+
     try:
         success, stdout, stderr = run_command([sys.executable, test_file])
-        
+
         if success:
             print("   ✅ Edge cases test PASSED")
-            for line in stdout.split('\n'):
+            for line in stdout.split("\n"):
                 if line.strip():
                     print(f"   {line}")
             return True
@@ -489,13 +498,14 @@ print("\\nSUCCESS: All edge cases handled correctly")
     finally:
         os.unlink(test_file)
 
+
 def main():
     """Run comprehensive UV and fallback Pydantic tests."""
     print("🧪 Enhanced chuk-mcp UV & Fallback Tests")
     print("=" * 70)
     print("Comprehensive testing of UV integration and fallback functionality")
     print("=" * 70)
-    
+
     tests = [
         ("Enhanced Fallback Features", test_fallback_pydantic_features),
         ("Performance Comparison", test_performance_comparison),
@@ -503,9 +513,9 @@ def main():
         ("Dependency Resolution", test_dependency_resolution),
         ("Edge Cases", test_edge_cases),
     ]
-    
+
     results = {}
-    
+
     for test_name, test_func in tests:
         print(f"\n🔍 Running {test_name}...")
         try:
@@ -514,35 +524,36 @@ def main():
         except Exception as e:
             print(f"   ❌ {test_name} failed with exception: {e}")
             results[test_name] = False
-    
+
     # Summary
     print("\n" + "=" * 70)
     print("📊 Test Results Summary:")
     print("=" * 70)
-    
+
     passed = sum(results.values())
     total = len(results)
-    
+
     for test_name, result in results.items():
         status = "✅ PASS" if result else "❌ FAIL"
         print(f"   {status} {test_name}")
-    
+
     print(f"\n📈 Overall: {passed}/{total} tests passed")
-    
+
     if passed == total:
         print("\n🎉 ALL ENHANCED TESTS PASSED!")
         print("\n✅ chuk-mcp comprehensive validation:")
         print("   • ✅ Enhanced fallback Pydantic implementation")
         print("   • ✅ Performance characteristics acceptable")
-        print("   • ✅ UV virtual environment compatibility") 
+        print("   • ✅ UV virtual environment compatibility")
         print("   • ✅ Dependency resolution working")
         print("   • ✅ Edge cases handled properly")
         print("\n💡 Production ready with UV package management!")
     else:
         print(f"\n⚠️ {total - passed} test(s) failed - review above for details")
-    
+
     print("=" * 70)
     return passed == total
+
 
 if __name__ == "__main__":
     success = main()

@@ -25,7 +25,7 @@ async def test_send_resources_read_binary():
             {
                 "uri": "file:///project/image.png",
                 "mimeType": "image/png",
-                "blob": sample_blob
+                "blob": sample_blob,
             }
         ]
     }
@@ -37,10 +37,10 @@ async def test_send_resources_read_binary():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Verify it's a resources/read method
             assert req.method == MessageMethod.RESOURCES_READ
-            
+
             # Send response with binary content
             response = JSONRPCMessage(id=req.id, result=sample_content)
             await read_send.send(response)
@@ -50,14 +50,12 @@ async def test_send_resources_read_binary():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_resources_read(
-            read_stream=read_receive,
-            write_stream=write_send,
-            uri=test_uri
+            read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
-    
+
     # Check if binary response is correct
     assert result == sample_content
     assert len(result["contents"]) == 1
@@ -84,7 +82,7 @@ async def test_send_resources_read_directory():
             {
                 "uri": "file:///project/src/",
                 "mimeType": "inode/directory",
-                "text": "main.rs\nlib.rs\nutils/"
+                "text": "main.rs\nlib.rs\nutils/",
             }
         ]
     }
@@ -96,7 +94,7 @@ async def test_send_resources_read_directory():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with directory content
             response = JSONRPCMessage(id=req.id, result=sample_content)
             await read_send.send(response)
@@ -106,14 +104,12 @@ async def test_send_resources_read_directory():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_resources_read(
-            read_stream=read_receive,
-            write_stream=write_send,
-            uri=test_uri
+            read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
-    
+
     # Check if directory response is correct
     assert result == sample_content
     assert len(result["contents"]) == 1
@@ -132,7 +128,7 @@ async def test_send_resources_read_git():
             {
                 "uri": "git:///project?ref=main&path=README.md",
                 "mimeType": "text/markdown",
-                "text": "# Project\n\nThis is a sample project."
+                "text": "# Project\n\nThis is a sample project.",
             }
         ]
     }
@@ -144,7 +140,7 @@ async def test_send_resources_read_git():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with git content
             response = JSONRPCMessage(id=req.id, result=sample_content)
             await read_send.send(response)
@@ -154,14 +150,12 @@ async def test_send_resources_read_git():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_resources_read(
-            read_stream=read_receive,
-            write_stream=write_send,
-            uri=test_uri
+            read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
-    
+
     # Check if git resource response is correct
     assert result == sample_content
     assert result["contents"][0]["uri"].startswith("git://")
@@ -179,13 +173,13 @@ async def test_send_resources_read_multiple_contents():
             {
                 "uri": "file:///project/src/main.rs",
                 "mimeType": "text/x-rust",
-                "text": "fn main() {\n    println!(\"Hello world!\");\n}"
+                "text": 'fn main() {\n    println!("Hello world!");\n}',
             },
             {
                 "uri": "file:///project/src/lib.rs",
                 "mimeType": "text/x-rust",
-                "text": "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}"
-            }
+                "text": "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}",
+            },
         ]
     }
 
@@ -197,7 +191,7 @@ async def test_send_resources_read_multiple_contents():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with multiple contents
             response = JSONRPCMessage(id=req.id, result=sample_content)
             await read_send.send(response)
@@ -207,14 +201,12 @@ async def test_send_resources_read_multiple_contents():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_resources_read(
-            read_stream=read_receive,
-            write_stream=write_send,
-            uri=test_uri
+            read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
-    
+
     # Check if multi-content response is correct
     assert result == sample_content
     assert len(result["contents"]) == 2
@@ -233,7 +225,7 @@ async def test_send_resources_read_https():
             {
                 "uri": "https://example.com/api/data.json",
                 "mimeType": "application/json",
-                "text": "{\n  \"key\": \"value\"\n}"
+                "text": '{\n  "key": "value"\n}',
             }
         ]
     }
@@ -245,7 +237,7 @@ async def test_send_resources_read_https():
         try:
             # Get the request
             req = await write_receive.receive()
-            
+
             # Send response with https content
             response = JSONRPCMessage(id=req.id, result=sample_content)
             await read_send.send(response)
@@ -255,14 +247,12 @@ async def test_send_resources_read_https():
     # Create task group and run both client and server
     async with anyio.create_task_group() as tg:
         tg.start_soon(server_task)
-        
+
         # Client side request
         result = await send_resources_read(
-            read_stream=read_receive,
-            write_stream=write_send,
-            uri=test_uri
+            read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
-    
+
     # Check if https resource response is correct
     assert result == sample_content
     assert result["contents"][0]["uri"].startswith("https://")
