@@ -214,7 +214,18 @@ class SSETransport(Transport):
                 "GET", sse_endpoint, headers=headers
             )
             assert self._sse_stream_context is not None
-            self._sse_response = await self._sse_stream_context.__aenter__()  # type: ignore[assignment]
+
+            # Use configured timeout for the initial connection attempt
+            # This ensures we fail fast if the endpoint doesn't exist
+            try:
+                self._sse_response = await asyncio.wait_for(
+                    self._sse_stream_context.__aenter__(),  # type: ignore[arg-type,func-returns-value]
+                    timeout=min(
+                        self.timeout, 15.0
+                    ),  # Use configured timeout, max 15 seconds for initial connection
+                )
+            except asyncio.TimeoutError:
+                raise RuntimeError(f"Timeout connecting to SSE endpoint {sse_endpoint}")
 
             assert self._sse_response is not None
             if self._sse_response.status_code != 200:

@@ -300,12 +300,14 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = None
 
-        mock_tools_response = {
-            "tools": [
-                {"name": "echo", "description": "Echo a message"},
-                {"name": "calc", "description": "Calculate"},
+        from chuk_mcp.protocol.messages.tools import Tool, ListToolsResult
+
+        mock_tools_response = ListToolsResult(
+            tools=[
+                Tool(name="echo", description="Echo a message", inputSchema={}),
+                Tool(name="calc", description="Calculate", inputSchema={}),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()
@@ -351,14 +353,16 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = None
 
-        mock_tools_response = {
-            "tools": [
-                {"name": "echo", "description": "Echo a message"},
-                {"name": "calc", "description": "Calculate"},
-                {"name": "search", "description": "Search"},
-                {"name": "translate", "description": "Translate"},
+        from chuk_mcp.protocol.messages.tools import Tool, ListToolsResult
+
+        mock_tools_response = ListToolsResult(
+            tools=[
+                Tool(name="echo", description="Echo a message", inputSchema={}),
+                Tool(name="calc", description="Calculate", inputSchema={}),
+                Tool(name="search", description="Search", inputSchema={}),
+                Tool(name="translate", description="Translate", inputSchema={}),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()
@@ -449,11 +453,13 @@ class TestTestServer:
         mock_init_result.capabilities.resources = {"subscribe": True}
         mock_init_result.capabilities.prompts = None
 
-        mock_resources_response = {
-            "resources": [
-                {"name": "file1", "description": "File 1"},
+        from chuk_mcp.protocol.messages.resources import Resource, ListResourcesResult
+
+        mock_resources_response = ListResourcesResult(
+            resources=[
+                Resource(uri="file://file1", name="file1", description="File 1"),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()
@@ -499,14 +505,16 @@ class TestTestServer:
         mock_init_result.capabilities.resources = {"subscribe": True}
         mock_init_result.capabilities.prompts = None
 
-        mock_resources_response = {
-            "resources": [
-                {"name": "file1", "description": "File 1"},
-                {"name": "file2", "description": "File 2"},
-                {"name": "file3", "description": "File 3"},
-                {"name": "file4", "description": "File 4"},
+        from chuk_mcp.protocol.messages.resources import Resource, ListResourcesResult
+
+        mock_resources_response = ListResourcesResult(
+            resources=[
+                Resource(uri="file://file1", name="file1", description="File 1"),
+                Resource(uri="file://file2", name="file2", description="File 2"),
+                Resource(uri="file://file3", name="file3", description="File 3"),
+                Resource(uri="file://file4", name="file4", description="File 4"),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()
@@ -597,11 +605,13 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = {"listChanged": True}
 
-        mock_prompts_response = {
-            "prompts": [
-                {"name": "summarize", "description": "Summarize text"},
+        from chuk_mcp.protocol.messages.prompts import Prompt, ListPromptsResult
+
+        mock_prompts_response = ListPromptsResult(
+            prompts=[
+                Prompt(name="summarize", description="Summarize text"),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()
@@ -647,14 +657,16 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = {"listChanged": True}
 
-        mock_prompts_response = {
-            "prompts": [
-                {"name": "summarize", "description": "Summarize text"},
-                {"name": "analyze", "description": "Analyze"},
-                {"name": "translate", "description": "Translate"},
-                {"name": "review", "description": "Review"},
+        from chuk_mcp.protocol.messages.prompts import Prompt, ListPromptsResult
+
+        mock_prompts_response = ListPromptsResult(
+            prompts=[
+                Prompt(name="summarize", description="Summarize text"),
+                Prompt(name="analyze", description="Analyze"),
+                Prompt(name="translate", description="Translate"),
+                Prompt(name="review", description="Review"),
             ]
-        }
+        )
 
         mock_read = AsyncMock()
         mock_write = AsyncMock()

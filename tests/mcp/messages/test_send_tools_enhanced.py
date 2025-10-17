@@ -55,17 +55,16 @@ async def test_send_tools_call_with_image_result():
             arguments=test_args,
         )
 
-    # Check if image response is correct
-    assert result == sample_result
-    assert len(result["content"]) == 2
-    assert result["content"][0]["type"] == "text"
-    assert result["content"][1]["type"] == "image"
-    assert result["content"][1]["data"] == sample_base64_image
-    assert result["content"][1]["mimeType"] == "image/png"
+    # Check if image response is correct (now returns typed object)
+    assert len(result.content) == 2
+    assert result.content[0]["type"] == "text"
+    assert result.content[1]["type"] == "image"
+    assert result.content[1]["data"] == sample_base64_image
+    assert result.content[1]["mimeType"] == "image/png"
 
     # Verify base64 image data is valid
     try:
-        decoded = base64.b64decode(result["content"][1]["data"])
+        decoded = base64.b64decode(result.content[1]["data"])
         assert len(decoded) > 0
     except Exception:
         pytest.fail("Could not decode base64 image data")
@@ -120,13 +119,12 @@ async def test_send_tools_call_with_resource_result():
             arguments=test_args,
         )
 
-    # Check if resource response is correct
-    assert result == sample_result
-    assert len(result["content"]) == 2
-    assert result["content"][1]["type"] == "resource"
-    assert result["content"][1]["resource"]["uri"] == "resource://query-results/12345"
-    assert result["content"][1]["resource"]["mimeType"] == "application/json"
-    assert "results" in result["content"][1]["resource"]["text"]
+    # Check if resource response is correct (now returns typed object)
+    assert len(result.content) == 2
+    assert result.content[1]["type"] == "resource"
+    assert result.content[1]["resource"]["uri"] == "resource://query-results/12345"
+    assert result.content[1]["resource"]["mimeType"] == "application/json"
+    assert "results" in result.content[1]["resource"]["text"]
 
 
 async def test_send_tools_call_with_mixed_content():
@@ -182,21 +180,20 @@ async def test_send_tools_call_with_mixed_content():
             arguments=test_args,
         )
 
-    # Check if mixed content response is correct
-    assert result == sample_result
-    assert len(result["content"]) == 3
+    # Check if mixed content response is correct (now returns typed object)
+    assert len(result.content) == 3
 
     # Check text content
-    assert result["content"][0]["type"] == "text"
-    assert "Analysis complete" in result["content"][0]["text"]
+    assert result.content[0]["type"] == "text"
+    assert "Analysis complete" in result.content[0]["text"]
 
     # Check image content
-    assert result["content"][1]["type"] == "image"
-    assert result["content"][1]["data"] == sample_blob
+    assert result.content[1]["type"] == "image"
+    assert result.content[1]["data"] == sample_blob
 
     # Check resource content
-    assert result["content"][2]["type"] == "resource"
-    assert "<h1>Full Report</h1>" in result["content"][2]["resource"]["text"]
+    assert result.content[2]["type"] == "resource"
+    assert "<h1>Full Report</h1>" in result.content[2]["resource"]["text"]
 
 
 async def test_send_tools_call_with_complex_arguments():
@@ -250,6 +247,5 @@ async def test_send_tools_call_with_complex_arguments():
             arguments=complex_args,
         )
 
-    # Check if response is correct
-    assert result == sample_result
-    assert not result["isError"]
+    # Check if response is correct (now returns typed object)
+    assert not result.isError

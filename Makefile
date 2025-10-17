@@ -1,4 +1,4 @@
-.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish help install dev-install
+.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish help install dev-install security check examples
 
 # Default target
 help:
@@ -13,10 +13,12 @@ help:
 	@echo "  test            - Run tests"
 	@echo "  test-cov        - Run tests with coverage report"
 	@echo "  coverage-report - Show current coverage report"
+	@echo "  examples        - Run all E2E example tests"
 	@echo "  lint            - Run code linters"
 	@echo "  format          - Auto-format code"
 	@echo "  typecheck       - Run type checking"
-	@echo "  check           - Run all checks (lint, typecheck, test)"
+	@echo "  security        - Run security checks with Bandit"
+	@echo "  check           - Run all checks (lint, typecheck, security, test)"
 	@echo "  run             - Run the server"
 	@echo "  build           - Build the project"
 	@echo "  publish         - Build and publish to PyPI"
@@ -95,6 +97,23 @@ test:
 		python -m pytest; \
 	fi
 
+# Run all E2E examples
+examples:
+	@echo "Running E2E examples..."
+	@if command -v uv >/dev/null 2>&1; then \
+		for example in examples/e2e_*_client.py; do \
+			echo "Testing $$example"; \
+			uv run python "$$example" || exit 1; \
+		done; \
+		echo "✅ All examples passed!"; \
+	else \
+		for example in examples/e2e_*_client.py; do \
+			echo "Testing $$example"; \
+			python "$$example" || exit 1; \
+		done; \
+		echo "✅ All examples passed!"; \
+	fi
+
 # Show current coverage report
 coverage-report:
 	@echo "Coverage Report:"
@@ -109,24 +128,24 @@ coverage-report:
 test-cov:
 	@echo "Running tests with coverage..."
 	@if command -v uv >/dev/null 2>&1; then \
-		uv run pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing:skip-covered; \
+		uv run pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing; \
 		exit_code=$$?; \
 		echo ""; \
 		echo "=========================="; \
 		echo "Coverage Summary:"; \
 		echo "=========================="; \
-		uv run coverage report --omit="tests/*" | tail -5; \
+		uv run coverage report --omit="tests/*" | tail -10; \
 		echo ""; \
 		echo "HTML coverage report saved to: htmlcov/index.html"; \
 		exit $$exit_code; \
 	else \
-		pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing:skip-covered; \
+		pytest --cov=src --cov-report=html --cov-report=term --cov-report=term-missing; \
 		exit_code=$$?; \
 		echo ""; \
 		echo "=========================="; \
 		echo "Coverage Summary:"; \
 		echo "=========================="; \
-		coverage report --omit="tests/*" | tail -5; \
+		coverage report --omit="tests/*" | tail -10; \
 		echo ""; \
 		echo "HTML coverage report saved to: htmlcov/index.html"; \
 		exit $$exit_code; \
@@ -211,8 +230,19 @@ typecheck:
 		echo "MyPy not found. Install with: uv pip install mypy"; \
 	fi
 
+# Security scanning
+security:
+	@echo "Running security checks..."
+	@if command -v uv >/dev/null 2>&1; then \
+		uv run bandit -r src -ll || echo "No security issues found or Bandit not installed. Install with: uv pip install bandit"; \
+	elif command -v bandit >/dev/null 2>&1; then \
+		bandit -r src -ll; \
+	else \
+		echo "Bandit not found. Install with: pip install bandit"; \
+	fi
+
 # Run all checks
-check: lint typecheck test
+check: lint typecheck security test
 	@echo "All checks completed."
 
 # Show project info

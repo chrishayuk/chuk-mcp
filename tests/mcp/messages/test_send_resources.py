@@ -68,11 +68,10 @@ async def test_send_resources_list():
             read_stream=read_receive, write_stream=write_send, cursor="test-cursor"
         )
 
-    # Check if response is correct
-    assert result == sample_resources
-    assert len(result["resources"]) == 2
-    assert result["resources"][0]["uri"] == "file:///project/src/main.rs"
-    assert result["nextCursor"] == "next-page-token"
+    # Check if response is correct (now returns typed object)
+    assert len(result.resources) == 2
+    assert result.resources[0].uri == "file:///project/src/main.rs"
+    assert result.nextCursor == "next-page-token"
 
 
 async def test_send_resources_read():
@@ -120,11 +119,10 @@ async def test_send_resources_read():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if response is correct
-    assert result == sample_content
-    assert len(result["contents"]) == 1
-    assert "text" in result["contents"][0]
-    assert result["contents"][0]["uri"] == test_uri
+    # Check if response is correct (now returns typed object)
+    assert len(result.contents) == 1
+    assert result.contents[0].text is not None
+    assert result.contents[0].uri == test_uri
 
 
 async def test_send_resources_templates_list():
@@ -168,10 +166,9 @@ async def test_send_resources_templates_list():
             read_stream=read_receive, write_stream=write_send
         )
 
-    # Check if response is correct
-    assert result == sample_templates
-    assert len(result["resourceTemplates"]) == 1
-    assert result["resourceTemplates"][0]["uriTemplate"] == "file:///{path}"
+    # Check if response is correct (now returns typed object)
+    assert len(result.resourceTemplates) == 1
+    assert result.resourceTemplates[0].uriTemplate == "file:///{path}"
 
 
 async def test_send_resources_subscribe_success():

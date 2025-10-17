@@ -160,9 +160,10 @@ async def test_shutdown_terminate_required():
     write_stream, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Call shutdown function
-    with patch("logging.info") as mock_log_info, patch(
-        "logging.warning"
-    ) as mock_log_warning:
+    with (
+        patch("logging.info") as mock_log_info,
+        patch("logging.warning") as mock_log_warning,
+    ):
         await mock_shutdown_stdio_server(
             read_stream=read_stream,
             write_stream=write_stream,
@@ -200,9 +201,10 @@ async def test_shutdown_kill_required():
     write_stream, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Call shutdown function
-    with patch("logging.info") as mock_log_info, patch(
-        "logging.warning"
-    ) as mock_log_warning:
+    with (
+        patch("logging.info") as mock_log_info,
+        patch("logging.warning") as mock_log_warning,
+    ):
         await mock_shutdown_stdio_server(
             read_stream=read_stream,
             write_stream=write_stream,
@@ -237,9 +239,10 @@ async def test_shutdown_exception_handling():
     write_stream, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Call shutdown function
-    with patch("logging.info") as mock_log_info, patch(
-        "logging.error"
-    ) as mock_log_error:
+    with (
+        patch("logging.info") as mock_log_info,
+        patch("logging.error") as mock_log_error,
+    ):
         await mock_shutdown_stdio_server(
             read_stream=read_stream,
             write_stream=write_stream,

@@ -21,6 +21,14 @@ The prompts feature enables:
 - Consistent prompt formatting across applications
 """
 
+from .prompt import (
+    Prompt,
+    PromptArgument,
+    PromptMessage,
+    ListPromptsResult,
+    GetPromptResult,
+)
+
 from .send_messages import (
     send_prompts_list,
     send_prompts_get,
@@ -31,6 +39,12 @@ from .notifications import (
 )
 
 __all__ = [
+    # Prompt types
+    "Prompt",
+    "PromptArgument",
+    "PromptMessage",
+    "ListPromptsResult",
+    "GetPromptResult",
     # Prompt messaging functions
     "send_prompts_list",
     "send_prompts_get",

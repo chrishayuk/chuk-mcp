@@ -130,7 +130,7 @@ from .base import BaseSessionManager, SessionInfo  # noqa: E402, F811
 class InMemorySessionManager(BaseSessionManager):
     """In-memory implementation of session manager."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the in-memory session store."""
         self.sessions: Dict[str, SessionInfo] = {}
 

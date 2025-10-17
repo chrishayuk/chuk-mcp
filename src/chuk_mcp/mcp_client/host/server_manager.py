@@ -85,7 +85,7 @@ def run_command(command_func, config_file, server_names, user_specified=None):
                     except asyncio.TimeoutError:
                         if should_log:
                             print(
-                                f"Connection cleanup {i+1}/{len(context_managers)} timed out"
+                                f"Connection cleanup {i + 1}/{len(context_managers)} timed out"
                             )
                     except (asyncio.CancelledError, RuntimeError):
                         pass
@@ -94,10 +94,10 @@ def run_command(command_func, config_file, server_names, user_specified=None):
                         e, (asyncio.CancelledError, RuntimeError)
                     ):
                         print(
-                            f"Error during server shutdown {i+1}/{len(context_managers)}: {e}"
+                            f"Error during server shutdown {i + 1}/{len(context_managers)}: {e}"
                         )
 
-    os.system("cls" if os.name == "nt" else "clear")
+    os.system("cls" if os.name == "nt" else "clear")  # nosec B605 - hardcoded safe commands
 
     try:
         anyio.run(_run_clients)

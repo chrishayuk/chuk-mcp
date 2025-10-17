@@ -18,6 +18,9 @@ from ..protocol.messages import (
     send_prompts_list,
     send_prompts_get,
 )
+from ..protocol.messages.tools import Tool, ToolResult
+from ..protocol.messages.resources import Resource, ReadResourceResult
+from ..protocol.messages.prompts import Prompt, GetPromptResult
 
 
 class MCPClient:
@@ -57,18 +60,18 @@ class MCPClient:
 
         return result  # type: ignore[return-value]
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> List[Tool]:
         """List available tools."""
         await self._ensure_initialized()
         assert self._streams is not None
         read_stream, write_stream = self._streams
 
-        response = await send_tools_list(read_stream, write_stream)
-        return response.get("tools", [])
+        result = await send_tools_list(read_stream, write_stream)
+        return result.tools
 
     async def call_tool(
         self, name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    ) -> ToolResult:
         """Call a tool."""
         await self._ensure_initialized()
         assert self._streams is not None
@@ -76,16 +79,16 @@ class MCPClient:
 
         return await send_tools_call(read_stream, write_stream, name, arguments or {})
 
-    async def list_resources(self) -> List[Dict[str, Any]]:
+    async def list_resources(self) -> List[Resource]:
         """List available resources."""
         await self._ensure_initialized()
         assert self._streams is not None
         read_stream, write_stream = self._streams
 
-        response = await send_resources_list(read_stream, write_stream)
-        return response.get("resources", [])
+        result = await send_resources_list(read_stream, write_stream)
+        return result.resources
 
-    async def read_resource(self, uri: str) -> Dict[str, Any]:
+    async def read_resource(self, uri: str) -> ReadResourceResult:
         """Read a resource."""
         await self._ensure_initialized()
         assert self._streams is not None
@@ -93,18 +96,18 @@ class MCPClient:
 
         return await send_resources_read(read_stream, write_stream, uri)
 
-    async def list_prompts(self) -> List[Dict[str, Any]]:
+    async def list_prompts(self) -> List[Prompt]:
         """List available prompts."""
         await self._ensure_initialized()
         assert self._streams is not None
         read_stream, write_stream = self._streams
 
-        response = await send_prompts_list(read_stream, write_stream)
-        return response.get("prompts", [])
+        result = await send_prompts_list(read_stream, write_stream)
+        return result.prompts
 
     async def get_prompt(
         self, name: str, arguments: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    ) -> GetPromptResult:
         """Get a prompt."""
         await self._ensure_initialized()
         assert self._streams is not None

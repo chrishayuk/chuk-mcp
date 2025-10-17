@@ -185,7 +185,7 @@ class NotificationHandler:
     Register callbacks for different notification types.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.handlers: Dict[str, Callable] = {}
 
     def register(self, method: str, handler: Callable) -> None:

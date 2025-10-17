@@ -108,8 +108,8 @@ def test_structured_content_creation_legacy():
 
     assert content.type == "structured"
     assert content.data["temperature"] == 72.5
-    # Access schema via schema attribute (Pydantic v2)
-    assert content.schema["properties"]["temperature"]["type"] == "number"
+    # Access schema via schema_ attribute (not .schema which is a Pydantic method)
+    assert content.schema_["properties"]["temperature"]["type"] == "number"
     assert content.mimeType == "application/json"
 
 
@@ -119,7 +119,7 @@ def test_structured_content_minimal_legacy():
 
     assert content.type == "structured"
     assert content.data == {"message": "hello"}
-    assert content.schema is None
+    assert content.schema_ is None
     assert content.mimeType is None
 
 
@@ -240,8 +240,8 @@ def test_create_structured_tool_result_legacy2():
     assert result.content is None
     assert len(result.structuredContent) == 1
     assert result.structuredContent[0].data["temperature"] == 25.5
-    # Check the schema via the schema field (Pydantic v2)
-    assert result.structuredContent[0].schema == schema
+    # Check the schema via the schema_ field (not .schema which is a Pydantic method)
+    assert result.structuredContent[0].schema_ == schema
     assert result.structuredContent[0].mimeType == "application/json"
     assert result.isError is False
 
@@ -253,7 +253,7 @@ def test_create_structured_tool_result_minimal_legacy2():
     result = create_structured_tool_result(data)
 
     assert result.structuredContent[0].data == data
-    assert result.structuredContent[0].schema is None
+    assert result.structuredContent[0].schema_ is None
     assert result.structuredContent[0].mimeType == "application/json"
 
 
@@ -536,10 +536,10 @@ async def test_example_structured_tool():
     assert structured.data["sentiment"] == "neutral"
     assert structured.data["keywords"] == ["Hello", "world", "example"]
 
-    # Check schema (direct field access)
-    assert structured.schema is not None
-    assert "query" in structured.schema["properties"]
-    assert structured.schema["properties"]["word_count"]["type"] == "integer"
+    # Check schema (direct field access using schema_ attribute)
+    assert structured.schema_ is not None
+    assert "query" in structured.schema_["properties"]
+    assert structured.schema_["properties"]["word_count"]["type"] == "integer"
 
 
 @pytest.mark.asyncio
@@ -581,11 +581,11 @@ def test_structured_content_serialization_legacy():
         mimeType="application/json",
     )
 
-    data = content.model_dump()
+    data = content.model_dump(by_alias=True)
 
     assert data["type"] == "structured"
     assert data["data"] == {"key": "value"}
-    # Check that schema is serialized correctly with the alias
+    # Check that schema is serialized correctly with the alias when using by_alias=True
     assert data["schema"] == {"type": "object"}
     assert data["mimeType"] == "application/json"
 
@@ -820,8 +820,8 @@ def test_structured_content_creation():
 
     assert content.type == "structured"
     assert content.data["temperature"] == 72.5
-    # Now use direct field access
-    assert content.schema["properties"]["temperature"]["type"] == "number"
+    # Now use direct field access with schema_ attribute
+    assert content.schema_["properties"]["temperature"]["type"] == "number"
     assert content.mimeType == "application/json"
 
 
@@ -831,7 +831,7 @@ def test_structured_content_minimal():
 
     assert content.type == "structured"
     assert content.data == {"message": "hello"}
-    assert content.schema is None
+    assert content.schema_ is None
     assert content.mimeType is None
 
 
@@ -848,8 +848,8 @@ def test_create_structured_tool_result():
     assert result.content is None
     assert len(result.structuredContent) == 1
     assert result.structuredContent[0].data["temperature"] == 25.5
-    # Use direct field access
-    assert result.structuredContent[0].schema == schema
+    # Use direct field access with schema_ attribute
+    assert result.structuredContent[0].schema_ == schema
     assert result.structuredContent[0].mimeType == "application/json"
     assert result.isError is False
 
@@ -861,7 +861,7 @@ def test_create_structured_tool_result_minimal():
     result = create_structured_tool_result(data)
 
     assert result.structuredContent[0].data == data
-    assert result.structuredContent[0].schema is None
+    assert result.structuredContent[0].schema_ is None
     assert result.structuredContent[0].mimeType == "application/json"
 
 
@@ -874,11 +874,11 @@ def test_structured_content_serialization():
         mimeType="application/json",
     )
 
-    data = content.model_dump()
+    data = content.model_dump(by_alias=True)
 
     assert data["type"] == "structured"
     assert data["data"] == {"key": "value"}
-    # Direct field should serialize correctly
+    # Field should serialize with alias "schema" when using by_alias=True
     assert data["schema"] == {"type": "object"}
     assert data["mimeType"] == "application/json"
 
@@ -889,7 +889,9 @@ def test_2025_06_18_feature_completeness():
     content_instance = StructuredContent(type="structured", data={})
     assert hasattr(content_instance, "type")
     assert hasattr(content_instance, "data")
-    assert hasattr(content_instance, "schema")  # Direct field
+    assert hasattr(
+        content_instance, "schema_"
+    )  # Direct field (schema_ to avoid conflict with Pydantic method)
     assert hasattr(content_instance, "mimeType")
 
     # Tool result structured content (check on instance, not class)

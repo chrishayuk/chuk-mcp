@@ -77,17 +77,16 @@ async def test_send_prompts_list():
             read_stream=read_receive, write_stream=write_send, cursor="test-cursor"
         )
 
-    # Check if response is correct
-    assert result == sample_prompts
-    assert len(result["prompts"]) == 2
-    assert result["prompts"][0]["name"] == "code_review"
-    assert result["prompts"][1]["name"] == "weather_info"
-    assert result["nextCursor"] == "next-page-cursor"
+    # Check if response is correct (now returns typed object)
+    assert len(result.prompts) == 2
+    assert result.prompts[0].name == "code_review"
+    assert result.prompts[1].name == "weather_info"
+    assert result.nextCursor == "next-page-cursor"
 
     # Check for correct structure in prompt definitions
-    assert "arguments" in result["prompts"][0]
-    assert result["prompts"][0]["arguments"][0]["name"] == "code"
-    assert result["prompts"][0]["arguments"][0]["required"] is True
+    assert result.prompts[0].arguments is not None
+    assert result.prompts[0].arguments[0].name == "code"
+    assert result.prompts[0].arguments[0].required is True
 
 
 async def test_send_prompts_get():
@@ -144,13 +143,12 @@ async def test_send_prompts_get():
             arguments=test_prompt_args,
         )
 
-    # Check if response is correct
-    assert result == sample_prompt_result
-    assert result["description"] == "Weather Information Prompt"
-    assert len(result["messages"]) == 1
-    assert result["messages"][0]["role"] == "user"
-    assert result["messages"][0]["content"]["type"] == "text"
-    assert "New York" in result["messages"][0]["content"]["text"]
+    # Check if response is correct (now returns typed object)
+    assert result.description == "Weather Information Prompt"
+    assert len(result.messages) == 1
+    assert result.messages[0].role == "user"
+    assert result.messages[0].content["type"] == "text"
+    assert "New York" in result.messages[0].content["text"]
 
 
 async def test_send_prompts_get_not_found():
@@ -222,10 +220,9 @@ async def test_send_prompts_list_empty():
             read_stream=read_receive, write_stream=write_send
         )
 
-    # Check if response is correct
-    assert result == empty_prompts
-    assert len(result["prompts"]) == 0
-    assert result["nextCursor"] is None
+    # Check if response is correct (now returns typed object)
+    assert len(result.prompts) == 0
+    assert result.nextCursor is None
 
 
 async def test_send_prompts_get_invalid_name_type():

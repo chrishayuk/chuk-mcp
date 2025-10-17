@@ -12,6 +12,19 @@ from chuk_mcp.client.client import MCPClient
 from chuk_mcp.client.connection import connect_to_server
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 from chuk_mcp.transports.base import Transport
+from chuk_mcp.protocol.messages.tools import Tool, ToolResult, ListToolsResult
+from chuk_mcp.protocol.messages.resources import (
+    Resource,
+    ResourceContent,
+    ListResourcesResult,
+    ReadResourceResult,
+)
+from chuk_mcp.protocol.messages.prompts import (
+    Prompt,
+    PromptMessage,
+    ListPromptsResult,
+    GetPromptResult,
+)
 
 
 class MockTransport(Transport):
@@ -117,12 +130,12 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_tools_response = {
-            "tools": [
-                {"name": "hello", "description": "Say hello"},
-                {"name": "echo", "description": "Echo message"},
+        mock_tools_response = ListToolsResult(
+            tools=[
+                Tool(name="hello", description="Say hello", inputSchema={}),
+                Tool(name="echo", description="Echo message", inputSchema={}),
             ]
-        }
+        )
 
         with patch(
             "chuk_mcp.client.client.send_tools_list", return_value=mock_tools_response
@@ -130,8 +143,8 @@ class TestMCPClient:
             tools = await client.list_tools()
 
             assert len(tools) == 2
-            assert tools[0]["name"] == "hello"
-            assert tools[1]["name"] == "echo"
+            assert tools[0].name == "hello"
+            assert tools[1].name == "echo"
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
@@ -140,7 +153,9 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_tool_response = {"content": [{"type": "text", "text": "Hello, World!"}]}
+        mock_tool_response = ToolResult(
+            content=[{"type": "text", "text": "Hello, World!"}]
+        )
 
         with patch(
             "chuk_mcp.client.client.send_tools_call", return_value=mock_tool_response
@@ -158,7 +173,7 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_tool_response = {"content": [{"type": "text", "text": "Result"}]}
+        mock_tool_response = ToolResult(content=[{"type": "text", "text": "Result"}])
 
         with patch(
             "chuk_mcp.client.client.send_tools_call", return_value=mock_tool_response
@@ -176,12 +191,12 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_resources_response = {
-            "resources": [
-                {"uri": "file://test.txt", "name": "Test File"},
-                {"uri": "db://users", "name": "Users Table"},
+        mock_resources_response = ListResourcesResult(
+            resources=[
+                Resource(uri="file://test.txt", name="Test File"),
+                Resource(uri="db://users", name="Users Table"),
             ]
-        }
+        )
 
         with patch(
             "chuk_mcp.client.client.send_resources_list",
@@ -190,8 +205,8 @@ class TestMCPClient:
             resources = await client.list_resources()
 
             assert len(resources) == 2
-            assert resources[0]["uri"] == "file://test.txt"
-            assert resources[1]["uri"] == "db://users"
+            assert resources[0].uri == "file://test.txt"
+            assert resources[1].uri == "db://users"
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
@@ -200,11 +215,13 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_resource_response = {
-            "contents": [
-                {"uri": "file://test.txt", "mimeType": "text/plain", "text": "Hello"}
+        mock_resource_response = ReadResourceResult(
+            contents=[
+                ResourceContent(
+                    uri="file://test.txt", mimeType="text/plain", text="Hello"
+                )
             ]
-        }
+        )
 
         with patch(
             "chuk_mcp.client.client.send_resources_read",
@@ -223,12 +240,12 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_prompts_response = {
-            "prompts": [
-                {"name": "summarize", "description": "Summarize text"},
-                {"name": "translate", "description": "Translate text"},
+        mock_prompts_response = ListPromptsResult(
+            prompts=[
+                Prompt(name="summarize", description="Summarize text"),
+                Prompt(name="translate", description="Translate text"),
             ]
-        }
+        )
 
         with patch(
             "chuk_mcp.client.client.send_prompts_list",
@@ -237,8 +254,8 @@ class TestMCPClient:
             prompts = await client.list_prompts()
 
             assert len(prompts) == 2
-            assert prompts[0]["name"] == "summarize"
-            assert prompts[1]["name"] == "translate"
+            assert prompts[0].name == "summarize"
+            assert prompts[1].name == "translate"
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
@@ -247,12 +264,14 @@ class TestMCPClient:
         client = MCPClient(mock_transport)
         await self._setup_initialized_client(client, mock_transport, mock_streams)
 
-        mock_prompt_response = {
-            "description": "Summary prompt",
-            "messages": [
-                {"role": "user", "content": {"type": "text", "text": "Summarize this"}}
+        mock_prompt_response = GetPromptResult(
+            description="Summary prompt",
+            messages=[
+                PromptMessage(
+                    role="user", content={"type": "text", "text": "Summarize this"}
+                )
             ],
-        }
+        )
 
         with patch(
             "chuk_mcp.client.client.send_prompts_get", return_value=mock_prompt_response
@@ -283,7 +302,9 @@ class TestMCPClient:
         mock_init_result.protocolVersion = "2025-06-18"
 
         # Mock tools response
-        mock_tools_response = {"tools": []}
+        from chuk_mcp.protocol.messages.tools import ListToolsResult
+
+        mock_tools_response = ListToolsResult(tools=[])
 
         with patch(
             "chuk_mcp.client.client.send_initialize", return_value=mock_init_result
@@ -412,16 +433,18 @@ class TestClientIntegration:
             assert mock_transport.protocol_version == "2025-06-18"
 
             # Test a tool operation
-            mock_tools_response = {
-                "tools": [{"name": "test", "description": "A test tool"}]
-            }
+            from chuk_mcp.protocol.messages.tools import Tool, ListToolsResult
+
+            mock_tools_response = ListToolsResult(
+                tools=[Tool(name="test", description="A test tool", inputSchema={})]
+            )
             with patch(
                 "chuk_mcp.client.client.send_tools_list",
                 return_value=mock_tools_response,
             ):
                 tools = await client.list_tools()
                 assert len(tools) == 1
-                assert tools[0]["name"] == "test"
+                assert tools[0].name == "test"
 
 
 if __name__ == "__main__":

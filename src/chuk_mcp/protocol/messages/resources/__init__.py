@@ -27,6 +27,9 @@ from .send_messages import (
     send_resources_templates_list,
     send_resources_subscribe,
     send_resources_unsubscribe,
+    ListResourcesResult,
+    ReadResourceResult,
+    ListResourceTemplatesResult,
 )
 
 from .notifications import (
@@ -43,6 +46,10 @@ __all__ = [
     "Resource",
     "ResourceTemplate",
     "ResourceContent",
+    # Result types
+    "ListResourcesResult",
+    "ReadResourceResult",
+    "ListResourceTemplatesResult",
     # Resource messaging functions
     "send_resources_list",
     "send_resources_read",

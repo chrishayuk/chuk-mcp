@@ -67,11 +67,10 @@ async def test_send_tools_list():
             read_stream=read_receive, write_stream=write_send, cursor="test-cursor"
         )
 
-    # Check if response is correct
-    assert result == sample_tools
-    assert len(result["tools"]) == 1
-    assert result["tools"][0]["name"] == "get_weather"
-    assert result["nextCursor"] == "next-page-cursor"
+    # Check if response is correct (now returns typed object)
+    assert len(result.tools) == 1
+    assert result.tools[0].name == "get_weather"
+    assert result.nextCursor == "next-page-cursor"
 
 
 async def test_send_tools_call():
@@ -125,12 +124,11 @@ async def test_send_tools_call():
             arguments=test_args,
         )
 
-    # Check if response is correct
-    assert result == sample_result
-    assert len(result["content"]) == 1
-    assert result["content"][0]["type"] == "text"
-    assert "New York" in result["content"][0]["text"]
-    assert result["isError"] is False
+    # Check if response is correct (now returns typed object)
+    assert len(result.content) == 1
+    assert result.content[0]["type"] == "text"
+    assert "New York" in result.content[0]["text"]
+    assert result.isError is False
 
 
 async def test_send_tools_call_error():
@@ -178,10 +176,9 @@ async def test_send_tools_call_error():
             arguments=test_args,
         )
 
-    # Check if response indicates error
-    assert result == sample_error_result
-    assert result["isError"] is True
-    assert "Failed" in result["content"][0]["text"]
+    # Check if response indicates error (now returns typed object)
+    assert result.isError is True
+    assert "Failed" in result.content[0]["text"]
 
 
 async def test_send_tools_call_protocol_error():

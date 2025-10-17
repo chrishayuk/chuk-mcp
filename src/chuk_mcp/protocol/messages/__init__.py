@@ -101,7 +101,7 @@ except ImportError:
     pass
 
 try:
-    from .logging import (  # noqa: F401  # type: ignore[import-not-found]
+    from .logging import (  # noqa: F401  # type: ignore
         send_logging_set_level,  # noqa: F401
     )
 

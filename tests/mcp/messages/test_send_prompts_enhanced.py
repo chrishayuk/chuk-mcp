@@ -97,30 +97,28 @@ async def test_send_prompts_get_multi_message_types():
             arguments=test_prompt_args,
         )
 
-    # Check if response is correct
-    assert result == complex_prompt_result
-
+    # Check if response is correct (now returns typed object)
     # Verify multiple message types
-    assert len(result["messages"]) == 4
+    assert len(result.messages) == 4
 
     # Check text content message
-    assert result["messages"][0]["content"]["type"] == "text"
+    assert result.messages[0].content["type"] == "text"
 
     # Check resource content
-    assert result["messages"][1]["content"]["type"] == "resource"
+    assert result.messages[1].content["type"] == "resource"
     assert (
-        result["messages"][1]["content"]["resource"]["uri"]
+        result.messages[1].content["resource"]["uri"]
         == "resource://code-samples/example.py"
     )
-    assert result["messages"][1]["content"]["resource"]["mimeType"] == "text/plain"
+    assert result.messages[1].content["resource"]["mimeType"] == "text/plain"
 
     # Check image content
-    assert result["messages"][2]["content"]["type"] == "image"
-    assert result["messages"][2]["content"]["data"] == sample_base64_image
-    assert result["messages"][2]["content"]["mimeType"] == "image/png"
+    assert result.messages[2].content["type"] == "image"
+    assert result.messages[2].content["data"] == sample_base64_image
+    assert result.messages[2].content["mimeType"] == "image/png"
 
     # Check assistant message
-    assert result["messages"][3]["role"] == "assistant"
+    assert result.messages[3].role == "assistant"
 
 
 async def test_send_prompts_get_missing_required_argument():
@@ -217,13 +215,12 @@ async def test_send_prompts_get_resource_blob():
             read_stream=read_receive, write_stream=write_send, name="binary_example"
         )
 
-    # Check if response has the correct binary resource
-    assert result["messages"][1]["content"]["type"] == "resource"
+    # Check if response has the correct binary resource (now returns typed object)
+    assert result.messages[1].content["type"] == "resource"
     assert (
-        result["messages"][1]["content"]["resource"]["mimeType"]
-        == "application/octet-stream"
+        result.messages[1].content["resource"]["mimeType"] == "application/octet-stream"
     )
-    assert result["messages"][1]["content"]["resource"]["blob"] == sample_blob_data
+    assert result.messages[1].content["resource"]["blob"] == sample_blob_data
 
 
 async def test_send_prompts_get_server_resource_error():
@@ -266,10 +263,9 @@ async def test_send_prompts_get_server_resource_error():
             arguments={"resourceId": "secure-123"},
         )
 
-    # Should return the error without raising an exception (tool error vs protocol error)
-    assert result == resource_error_result
-    assert result["isError"] is True
-    assert "Error accessing resource" in result["content"][0]["text"]
+    # Should return the error without raising an exception (tool error vs protocol error) (now returns typed object)
+    # Note: This returns a GetPromptResult with error fields as part of the result
+    assert result.model_dump(exclude_none=True) == resource_error_result
 
 
 async def test_send_prompts_list_extensive():
@@ -344,20 +340,22 @@ async def test_send_prompts_list_extensive():
             read_stream=read_receive, write_stream=write_send
         )
 
-    # Verify response has extensive argument definitions
-    assert result == extensive_prompts
-
+    # Verify response has extensive argument definitions (now returns typed object)
     # Check code_review prompt
-    code_review = result["prompts"][0]
-    assert len(code_review["arguments"]) == 3
-    assert code_review["arguments"][0]["required"] is True
-    assert code_review["arguments"][1]["required"] is False
-    assert "enum" in code_review["arguments"][2]
-    assert len(code_review["arguments"][2]["enum"]) == 4
+    code_review = result.prompts[0]
+    assert len(code_review.arguments) == 3
+    assert code_review.arguments[0].required is True
+    assert code_review.arguments[1].required is False
+    # Additional fields in arguments are stored in the extra dict
+    code_review_arg_2_dict = code_review.arguments[2].model_dump()
+    assert "enum" in code_review_arg_2_dict
+    assert len(code_review_arg_2_dict["enum"]) == 4
 
     # Check image_analysis prompt
-    image_analysis = result["prompts"][1]
-    assert len(image_analysis["arguments"]) == 2
-    assert image_analysis["arguments"][0]["required"] is True
-    assert "default" in image_analysis["arguments"][1]
-    assert image_analysis["arguments"][1]["default"] == "brief"
+    image_analysis = result.prompts[1]
+    assert len(image_analysis.arguments) == 2
+    assert image_analysis.arguments[0].required is True
+    # Additional fields in arguments are stored in the extra dict
+    image_arg_1_dict = image_analysis.arguments[1].model_dump()
+    assert "default" in image_arg_1_dict
+    assert image_arg_1_dict["default"] == "brief"

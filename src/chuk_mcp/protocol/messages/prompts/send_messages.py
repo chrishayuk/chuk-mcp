@@ -5,6 +5,7 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
+from .prompt import ListPromptsResult, GetPromptResult
 
 
 async def send_prompts_list(
@@ -13,7 +14,7 @@ async def send_prompts_list(
     cursor: Optional[str] = None,
     timeout: float = 5.0,
     retries: int = 3,
-) -> Dict[str, Any]:
+) -> ListPromptsResult:
     """
     Send a 'prompts/list' message to get available prompts.
 
@@ -25,14 +26,13 @@ async def send_prompts_list(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing 'prompts' list and optional 'nextCursor'
+        ListPromptsResult with typed Prompt objects
 
     Raises:
         Exception: If the server returns an error or the request fails
     """
     params = {"cursor": cursor} if cursor else {}
 
-    # send the message
     response = await send_message(
         read_stream=read_stream,
         write_stream=write_stream,
@@ -42,8 +42,7 @@ async def send_prompts_list(
         retries=retries,
     )
 
-    # return the response
-    return response
+    return ListPromptsResult.model_validate(response)
 
 
 async def send_prompts_get(
@@ -53,7 +52,7 @@ async def send_prompts_get(
     arguments: Optional[Dict[str, Any]] = None,
     timeout: float = 5.0,
     retries: int = 3,
-) -> Dict[str, Any]:
+) -> GetPromptResult:
     """
     Send a 'prompts/get' message to retrieve a specific prompt by name and apply arguments.
 
@@ -66,7 +65,7 @@ async def send_prompts_get(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing prompt content with messages
+        GetPromptResult with typed PromptMessage objects
 
     Raises:
         Exception: If the server returns an error or the request fails
@@ -85,7 +84,6 @@ async def send_prompts_get(
     if arguments:
         params["arguments"] = arguments
 
-    # send the message
     response = await send_message(
         read_stream=read_stream,
         write_stream=write_stream,
@@ -95,5 +93,4 @@ async def send_prompts_get(
         retries=retries,
     )
 
-    # return the response
-    return response
+    return GetPromptResult.model_validate(response)
