@@ -9,7 +9,7 @@ including tool definitions, results, schemas, and messaging.
 from .tool import Tool
 from .tool_result import ToolResult
 from .tool_input_schema import ToolInputSchema
-from .send_messages import send_tools_list, send_tools_call
+from .send_messages import send_tools_list, send_tools_call, ListToolsResult
 from .notifications import handle_tools_list_changed_notification
 
 __all__ = [
@@ -17,6 +17,8 @@ __all__ = [
     "Tool",
     "ToolResult",
     "ToolInputSchema",
+    # Result types
+    "ListToolsResult",
     # Tool messaging functions
     "send_tools_list",
     "send_tools_call",

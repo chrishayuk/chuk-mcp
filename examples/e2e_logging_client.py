@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""
+E2E Logging Client - Powered by chuk-mcp
+Demonstrates client handling logging from server.
+"""
+
+import anyio
+from chuk_mcp import stdio_client, StdioServerParameters
+from chuk_mcp.protocol.messages import (
+    send_initialize,
+    send_message,
+    send_tools_list,
+    send_tools_call,
+)
+
+
+async def main():
+    """Test logging capability."""
+    server_params = StdioServerParameters(
+        command="python", args=["examples/e2e_logging_server.py"]
+    )
+
+    async with stdio_client(server_params) as (read, write):
+        # Initialize connection
+        print("🔗 Initializing connection...")
+        init_result = await send_initialize(read, write)
+        print(f"✅ Connected to {init_result.serverInfo.name}")
+        print()
+
+        # Check if server supports logging
+        if init_result.capabilities.logging:
+            print("📋 Server supports logging capability")
+            print()
+
+            # Set logging level
+            print("⚙️  Setting log level to 'debug'...")
+            await send_message(read, write, "logging/setLevel", {"level": "debug"})
+            print("✅ Log level set")
+            print()
+
+        # List available tools
+        print("🔧 Listing available tools...")
+        tools_result = await send_tools_list(read, write)
+        for tool in tools_result.tools:
+            print(f"  • {tool.name}: {tool.description}")
+        print()
+
+        # Call tool that generates log messages
+        print("🔨 Calling process_data tool...")
+        result = await send_tools_call(
+            read, write, "process_data", {"data": "sample_data"}
+        )
+
+        # Display result
+        for content_item in result.content:
+            if content_item.get("type") == "text":
+                print(f"\n{content_item.get('text')}")
+
+        print("\n✅ Logging example completed!")
+
+
+if __name__ == "__main__":
+    anyio.run(main)

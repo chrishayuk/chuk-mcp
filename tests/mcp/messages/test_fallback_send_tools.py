@@ -74,10 +74,10 @@ async def test_send_tools_list_fallback(monkeypatch):
             write_stream=write_send,
         )
 
-    # 5) Validate the client received the correct result
-    assert result == sample_tools
-    assert len(result["tools"]) == 1
-    assert result["nextCursor"] == "next-page-cursor"
+    # 5) Validate the client received the correct result (now returns typed object)
+    assert len(result.tools) == 1
+    assert result.tools[0].name == "get_weather"
+    assert result.nextCursor == "next-page-cursor"
 
     #
     # If this test passes, we've confirmed that your send_tools_list logic

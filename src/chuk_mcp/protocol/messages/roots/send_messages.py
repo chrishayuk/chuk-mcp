@@ -58,7 +58,7 @@ async def send_roots_list(
     write_stream: MemoryObjectSendStream,
     timeout: float = 5.0,
     retries: int = 3,
-) -> Dict[str, Any]:
+) -> ListRootsResult:
     """
     Send a 'roots/list' response when requested by the server.
 
@@ -73,7 +73,7 @@ async def send_roots_list(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing 'roots' array with Root objects
+        ListRootsResult with typed Root objects
 
     Raises:
         Exception: If the request fails
@@ -86,7 +86,7 @@ async def send_roots_list(
         retries=retries,
     )
 
-    return response
+    return ListRootsResult.model_validate(response)
 
 
 async def handle_roots_list_request(

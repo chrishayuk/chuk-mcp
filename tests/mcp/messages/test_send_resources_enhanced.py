@@ -56,16 +56,15 @@ async def test_send_resources_read_binary():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if binary response is correct
-    assert result == sample_content
-    assert len(result["contents"]) == 1
-    assert "blob" in result["contents"][0]
-    assert result["contents"][0]["mimeType"] == "image/png"
-    assert result["contents"][0]["blob"] == sample_blob
+    # Check if binary response is correct (now returns typed object)
+    assert len(result.contents) == 1
+    assert result.contents[0].blob is not None
+    assert result.contents[0].mimeType == "image/png"
+    assert result.contents[0].blob == sample_blob
 
     # Verify blob is valid base64
     try:
-        decoded = base64.b64decode(result["contents"][0]["blob"])
+        decoded = base64.b64decode(result.contents[0].blob)
         assert len(decoded) > 0
     except Exception:
         pytest.fail("Could not decode base64 blob data")
@@ -110,11 +109,10 @@ async def test_send_resources_read_directory():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if directory response is correct
-    assert result == sample_content
-    assert len(result["contents"]) == 1
-    assert result["contents"][0]["mimeType"] == "inode/directory"
-    assert "main.rs" in result["contents"][0]["text"]
+    # Check if directory response is correct (now returns typed object)
+    assert len(result.contents) == 1
+    assert result.contents[0].mimeType == "inode/directory"
+    assert "main.rs" in result.contents[0].text
 
 
 async def test_send_resources_read_git():
@@ -156,10 +154,9 @@ async def test_send_resources_read_git():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if git resource response is correct
-    assert result == sample_content
-    assert result["contents"][0]["uri"].startswith("git://")
-    assert result["contents"][0]["mimeType"] == "text/markdown"
+    # Check if git resource response is correct (now returns typed object)
+    assert result.contents[0].uri.startswith("git://")
+    assert result.contents[0].mimeType == "text/markdown"
 
 
 async def test_send_resources_read_multiple_contents():
@@ -207,11 +204,10 @@ async def test_send_resources_read_multiple_contents():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if multi-content response is correct
-    assert result == sample_content
-    assert len(result["contents"]) == 2
-    assert result["contents"][0]["uri"] == "file:///project/src/main.rs"
-    assert result["contents"][1]["uri"] == "file:///project/src/lib.rs"
+    # Check if multi-content response is correct (now returns typed object)
+    assert len(result.contents) == 2
+    assert result.contents[0].uri == "file:///project/src/main.rs"
+    assert result.contents[1].uri == "file:///project/src/lib.rs"
 
 
 async def test_send_resources_read_https():
@@ -253,7 +249,6 @@ async def test_send_resources_read_https():
             read_stream=read_receive, write_stream=write_send, uri=test_uri
         )
 
-    # Check if https resource response is correct
-    assert result == sample_content
-    assert result["contents"][0]["uri"].startswith("https://")
-    assert result["contents"][0]["mimeType"] == "application/json"
+    # Check if https resource response is correct (now returns typed object)
+    assert result.contents[0].uri.startswith("https://")
+    assert result.contents[0].mimeType == "application/json"

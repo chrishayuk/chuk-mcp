@@ -62,12 +62,17 @@ if PYDANTIC_AVAILABLE:
 
         if PYDANTIC_V2:
             # Pydantic v2 configuration
-            model_config = {"extra": "allow", "validate_assignment": True}
+            model_config = {
+                "extra": "allow",
+                "validate_assignment": True,
+                "populate_by_name": True,
+            }
         else:
             # Pydantic v1 configuration
             class Config:
                 extra = "allow"
                 validate_assignment = True
+                allow_population_by_field_name = True
 
         def model_dump_mcp(self, **kwargs) -> Dict[str, Any]:
             """Convenience method for MCP compatibility."""

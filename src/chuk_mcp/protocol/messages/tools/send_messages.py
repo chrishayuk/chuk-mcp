@@ -1,10 +1,25 @@
 # chuk_mcp/protocol/messages/tools/send_messages.py
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 # chuk_mcp imports
 from chuk_mcp.protocol.messages.send_message import send_message
 from chuk_mcp.protocol.messages.message_method import MessageMethod
+from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase
+from .tool import Tool
+from .tool_result import ToolResult
+
+
+class ListToolsResult(McpPydanticBase):
+    """Result of listing tools."""
+
+    tools: List[Tool]
+    """List of available tools."""
+
+    nextCursor: Optional[str] = None
+    """Pagination cursor for fetching more tools."""
+
+    model_config = {"extra": "allow"}
 
 
 async def send_tools_list(
@@ -13,7 +28,7 @@ async def send_tools_list(
     cursor: Optional[str] = None,
     timeout: float = 5.0,
     retries: int = 3,
-) -> Dict[str, Any]:
+) -> ListToolsResult:
     """
     Send a 'tools/list' message to get available tools.
 
@@ -25,7 +40,7 @@ async def send_tools_list(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing 'tools' list and optional 'nextCursor'
+        ListToolsResult with typed Tool objects
 
     Raises:
         Exception: If the server returns an error or the request fails
@@ -41,7 +56,7 @@ async def send_tools_list(
         retries=retries,
     )
 
-    return response
+    return ListToolsResult.model_validate(response)
 
 
 async def send_tools_call(
@@ -51,7 +66,7 @@ async def send_tools_call(
     arguments: Dict[str, Any],
     timeout: float = 10.0,
     retries: int = 2,
-) -> Dict[str, Any]:
+) -> ToolResult:
     """
     Send a 'tools/call' message to invoke a tool.
 
@@ -64,7 +79,7 @@ async def send_tools_call(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing tool execution result
+        ToolResult with typed content
 
     Raises:
         Exception: If the server returns an error or the request fails
@@ -90,4 +105,4 @@ async def send_tools_call(
         retries=retries,
     )
 
-    return response
+    return ToolResult.model_validate(response)

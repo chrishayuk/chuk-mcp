@@ -87,7 +87,7 @@ async def send_completion_complete(
     argument: Union[Dict[str, Any], ArgumentInfo],
     timeout: float = 5.0,
     retries: int = 3,
-) -> Dict[str, Any]:
+) -> CompletionResult:
     """
     Request completion options for a partially-typed argument.
 
@@ -100,7 +100,7 @@ async def send_completion_complete(
         retries: Number of retry attempts
 
     Returns:
-        Dict containing 'completion' with values array and optional total/hasMore
+        CompletionResult with typed completion values
 
     Raises:
         Exception: If the server returns an error or the request fails
@@ -118,7 +118,8 @@ async def send_completion_complete(
         retries=retries,
     )
 
-    return response
+    completion_data = response.get("completion", {})
+    return CompletionResult.model_validate(completion_data)
 
 
 # Helper functions
@@ -186,16 +187,13 @@ async def complete_resource_argument(
     Returns:
         CompletionResult with suggested values
     """
-    response = await send_completion_complete(
+    return await send_completion_complete(
         read_stream=read_stream,
         write_stream=write_stream,
         ref=create_resource_reference(resource_uri),
         argument=create_argument_info(argument_name, argument_value),
         timeout=timeout,
     )
-
-    completion_data = response.get("completion", {})
-    return CompletionResult.model_validate(completion_data)
 
 
 async def complete_prompt_argument(
@@ -220,16 +218,13 @@ async def complete_prompt_argument(
     Returns:
         CompletionResult with suggested values
     """
-    response = await send_completion_complete(
+    return await send_completion_complete(
         read_stream=read_stream,
         write_stream=write_stream,
         ref=create_prompt_reference(prompt_name),
         argument=create_argument_info(argument_name, argument_value),
         timeout=timeout,
     )
-
-    completion_data = response.get("completion", {})
-    return CompletionResult.model_validate(completion_data)
 
 
 class CompletionProvider:
@@ -240,7 +235,7 @@ class CompletionProvider:
     different resources and prompts.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the completion provider."""
         self._resource_handlers: Dict[str, Any] = {}
         self._prompt_handlers: Dict[str, Any] = {}

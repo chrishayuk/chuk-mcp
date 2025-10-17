@@ -19,7 +19,7 @@ from chuk_mcp.protocol.types.errors import RetryableError, NonRetryableError
 class CancellationToken:
     """Token to enable request cancellation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cancelled = False
         self._callbacks: List[Callable] = []
 

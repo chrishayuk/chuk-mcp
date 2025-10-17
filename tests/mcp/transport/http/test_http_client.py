@@ -526,7 +526,7 @@ async def test_http_client_concurrent_requests():
                         msg = JSONRPCMessage.model_validate(
                             {
                                 "jsonrpc": "2.0",
-                                "id": f"concurrent-{index+1}",
+                                "id": f"concurrent-{index + 1}",
                                 "method": "ping",
                             }
                         )

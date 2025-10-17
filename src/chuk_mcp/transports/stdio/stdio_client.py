@@ -335,14 +335,33 @@ class StdioClient:
     # ------------------------------------------------------------------ #
     async def __aenter__(self):
         try:
+            # Determine stderr handling based on LOG_LEVEL in subprocess environment
+            # If LOG_LEVEL is ERROR or higher, suppress subprocess stderr
+            import subprocess
+
+            env = self.server.env or get_default_environment()
+
+            # Check LOG_LEVEL in the environment being passed to subprocess
+            log_level = env.get("LOG_LEVEL", "").upper()
+            logging_level = env.get("LOGGING_LEVEL", "").upper()
+
+            # Suppress stderr if LOG_LEVEL or LOGGING_LEVEL is set to ERROR or CRITICAL
+            suppress_stderr = log_level in ("ERROR", "CRITICAL") or logging_level in (
+                "ERROR",
+                "CRITICAL",
+            )
+
             self.process = await anyio.open_process(
                 [self.server.command, *self.server.args],
-                env=self.server.env or get_default_environment(),
-                stderr=sys.stderr,
+                env=env,
+                stderr=subprocess.DEVNULL if suppress_stderr else sys.stderr,
                 start_new_session=True,
             )
             logger.debug(
-                "Subprocess PID %s (%s)", self.process.pid, self.server.command
+                "Subprocess PID %s (%s) [stderr: %s]",
+                self.process.pid,
+                self.server.command,
+                "suppressed" if suppress_stderr else "pass-through",
             )
 
             self.tg = anyio.create_task_group()

@@ -135,12 +135,12 @@ def main(
             src_dir = tmp / "clone"
             run(["git", "clone", "--depth", "1", src, src_dir])
 
-        print(f"Raw source:     {du(src_dir)/BYTES_IN_MB:.2f} MB")
+        print(f"Raw source:     {du(src_dir) / BYTES_IN_MB:.2f} MB")
 
         # 2. Build artefacts -------------------------------------------------
         artefacts = build_artefacts(src_dir, tmp)
         print(
-            f"Sdist+wheel:    {sum(p.stat().st_size for p in artefacts)/BYTES_IN_MB:.2f} MB"
+            f"Sdist+wheel:    {sum(p.stat().st_size for p in artefacts) / BYTES_IN_MB:.2f} MB"
         )
         artefact = pick_one(artefacts)
 
@@ -161,14 +161,14 @@ def main(
 
         total_runtime = sum(sz for _, sz in runtime_dists)
         print(
-            f"Runtime tree:   {total_runtime/BYTES_IN_MB:.2f} MB"
+            f"Runtime tree:   {total_runtime / BYTES_IN_MB:.2f} MB"
             + (" (includes build tools)" if include_tools else "")
         )
 
         if show_breakdown:
             print("\nBreakdown (descending):")
             for name, sz in runtime_dists:
-                print(f"  {name:<25} {sz/BYTES_IN_MB:7.2f} MB")
+                print(f"  {name:<25} {sz / BYTES_IN_MB:7.2f} MB")
 
 
 if __name__ == "__main__":

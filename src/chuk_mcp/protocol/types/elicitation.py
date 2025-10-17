@@ -7,7 +7,7 @@ by sending an elicitation/create request with a message and a JSON schema.
 """
 
 from typing import Dict, Any, Optional, Literal
-from ..mcp_pydantic_base import McpPydanticBase
+from ..mcp_pydantic_base import McpPydanticBase, Field
 
 
 class ElicitationRequest(McpPydanticBase):
@@ -31,7 +31,7 @@ class ElicitationParams(McpPydanticBase):
     message: str
     """Human-readable message explaining what input is needed."""
 
-    schema: Dict[str, Any]  # type: ignore[assignment]
+    schema_: Dict[str, Any] = Field(..., alias="schema")
     """JSON Schema defining the expected structure of the user's response."""
 
     title: Optional[str] = None
@@ -40,7 +40,7 @@ class ElicitationParams(McpPydanticBase):
     description: Optional[str] = None
     """Optional longer description of what input is needed."""
 
-    model_config = {"extra": "allow"}  # type: ignore[assignment]
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class ElicitationResponse(McpPydanticBase):
@@ -94,7 +94,7 @@ def create_text_input_elicitation(
     if required:
         schema["required"] = [field_name]
 
-    return ElicitationParams(message=message, schema=schema, title=title)
+    return ElicitationParams(message=message, schema_=schema, title=title)
 
 
 def create_choice_elicitation(
@@ -120,7 +120,7 @@ def create_choice_elicitation(
         "required": [field_name],
     }
 
-    return ElicitationParams(message=message, schema=schema, title=title)
+    return ElicitationParams(message=message, schema_=schema, title=title)
 
 
 def create_confirmation_elicitation(
@@ -140,7 +140,7 @@ def create_confirmation_elicitation(
         "required": [field_name],
     }
 
-    return ElicitationParams(message=message, schema=schema, title=title)
+    return ElicitationParams(message=message, schema_=schema, title=title)
 
 
 def create_form_elicitation(
@@ -163,7 +163,7 @@ def create_form_elicitation(
     if required_fields:
         schema["required"] = required_fields
 
-    return ElicitationParams(message=message, schema=schema, title=title)
+    return ElicitationParams(message=message, schema_=schema, title=title)
 
 
 # Server-side elicitation handler
@@ -176,7 +176,7 @@ class ElicitationHandler:
     This allows MCP servers to request user input during operations.
     """
 
-    def __init__(self, send_message_func):
+    def __init__(self, send_message_func) -> None:
         """
         Initialize the elicitation handler.
 
@@ -334,13 +334,13 @@ async def example_user_input_function(
 
     In a real implementation, this would show a UI dialog or prompt.
     """
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("USER INPUT REQUESTED")
     if title:
         print(f"Title: {title}")
     print(f"Message: {message}")
     print(f"Schema: {schema}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
 
     # For demo purposes, return some mock data
     properties = schema.get("properties", {})

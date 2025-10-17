@@ -6,7 +6,7 @@ Updated for 2025-06-18 specification to include structured tool output support.
 """
 
 from typing import List, Dict, Any, Optional, Literal, Callable, Sequence
-from ..mcp_pydantic_base import McpPydanticBase
+from ..mcp_pydantic_base import McpPydanticBase, Field
 from .content import Content
 
 
@@ -53,13 +53,13 @@ class StructuredContent(McpPydanticBase):
     data: Dict[str, Any]
     """The structured data returned by the tool."""
 
-    schema: Optional[Dict[str, Any]] = None  # type: ignore[assignment]
+    schema_: Optional[Dict[str, Any]] = Field(None, alias="schema")
     """Optional JSON Schema describing the structure of the data."""
 
     mimeType: Optional[str] = None
     """Optional MIME type for the structured data (e.g., 'application/json')."""
 
-    model_config = {"extra": "allow"}  # type: ignore[assignment]
+    model_config = {"extra": "allow"}
 
 
 class ToolResult(McpPydanticBase):
@@ -141,7 +141,7 @@ def create_structured_tool_result(
         is_error: Whether this represents an error
     """
     structured_content = StructuredContent(
-        type="structured", data=data, schema=schema, mimeType=mime_type
+        type="structured", data=data, schema_=schema, mimeType=mime_type
     )
 
     return ToolResult(structuredContent=[structured_content], isError=is_error)
@@ -248,7 +248,7 @@ class ToolRegistry:
     This shows how to implement tools that return structured data.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tools: Dict[str, Tool] = {}
         self.handlers: Dict[str, Callable] = {}
 
@@ -324,7 +324,7 @@ async def example_structured_tool(arguments: Dict[str, Any]) -> ToolResult:
         StructuredContent(
             type="structured",
             data=analysis_result,
-            schema={
+            schema_={
                 "type": "object",
                 "properties": {
                     "query": {"type": "string"},

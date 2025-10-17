@@ -140,14 +140,14 @@ async def test_server(
             if capabilities.tools:
                 try:
                     logger.info("Discovering tools...")
-                    tools_response = await send_tools_list(read_stream, write_stream)
-                    tools = tools_response.get("tools", [])
+                    tools_result = await send_tools_list(read_stream, write_stream)
+                    tools = tools_result.tools
                     print(f"   🔧 Tools available: {len(tools)}")
 
                     if verbose and tools:
                         for tool in tools[:3]:  # Show first 3 tools
-                            name = tool.get("name", "unknown")
-                            desc = tool.get("description", "No description")
+                            name = tool.name
+                            desc = tool.description or "No description"
                             print(f"      • {name}: {desc}")
                         if len(tools) > 3:
                             print(f"      ... and {len(tools) - 3} more")
@@ -160,16 +160,16 @@ async def test_server(
             if capabilities.resources:
                 try:
                     logger.info("Discovering resources...")
-                    resources_response = await send_resources_list(
+                    resources_result = await send_resources_list(
                         read_stream, write_stream
                     )
-                    resources = resources_response.get("resources", [])
+                    resources = resources_result.resources
                     print(f"   📄 Resources available: {len(resources)}")
 
                     if verbose and resources:
                         for resource in resources[:3]:  # Show first 3 resources
-                            name = resource.get("name", "unknown")
-                            desc = resource.get("description", "No description")
+                            name = resource.name
+                            desc = resource.description or "No description"
                             print(f"      • {name}: {desc}")
                         if len(resources) > 3:
                             print(f"      ... and {len(resources) - 3} more")
@@ -182,16 +182,14 @@ async def test_server(
             if capabilities.prompts:
                 try:
                     logger.info("Discovering prompts...")
-                    prompts_response = await send_prompts_list(
-                        read_stream, write_stream
-                    )
-                    prompts = prompts_response.get("prompts", [])
+                    prompts_result = await send_prompts_list(read_stream, write_stream)
+                    prompts = prompts_result.prompts
                     print(f"   💬 Prompts available: {len(prompts)}")
 
                     if verbose and prompts:
                         for prompt in prompts[:3]:  # Show first 3 prompts
-                            name = prompt.get("name", "unknown")
-                            desc = prompt.get("description", "No description")
+                            name = prompt.name
+                            desc = prompt.description or "No description"
                             print(f"      • {name}: {desc}")
                         if len(prompts) > 3:
                             print(f"      ... and {len(prompts) - 3} more")
