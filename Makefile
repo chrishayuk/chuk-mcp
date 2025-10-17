@@ -1,4 +1,4 @@
-.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish help install dev-install security check
+.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish help install dev-install security check examples
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "  test            - Run tests"
 	@echo "  test-cov        - Run tests with coverage report"
 	@echo "  coverage-report - Show current coverage report"
+	@echo "  examples        - Run all E2E example tests"
 	@echo "  lint            - Run code linters"
 	@echo "  format          - Auto-format code"
 	@echo "  typecheck       - Run type checking"
@@ -94,6 +95,23 @@ test:
 		pytest; \
 	else \
 		python -m pytest; \
+	fi
+
+# Run all E2E examples
+examples:
+	@echo "Running E2E examples..."
+	@if command -v uv >/dev/null 2>&1; then \
+		for example in examples/e2e_*_client.py; do \
+			echo "Testing $$example"; \
+			uv run python "$$example" || exit 1; \
+		done; \
+		echo "✅ All examples passed!"; \
+	else \
+		for example in examples/e2e_*_client.py; do \
+			echo "Testing $$example"; \
+			python "$$example" || exit 1; \
+		done; \
+		echo "✅ All examples passed!"; \
 	fi
 
 # Show current coverage report
