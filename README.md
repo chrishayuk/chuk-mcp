@@ -625,7 +625,7 @@ This project follows [Semantic Versioning](https://semver.org/) for public APIs 
 | **Philosophy** | Protocol compliance library | Full framework |
 | **Scope** | Client + Server, protocol-focused | Client + Server framework |
 | **Typing** | Optional Pydantic (fallback available) | Pydantic required |
-| **Transports** | stdio, Streamable HTTP (pluggable) | stdio (primary) |
+| **Transports** | stdio, SSE, Streamable HTTP (pluggable) | stdio, SSE, Streamable HTTP |
 | **Browser/WASM** | Pyodide-compatible | Varies / not a primary target |
 | **Dependencies** | Minimal (anyio core) | Heavier stack |
 | **Server Framework** | Lightweight helpers | Opinionated server structure |
@@ -712,13 +712,18 @@ A: Use [chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor) 
 
 A: Common exceptions and recommended actions:
 
-| Error Type | HTTP Status | Action |
-|------------|-------------|--------|
-| **Connection timeout** | 408/504 | Retry with backoff, increase `timeout_s` |
-| **Malformed message** | 400/422 | Fix request format, check protocol version |
-| **Capability mismatch** | 426/501 | Check `serverInfo.capabilities`, graceful degradation |
-| **Transport error** | 502/503 | Verify network, check TLS certificates |
-| **Auth failure** | 401/403 | Refresh token, check permissions |
+| Error Type | JSON-RPC Code | Action |
+|------------|---------------|--------|
+| **Parse error** | -32700 | Fix JSON syntax in request |
+| **Invalid request** | -32600 | Check required fields (jsonrpc, method, id) |
+| **Method not found** | -32601 | Verify method name and server capabilities |
+| **Invalid params** | -32602 | Validate parameter types and required fields |
+| **Internal error** | -32603 | Check server logs, retry operation |
+| **Request cancelled** | -32800 | Handle cancellation gracefully |
+| **Content too large** | -32801 | Reduce payload size or use streaming |
+| **Connection/Transport** | varies | Check network, verify server is running |
+
+**Note:** When using HTTP-based transports (SSE or Streamable HTTP), transport-layer errors (network failures, TLS issues, authentication problems) will appear as HTTP status codes before reaching the MCP protocol layer. However, once the transport is established, all MCP protocol errors follow the JSON-RPC error code system shown above.
 
 All protocol errors inherit from base exception classes. See examples for error handling patterns.
 
@@ -766,7 +771,7 @@ make examples
 
 ### Security
 
-If you believe you've found a security issue, please email [security@chrishay.com](mailto:security@chrishay.com) rather than opening a public issue.
+If you believe you've found a security issue, please report it by opening a security advisory in the [GitHub repository](https://github.com/chrishayuk/chuk-mcp/security/advisories) rather than opening a public issue.
 
 ---
 
