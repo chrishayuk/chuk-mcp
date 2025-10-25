@@ -111,7 +111,6 @@ async def send_initialize(
             method="initialize",
             params=init_params.model_dump(exclude_none=True),
             timeout=timeout,
-            retries=1,  # Don't retry initialization
         )
 
         logging.debug(f"Received initialization response: {response}")

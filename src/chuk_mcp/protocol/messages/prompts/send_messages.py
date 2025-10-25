@@ -13,7 +13,6 @@ async def send_prompts_list(
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ListPromptsResult:
     """
     Send a 'prompts/list' message to get available prompts.
@@ -23,7 +22,6 @@ async def send_prompts_list(
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ListPromptsResult with typed Prompt objects
@@ -39,7 +37,6 @@ async def send_prompts_list(
         method=MessageMethod.PROMPTS_LIST,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return ListPromptsResult.model_validate(response)
@@ -51,7 +48,6 @@ async def send_prompts_get(
     name: str,
     arguments: Optional[Dict[str, Any]] = None,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> GetPromptResult:
     """
     Send a 'prompts/get' message to retrieve a specific prompt by name and apply arguments.
@@ -62,7 +58,6 @@ async def send_prompts_get(
         name: Name of the prompt to retrieve
         arguments: Optional dictionary of arguments to customize the prompt
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         GetPromptResult with typed PromptMessage objects
@@ -90,7 +85,6 @@ async def send_prompts_get(
         method=MessageMethod.PROMPTS_GET,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return GetPromptResult.model_validate(response)

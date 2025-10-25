@@ -27,7 +27,6 @@ async def send_tools_list(
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ListToolsResult:
     """
     Send a 'tools/list' message to get available tools.
@@ -37,7 +36,6 @@ async def send_tools_list(
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ListToolsResult with typed Tool objects
@@ -53,7 +51,6 @@ async def send_tools_list(
         method=MessageMethod.TOOLS_LIST,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return ListToolsResult.model_validate(response)
@@ -65,7 +62,6 @@ async def send_tools_call(
     name: str,
     arguments: Dict[str, Any],
     timeout: float = 10.0,
-    retries: int = 2,
 ) -> ToolResult:
     """
     Send a 'tools/call' message to invoke a tool.
@@ -76,7 +72,6 @@ async def send_tools_call(
         name: Name of the tool to call
         arguments: Dictionary of arguments to pass to the tool
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ToolResult with typed content
@@ -102,7 +97,6 @@ async def send_tools_call(
         method=MessageMethod.TOOLS_CALL,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return ToolResult.model_validate(response)

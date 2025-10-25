@@ -155,7 +155,6 @@ async def test_send_prompts_get_missing_required_argument():
                 write_stream=write_send,
                 name="code_review",
                 arguments={"language": "python"},  # Missing 'code' argument
-                retries=1,  # Only retry once to avoid timeout errors in test
             )
 
     # Verify error message

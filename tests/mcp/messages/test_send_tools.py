@@ -212,7 +212,6 @@ async def test_send_tools_call_protocol_error():
                 write_stream=write_send,
                 name="invalid_tool_name",
                 arguments={},
-                retries=1,  # Only retry once to avoid timeout errors in test
             )
 
     # Verify error message

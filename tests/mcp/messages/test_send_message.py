@@ -170,64 +170,40 @@ async def test_cancellation_token_callbacks():
     assert callback_count == 111  # Previous + 100
 
 
-async def test_progress_with_retry():
-    """Test that progress works correctly with retries"""
+async def test_progress_with_successful_response():
+    """Test that progress works correctly with immediate successful response"""
     read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
     write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
-    # Track progress updates and attempts
+    # Track progress updates
     progress_updates = []
-    attempt_count = 0
 
     async def progress_callback(
         progress: float, total: float | None, message: str | None
     ):
-        progress_updates.append((attempt_count, progress, message))
+        progress_updates.append((progress, message))
 
-    async def flaky_server():
-        nonlocal attempt_count
+    async def successful_server():
         try:
-            # Fail on first attempt, succeed on second
-            while attempt_count < 2:
-                req = await write_receive.receive()
-                attempt_count += 1
+            req = await write_receive.receive()
 
-                if attempt_count == 1:
-                    # First attempt - send some progress then timeout
-                    progress_token = req.params.get("_meta", {}).get("progressToken")
-                    if progress_token:
-                        progress_notif = JSONRPCMessage(
-                            method="notifications/progress",
-                            params={
-                                "progressToken": progress_token,
-                                "progress": 25.0,
-                                "message": "Attempt 1 progress",
-                            },
-                        )
-                        await read_send.send(progress_notif)
-                    # Then don't respond (causing timeout)
-                    # Just wait briefly instead of sleeping forever
-                    await anyio.sleep(0.6)
+            # Send progress updates
+            progress_token = req.params.get("_meta", {}).get("progressToken")
+            if progress_token:
+                for i in range(2):
+                    progress_notif = JSONRPCMessage(
+                        method="notifications/progress",
+                        params={
+                            "progressToken": progress_token,
+                            "progress": float(i + 1) * 50,
+                            "message": f"Step {i + 1}",
+                        },
+                    )
+                    await read_send.send(progress_notif)
 
-                elif attempt_count == 2:
-                    # Second attempt - complete successfully
-                    progress_token = req.params.get("_meta", {}).get("progressToken")
-                    if progress_token:
-                        for i in range(2):
-                            progress_notif = JSONRPCMessage(
-                                method="notifications/progress",
-                                params={
-                                    "progressToken": progress_token,
-                                    "progress": float(i + 1) * 50,
-                                    "message": f"Attempt 2 step {i + 1}",
-                                },
-                            )
-                            await read_send.send(progress_notif)
-
-                    # Send success response
-                    response = JSONRPCMessage(id=req.id, result={"retry": "success"})
-                    await read_send.send(response)
-                    break
+            # Send success response
+            response = JSONRPCMessage(id=req.id, result={"status": "success"})
+            await read_send.send(response)
 
         except anyio.get_cancelled_exc_class():
             # Expected when client times out
@@ -236,38 +212,24 @@ async def test_progress_with_retry():
             logging.error(f"Server error: {e}")
 
     async with anyio.create_task_group() as tg:
-        tg.start_soon(flaky_server)
+        tg.start_soon(successful_server)
 
         resp = await send_message(
             read_stream=read_receive,
             write_stream=write_send,
-            method="retry_with_progress",
-            params={"test": "retry"},
-            timeout=0.5,
-            retries=3,
-            retry_delay=0.1,
+            method="progress_test",
+            params={"test": "progress"},
+            timeout=2.0,
             progress_callback=progress_callback,
         )
 
     # Verify success
-    assert resp == {"retry": "success"}
-    assert attempt_count == 2
+    assert resp == {"status": "success"}
 
     # Verify we got progress updates
-    # Should have at least 1 from first attempt and 2 from second attempt
-    assert len(progress_updates) >= 3
-
-    # Check that we got progress from attempt 1
-    attempt_1_progress = [p for p in progress_updates if p[0] == 1]
-    assert len(attempt_1_progress) >= 1
-    assert attempt_1_progress[0][1] == 25.0
-    assert attempt_1_progress[0][2] == "Attempt 1 progress"
-
-    # Check that we got progress from attempt 2
-    attempt_2_progress = [p for p in progress_updates if p[0] == 2]
-    assert len(attempt_2_progress) >= 2
-    assert attempt_2_progress[0][1] == 50.0
-    assert attempt_2_progress[1][1] == 100.0
+    assert len(progress_updates) == 2
+    assert progress_updates[0] == (50.0, "Step 1")
+    assert progress_updates[1] == (100.0, "Step 2")
 
 
 async def test_cancellation_during_progress():

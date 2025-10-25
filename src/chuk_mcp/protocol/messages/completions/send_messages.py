@@ -86,7 +86,6 @@ async def send_completion_complete(
     ref: Union[Dict[str, Any], Reference],
     argument: Union[Dict[str, Any], ArgumentInfo],
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> CompletionResult:
     """
     Request completion options for a partially-typed argument.
@@ -97,7 +96,6 @@ async def send_completion_complete(
         ref: Reference to the resource or prompt (either dict or Reference object)
         argument: The argument info (either dict or ArgumentInfo object)
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         CompletionResult with typed completion values
@@ -115,7 +113,6 @@ async def send_completion_complete(
         method=MessageMethod.COMPLETION_COMPLETE,
         params={"ref": ref_dict, "argument": arg_dict},
         timeout=timeout,
-        retries=retries,
     )
 
     completion_data = response.get("completion", {})

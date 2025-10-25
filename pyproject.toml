@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chuk-mcp"
-version = "0.6"
+version = "0.7"
 description = "Model Context Protocol client and server library with optional Pydantic support"
 readme = "README.md"
 license = {text = "MIT"}
@@ -104,6 +104,7 @@ dev = [
     "coverage>=7.6.0",
     "mypy>=1.14.1",
     "ruff>=0.9.1",
+    "bandit>=1.8.6",
 ]
 
 [project.entry-points.console_scripts]

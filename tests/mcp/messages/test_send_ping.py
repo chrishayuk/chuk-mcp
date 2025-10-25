@@ -90,7 +90,7 @@ async def test_send_ping_timeout():
 
         # Ping with short timeout
         result = await send_ping(
-            read_stream=read_receive, write_stream=write_send, timeout=0.5, retries=1
+            read_stream=read_receive, write_stream=write_send, timeout=0.5
         )
 
     # Verify timeout is reported as failure
@@ -98,45 +98,39 @@ async def test_send_ping_timeout():
 
 
 async def test_send_ping_retry_success():
-    """Test ping succeeds on retry"""
+    """Test ping succeeds without retries (now tests immediate response)"""
     read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
     write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
 
     # Track number of requests received
     request_count = 0
 
-    async def delayed_response_server():
+    async def immediate_response_server():
         nonlocal request_count
         try:
-            # Only respond to the second request
-            while True:
-                req = await write_receive.receive()
-                request_count += 1
+            req = await write_receive.receive()
+            request_count += 1
 
-                if request_count == 2:
-                    # Respond on second attempt
-                    response = JSONRPCMessage(id=req.id, result={"status": "ok"})
-                    await read_send.send(response)
-                    break
-                # First attempt will timeout
+            # Respond immediately
+            response = JSONRPCMessage(id=req.id, result={"status": "ok"})
+            await read_send.send(response)
         except Exception:
             # Handle any exceptions from client disconnecting
             pass
 
     async with anyio.create_task_group() as tg:
-        tg.start_soon(delayed_response_server)
+        tg.start_soon(immediate_response_server)
 
-        # Set timeout low but allow retries
+        # Test immediate success (no retries at protocol layer)
         result = await send_ping(
             read_stream=read_receive,
             write_stream=write_send,
-            timeout=0.5,  # Short timeout to trigger retry
-            retries=3,  # Multiple retries allowed
+            timeout=0.5,
         )
 
-    # Verify eventual success
+    # Verify success on first attempt
     assert result is True
-    assert request_count == 2
+    assert request_count == 1
 
 
 async def test_send_ping_method_enum():

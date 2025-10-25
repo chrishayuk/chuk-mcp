@@ -89,7 +89,6 @@ async def test_send_resources_unsubscribe_timeout():
             write_stream=write_send,
             uri=test_uri,
             timeout=0.5,
-            retries=1,
         )
 
         assert result is False

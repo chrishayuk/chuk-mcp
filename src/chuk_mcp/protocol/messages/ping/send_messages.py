@@ -11,7 +11,6 @@ async def send_ping(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> bool:
     """
     Send a ping message to the server and return success status.
@@ -20,7 +19,6 @@ async def send_ping(
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         timeout: Timeout in seconds for the ping response
-        retries: Number of retry attempts
 
     Returns:
         bool: True if ping was successful, False otherwise
@@ -34,7 +32,6 @@ async def send_ping(
             method=MessageMethod.PING,
             params=None,  # Ping doesn't require parameters
             timeout=timeout,
-            retries=retries,
         )
 
         # Return True if we got a response (regardless of content)

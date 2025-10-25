@@ -49,7 +49,6 @@ async def send_resources_list(
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ListResourcesResult:
     """
     Send a 'resources/list' message and return typed results.
@@ -59,7 +58,6 @@ async def send_resources_list(
         write_stream: Stream to write requests to
         cursor: Optional pagination cursor
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ListResourcesResult with typed Resource objects
@@ -75,7 +73,6 @@ async def send_resources_list(
         method=MessageMethod.RESOURCES_LIST,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return ListResourcesResult.model_validate(response)
@@ -86,7 +83,6 @@ async def send_resources_read(
     write_stream: MemoryObjectSendStream,
     uri: str,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ReadResourceResult:
     """
     Send a 'resources/read' message to retrieve resource contents.
@@ -96,7 +92,6 @@ async def send_resources_read(
         write_stream: Stream to write requests to
         uri: URI of the resource to read
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ReadResourceResult with typed ResourceContent objects
@@ -110,7 +105,6 @@ async def send_resources_read(
         method=MessageMethod.RESOURCES_READ,
         params={"uri": uri},
         timeout=timeout,
-        retries=retries,
     )
 
     return ReadResourceResult.model_validate(response)
@@ -120,7 +114,6 @@ async def send_resources_templates_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ListResourceTemplatesResult:
     """
     Send a 'resources/templates/list' message to get available resource templates.
@@ -129,7 +122,6 @@ async def send_resources_templates_list(
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ListResourceTemplatesResult with typed ResourceTemplate objects
@@ -142,7 +134,6 @@ async def send_resources_templates_list(
         write_stream=write_stream,
         method=MessageMethod.RESOURCES_TEMPLATES_LIST,
         timeout=timeout,
-        retries=retries,
     )
 
     return ListResourceTemplatesResult.model_validate(response)
@@ -153,7 +144,6 @@ async def send_resources_subscribe(
     write_stream: MemoryObjectSendStream,
     uri: str,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> bool:
     """
     Send a 'resources/subscribe' message to subscribe to resource changes.
@@ -163,7 +153,6 @@ async def send_resources_subscribe(
         write_stream: Stream to write requests to
         uri: URI of the resource to subscribe to
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         bool: True if subscription was successful, False otherwise
@@ -178,7 +167,6 @@ async def send_resources_subscribe(
             method=MessageMethod.RESOURCES_SUBSCRIBE,
             params={"uri": uri},
             timeout=timeout,
-            retries=retries,
         )
 
         # Any non-error response indicates success
@@ -193,7 +181,6 @@ async def send_resources_unsubscribe(
     write_stream: MemoryObjectSendStream,
     uri: str,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> bool:
     """
     Send a 'resources/unsubscribe' message to unsubscribe from resource changes.
@@ -203,7 +190,6 @@ async def send_resources_unsubscribe(
         write_stream: Stream to write requests to
         uri: URI of the resource to unsubscribe from
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         bool: True if unsubscription was successful, False otherwise
@@ -218,7 +204,6 @@ async def send_resources_unsubscribe(
             method=MessageMethod.RESOURCES_UNSUBSCRIBE,
             params={"uri": uri},
             timeout=timeout,
-            retries=retries,
         )
 
         # Any non-error response indicates success

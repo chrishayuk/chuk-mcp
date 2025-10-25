@@ -22,7 +22,6 @@ async def send_logging_set_level(
     write_stream: MemoryObjectSendStream,
     level: LogLevel,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> Dict[str, Any]:
     """
     Send a request to set the logging level on the server.
@@ -32,7 +31,6 @@ async def send_logging_set_level(
         write_stream: Stream to write requests to
         level: The logging level to set
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         Response from the server
@@ -46,7 +44,6 @@ async def send_logging_set_level(
         method=MessageMethod.LOGGING_SET_LEVEL,
         params={"level": level},
         timeout=timeout,
-        retries=retries,
     )
 
     return response

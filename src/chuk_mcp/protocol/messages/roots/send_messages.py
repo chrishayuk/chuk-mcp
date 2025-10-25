@@ -57,7 +57,6 @@ async def send_roots_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     timeout: float = 5.0,
-    retries: int = 3,
 ) -> ListRootsResult:
     """
     Send a 'roots/list' response when requested by the server.
@@ -70,7 +69,6 @@ async def send_roots_list(
         read_stream: Stream to read responses from
         write_stream: Stream to write requests to
         timeout: Timeout in seconds for the response
-        retries: Number of retry attempts
 
     Returns:
         ListRootsResult with typed Root objects
@@ -83,7 +81,6 @@ async def send_roots_list(
         write_stream=write_stream,
         method=MessageMethod.ROOTS_LIST,
         timeout=timeout,
-        retries=retries,
     )
 
     return ListRootsResult.model_validate(response)

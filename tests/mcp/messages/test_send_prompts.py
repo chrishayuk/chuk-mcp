@@ -184,7 +184,6 @@ async def test_send_prompts_get_not_found():
                 read_stream=read_receive,
                 write_stream=write_send,
                 name="invalid_prompt_name",
-                retries=1,  # Only retry once to avoid timeout errors in test
             )
 
     # Verify error message

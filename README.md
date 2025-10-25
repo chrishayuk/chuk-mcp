@@ -122,7 +122,8 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * **Transport-agnostic**: stdio by default, Streamable HTTP (NDJSON) for remote servers, easily extensible
 * **Async-first**: Built on AnyIO; integrate with `anyio.run(...)` or your existing loop
 * **Small & focused**: No heavy orchestration or agent assumptions
-* **Production-minded**: Clear errors, retries (where appropriate), structured logging hooks
+* **Clean protocol layer**: Errors fail fast without retries — bring your own error handling strategy
+* **Production-minded**: Clear errors, structured logging hooks, composable with retry/caching layers
 
 ---
 
@@ -471,7 +472,7 @@ Some servers can ask the client to sample text or provide completion for argumen
 
 > **Compression:** Enable gzip at the proxy to reduce large content streams. MCP payloads compress well.
 
-> **Retries:** chuk-mcp does **not** auto-retry protocol calls, even for idempotent reads. For retry logic, error handling, and rate limiting, use [chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor) which provides composable wrappers for caching, retries with exponential backoff, and rate limiting.
+> **Protocol Layer Design:** The protocol layer is intentionally **clean and minimal** — errors are raised immediately without retries. This design keeps the protocol layer focused on message transport and compliance with the MCP specification. For production use cases requiring retry logic, error handling, rate limiting, or caching, use [chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor) which provides composable wrappers for retries with exponential backoff, rate limiting, and caching. This separation of concerns allows you to choose the right retry strategy for your specific application needs.
 
 > **Security:** When exposing Streamable HTTP, terminate TLS at a proxy and require auth (e.g., bearer tokens). For private CAs, configure your client's trust store (e.g., `SSL_CERT_FILE=/path/ca.pem`, `REQUESTS_CA_BUNDLE`, or `SSL_CERT_DIR`). The protocol layer is transport-agnostic and does not impose auth.
 
@@ -1170,7 +1171,7 @@ await send_logging_set_level(write, level="debug")
 * Structured logging with configurable levels
 * Performance monitoring (latency, error rates, throughput)
 * Progress tracking and cancellation support
-* Automatic retry and error handling
+* Clean error propagation (no automatic retries at protocol layer)
 
 **Full example:** `uv run python examples/e2e_logging_client.py`
 

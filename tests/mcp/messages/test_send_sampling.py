@@ -200,7 +200,6 @@ class TestSendSamplingCreateMessage:
                 stop_sequences=["STOP"],
                 metadata={"session": "test"},
                 timeout=30.0,
-                retries=1,
             )
 
         assert result["stopReason"] == "maxTokens"

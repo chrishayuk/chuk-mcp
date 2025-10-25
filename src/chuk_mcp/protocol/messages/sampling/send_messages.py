@@ -148,7 +148,6 @@ async def send_sampling_create_message(
     stop_sequences: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     timeout: float = 60.0,
-    retries: int = 2,
 ) -> Dict[str, Any]:
     """
     Request the client to sample from an LLM.
@@ -169,7 +168,6 @@ async def send_sampling_create_message(
         stop_sequences: Optional list of stop sequences
         metadata: Optional metadata to pass to the LLM provider
         timeout: Timeout in seconds (longer default for LLM calls)
-        retries: Number of retry attempts
 
     Returns:
         CreateMessageResult with content and model info
@@ -219,7 +217,6 @@ async def send_sampling_create_message(
         method=MessageMethod.SAMPLING_CREATE_MESSAGE,
         params=params,
         timeout=timeout,
-        retries=retries,
     )
 
     return response
