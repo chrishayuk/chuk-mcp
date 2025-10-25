@@ -215,7 +215,7 @@ class NotificationHandler:
         async def log_notification(notification: Dict[str, Any]) -> None:
             method = notification.get("method")
             params = notification.get("params", {})
-            logging.info(f"Notification {method}: {params}")
+            logging.debug(f"Notification {method}: {params}")
 
         # Register all known notification types
         for method in [

@@ -490,7 +490,7 @@ class TestNotificationHandler:
 
     @pytest.mark.asyncio
     async def test_register_defaults_logging(self, caplog):
-        """Test that default handlers log notifications."""
+        """Test that default handlers log notifications at DEBUG level."""
         handler = NotificationHandler()
         handler.register_defaults()
 
@@ -499,7 +499,7 @@ class TestNotificationHandler:
             "params": {"progress": 50},
         }
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.DEBUG):
             await handler.handle(notification)
 
         assert any(

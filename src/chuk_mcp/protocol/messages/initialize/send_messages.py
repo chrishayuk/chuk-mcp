@@ -134,7 +134,7 @@ async def send_initialize(
             )
         else:
             # Server responded with unsupported version - disconnect per spec
-            logging.error("❌ Version negotiation failed:")
+            logging.error("Version negotiation failed:")
             logging.error(f"  Client proposed: {proposed_version}")
             logging.error(f"  Server responded: {server_version}")
             logging.error(f"  Client supports: {supported_versions}")
@@ -200,7 +200,7 @@ async def send_initialized_notification(write_stream: MemoryObjectSendStream) ->
 
         # Send the notification
         await write_stream.send(notification)
-        logging.debug("✅ Sent notifications/initialized")
+        logging.debug("Sent notifications/initialized")
 
     except Exception as e:
         logging.error(f"Error sending initialized notification: {e}")
@@ -269,6 +269,6 @@ async def send_initialize_with_client_tracking(
     # If successful and we have a client, set the protocol version
     if result and client and hasattr(client, "set_protocol_version"):
         client.set_protocol_version(result.protocolVersion)
-        logging.info(f"Set client protocol version to: {result.protocolVersion}")
+        logging.debug(f"Set client protocol version to: {result.protocolVersion}")
 
     return result
