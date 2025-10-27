@@ -103,7 +103,7 @@ async def test_server(
     try:
         # Load server configuration
         logger.info(f"Loading configuration for server '{server_name}'")
-        server_params = await load_config(config_path, server_name)
+        server_params, _ = await load_config(config_path, server_name)
 
         logger.info(
             f"Connecting to server: {server_params.command} {' '.join(server_params.args)}"

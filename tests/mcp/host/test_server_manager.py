@@ -37,7 +37,7 @@ class TestRunCommand:
         mock_init_result.serverInfo = Mock()
         mock_init_result.serverInfo.name = "Test Server"
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -203,7 +203,7 @@ class TestRunCommand:
         mock_params = Mock()
         mock_streams = (AsyncMock(), AsyncMock())
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -258,7 +258,7 @@ class TestRunCommand:
         mock_init_result.serverInfo = Mock()
         mock_init_result.serverInfo.name = "Test"
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -287,7 +287,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -316,7 +316,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -346,7 +346,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -380,7 +380,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -413,7 +413,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -441,7 +441,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -471,7 +471,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -499,7 +499,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:
@@ -529,7 +529,7 @@ class TestRunCommand:
         mock_init_result = Mock()
         mock_init_result.serverInfo = Mock()
 
-        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+        with patch("chuk_mcp.config.load_config", return_value=(mock_params, None)):
             with patch(
                 "chuk_mcp.transports.stdio.stdio_client.stdio_client"
             ) as mock_client:

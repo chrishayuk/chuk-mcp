@@ -1,13 +1,21 @@
 # chuk_mcp/config.py
 import json
 import logging
+from typing import Optional, Tuple
 
 # mcp_client imports
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 
 
-async def load_config(config_path: str, server_name: str) -> StdioParameters:
-    """Load the server configuration from a JSON file."""
+async def load_config(
+    config_path: str, server_name: str
+) -> Tuple[StdioParameters, Optional[float]]:
+    """Load the server configuration from a JSON file.
+
+    Returns:
+        Tuple of (StdioParameters, timeout) where timeout is the per-server timeout
+        in seconds, or None if not specified.
+    """
     try:
         # debug
         logging.debug(f"Loading config from {config_path}")
@@ -30,13 +38,18 @@ async def load_config(config_path: str, server_name: str) -> StdioParameters:
             env=server_config.get("env"),
         )
 
+        # Extract per-server timeout if specified
+        server_timeout = server_config.get("timeout")
+        if server_timeout is not None:
+            server_timeout = float(server_timeout)
+
         # debug
         logging.debug(
-            f"Loaded config: command='{result.command}', args={result.args}, env={result.env}"
+            f"Loaded config: command='{result.command}', args={result.args}, env={result.env}, timeout={server_timeout}"
         )
 
-        # return result
-        return result
+        # return result with timeout
+        return result, server_timeout
 
     except FileNotFoundError:
         # error

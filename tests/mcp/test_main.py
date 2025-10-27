@@ -160,7 +160,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 # Setup context manager
                 mock_cm = AsyncMock()
@@ -202,7 +202,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -230,7 +230,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -265,7 +265,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -312,7 +312,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -367,7 +367,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -412,7 +412,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -464,7 +464,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -519,7 +519,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -564,7 +564,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -616,7 +616,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -671,7 +671,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)
@@ -716,7 +716,7 @@ class TestTestServer:
         mock_read = AsyncMock()
         mock_write = AsyncMock()
 
-        with patch("chuk_mcp.__main__.load_config", return_value=mock_params):
+        with patch("chuk_mcp.__main__.load_config", return_value=(mock_params, None)):
             with patch("chuk_mcp.__main__.stdio_client") as mock_client:
                 mock_cm = AsyncMock()
                 mock_cm.__aenter__.return_value = (mock_read, mock_write)

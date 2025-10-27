@@ -30,12 +30,12 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "sqlite")
+            params, timeout = await load_config("config.json", "sqlite")
 
-        assert isinstance(result, StdioParameters)
-        assert result.command == "uvx"
-        assert result.args == ["mcp-server-sqlite", "--db", "test.db"]
-        assert result.env == {"DEBUG": "1"}
+        assert isinstance(params, StdioParameters)
+        assert params.command == "uvx"
+        assert params.args == ["mcp-server-sqlite", "--db", "test.db"]
+        assert params.env == {"DEBUG": "1"}
 
     @pytest.mark.asyncio
     async def test_load_config_no_env(self):
@@ -48,12 +48,12 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "postgres")
+            params, timeout = await load_config("config.json", "postgres")
 
-        assert isinstance(result, StdioParameters)
-        assert result.command == "pg-mcp"
-        assert result.args == ["--host", "localhost"]
-        assert result.env is None
+        assert isinstance(params, StdioParameters)
+        assert params.command == "pg-mcp"
+        assert params.args == ["--host", "localhost"]
+        assert params.env is None
 
     @pytest.mark.asyncio
     async def test_load_config_no_args(self):
@@ -62,12 +62,12 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "simple")
+            params, timeout = await load_config("config.json", "simple")
 
-        assert isinstance(result, StdioParameters)
-        assert result.command == "simple-server"
-        assert result.args == []
-        assert result.env is None
+        assert isinstance(params, StdioParameters)
+        assert params.command == "simple-server"
+        assert params.args == []
+        assert params.env is None
 
     @pytest.mark.asyncio
     async def test_load_config_server_not_found(self):
@@ -140,12 +140,12 @@ class TestLoadConfig:
         m = mock_open(read_data=json.dumps(config_data))
         with caplog.at_level(logging.DEBUG):
             with patch("builtins.open", m):
-                result = await load_config("config.json", "test")
+                params, timeout = await load_config("config.json", "test")
 
         # Check that debug messages were logged
         assert any("Loading config from" in record.message for record in caplog.records)
         assert any("Loaded config" in record.message for record in caplog.records)
-        assert result.command == "test-cmd"
+        assert params.command == "test-cmd"
 
     @pytest.mark.asyncio
     async def test_load_config_error_logging(self, caplog):
@@ -209,12 +209,12 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "complex")
+            params, timeout = await load_config("config.json", "complex")
 
-        assert result.env["NODE_ENV"] == "production"
-        assert result.env["PORT"] == "3000"
-        assert result.env["DATABASE_URL"] == "postgresql://localhost/db"
-        assert result.env["FEATURE_FLAG"] == "true"
+        assert params.env["NODE_ENV"] == "production"
+        assert params.env["PORT"] == "3000"
+        assert params.env["DATABASE_URL"] == "postgresql://localhost/db"
+        assert params.env["FEATURE_FLAG"] == "true"
 
     @pytest.mark.asyncio
     async def test_load_config_empty_args_list(self):
@@ -223,9 +223,9 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "simple")
+            params, timeout = await load_config("config.json", "simple")
 
-        assert result.args == []
+        assert params.args == []
 
     @pytest.mark.asyncio
     async def test_load_config_multiple_servers(self):
@@ -240,10 +240,10 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "postgres")
+            params, timeout = await load_config("config.json", "postgres")
 
-        assert result.command == "pg-mcp"
-        assert result.args == ["--host", "localhost"]
+        assert params.command == "pg-mcp"
+        assert params.args == ["--host", "localhost"]
 
     @pytest.mark.asyncio
     async def test_load_config_special_characters_in_args(self):
@@ -265,11 +265,11 @@ class TestLoadConfig:
 
         m = mock_open(read_data=json.dumps(config_data))
         with patch("builtins.open", m):
-            result = await load_config("config.json", "special")
+            params, timeout = await load_config("config.json", "special")
 
-        assert "--path" in result.args
-        assert "/usr/local/bin" in result.args
-        assert "--flag=value" in result.args
+        assert "--path" in params.args
+        assert "/usr/local/bin" in params.args
+        assert "--flag=value" in params.args
 
 
 if __name__ == "__main__":
