@@ -1,4 +1,4 @@
-.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish help install dev-install version bump-patch bump-minor bump-major release lint format typecheck security check
+.PHONY: clean clean-pyc clean-build clean-test clean-all test run build publish publish-test publish-manual help install dev-install version bump-patch bump-minor bump-major release lint format typecheck security check
 
 # Default target
 help:
@@ -28,6 +28,8 @@ help:
 	@echo "  bump-minor     - Bump minor version (0.X.0)"
 	@echo "  bump-major     - Bump major version (X.0.0)"
 	@echo "  publish        - Create tag and trigger automated release"
+	@echo "  publish-test   - Manually publish to TestPyPI from local build"
+	@echo "  publish-manual - Manually publish to PyPI from local build"
 	@echo "  release        - Alias for publish"
 
 # Basic clean - Python bytecode and common artifacts
@@ -282,6 +284,102 @@ publish:
 
 # Alias for publish
 release: publish
+
+# Manually publish to TestPyPI from local build
+publish-test: build
+	@echo "Publishing to TestPyPI..."
+	@echo ""
+	@version=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
+	echo "Version: $$version"; \
+	echo ""; \
+	if [ ! -d "dist" ] || [ -z "$$(ls -A dist 2>/dev/null)" ]; then \
+		echo "✗ No build artifacts found in dist/"; \
+		echo "Run 'make build' first."; \
+		exit 1; \
+	fi; \
+	echo "Distribution files:"; \
+	ls -lh dist/; \
+	echo ""; \
+	echo "This will upload to TestPyPI: https://test.pypi.org/project/chuk-mcp/"; \
+	echo ""; \
+	read -p "Continue? (y/N) " -n 1 -r; \
+	echo ""; \
+	if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "Aborted."; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	if command -v uv >/dev/null 2>&1; then \
+		uv run twine upload --repository testpypi dist/*; \
+	else \
+		twine upload --repository testpypi dist/*; \
+	fi; \
+	if [ $$? -eq 0 ]; then \
+		echo ""; \
+		echo "✓ Successfully published to TestPyPI!"; \
+		echo ""; \
+		echo "View at: https://test.pypi.org/project/chuk-mcp/$$version/"; \
+		echo ""; \
+		echo "Test installation:"; \
+		echo "  pip install --index-url https://test.pypi.org/simple/ chuk-mcp==$$version"; \
+	fi
+
+# Manually publish to PyPI from local build
+publish-manual: build
+	@echo "⚠️  WARNING: Manual PyPI Publishing"
+	@echo "====================================="
+	@echo ""
+	@version=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
+	echo "Version: $$version"; \
+	echo ""; \
+	if [ ! -d "dist" ] || [ -z "$$(ls -A dist 2>/dev/null)" ]; then \
+		echo "✗ No build artifacts found in dist/"; \
+		echo "Run 'make build' first."; \
+		exit 1; \
+	fi; \
+	echo "Distribution files:"; \
+	ls -lh dist/; \
+	echo ""; \
+	echo "Pre-flight checks:"; \
+	echo "=================="; \
+	if git diff --quiet && git diff --cached --quiet; then \
+		echo "✓ Working directory is clean"; \
+	else \
+		echo "⚠️  Working directory has uncommitted changes"; \
+	fi; \
+	echo ""; \
+	echo "⚠️  This will PERMANENTLY upload version $$version to PyPI."; \
+	echo "⚠️  PyPI uploads cannot be deleted or modified!"; \
+	echo ""; \
+	echo "Recommended: Use 'make publish' for automated release instead."; \
+	echo ""; \
+	read -p "Are you ABSOLUTELY SURE? (type 'yes' to continue) " -r; \
+	echo ""; \
+	if [[ ! $$REPLY == "yes" ]]; then \
+		echo "Aborted."; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "Uploading to PyPI..."; \
+	if command -v uv >/dev/null 2>&1; then \
+		uv run twine upload dist/*; \
+	else \
+		twine upload dist/*; \
+	fi; \
+	if [ $$? -eq 0 ]; then \
+		echo ""; \
+		echo "✓ Successfully published to PyPI!"; \
+		echo ""; \
+		echo "View at: https://pypi.org/project/chuk-mcp/$$version/"; \
+		echo ""; \
+		echo "Install with:"; \
+		echo "  pip install chuk-mcp==$$version"; \
+		echo ""; \
+		echo "⚠️  Remember to:"; \
+		echo "  1. Create a git tag: git tag v$$version"; \
+		echo "  2. Push the tag: git push origin v$$version"; \
+		echo "  3. Create a GitHub release manually"; \
+	fi
 
 # Check code quality
 lint:
