@@ -168,9 +168,10 @@ async def test_send_initialize_server_error():
         tg.start_soon(server_task)
         tg.start_soon(client_task)
 
-    # For server errors, should return None (no exception raised)
-    assert result is None
-    assert exception_caught is None
+    # For server errors, should raise exception (not return None)
+    assert result is None, "Result should be None when exception is raised"
+    assert exception_caught is not None, "Exception should be raised for server errors"
+    assert "Internal server error" in str(exception_caught)
 
 
 @pytest.mark.asyncio

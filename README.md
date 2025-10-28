@@ -544,6 +544,10 @@ Complete **client-server pairs** built with pure chuk-mcp, demonstrating both cl
 * [`e2e_elicitation_client.py`](examples/e2e_elicitation_client.py) — User input requests
 * [`e2e_annotations_client.py`](examples/e2e_annotations_client.py) — Content metadata
 
+**Error Handling:**
+
+* [`initialize_error_handling.py`](examples/initialize_error_handling.py) — Comprehensive error handling patterns (OAuth 401, version mismatch, timeout, etc.)
+
 **Running Examples:**
 
 Many E2E examples are self-contained with their own **protocol-level server** built using pure chuk-mcp. Where relevant, the client starts the corresponding demo server:
@@ -616,6 +620,61 @@ This project follows [Semantic Versioning](https://semver.org/) for public APIs 
 - **Major** (X.0.0): Breaking changes to public APIs
 - **Minor** (0.X.0): New features, backward compatible
 - **Patch** (0.0.X): Bug fixes, backward compatible
+
+### Breaking Changes & Migration
+
+#### v0.7.2: Exception Handling Changes
+
+**What Changed**: `send_initialize()` and `send_initialize_with_client_tracking()` now **always raise exceptions** instead of returning `None` on errors.
+
+**Why**: This enables proper error handling, automatic OAuth re-authentication in downstream tools (like mcp-cli), and follows Python best practices.
+
+**Migration Guide**:
+
+**Before (v0.7.1 and earlier)**:
+```python
+result = await send_initialize(read, write)
+if result is None:
+    logging.error("Initialization failed")
+    return
+# Use result
+print(f"Connected to {result.serverInfo.name}")
+```
+
+**After (v0.7.2+)**:
+```python
+try:
+    result = await send_initialize(read, write)
+    # Success - result is guaranteed to be InitializeResult (not None)
+    print(f"Connected to {result.serverInfo.name}")
+except RetryableError as e:
+    # Handle retryable errors (e.g., 401 authentication)
+    logging.error(f"Retryable error: {e}")
+except VersionMismatchError as e:
+    # Handle version incompatibility
+    logging.error(f"Version mismatch: {e}")
+except TimeoutError as e:
+    # Handle timeout
+    logging.error(f"Timeout: {e}")
+except Exception as e:
+    # Handle other errors
+    logging.error(f"Error: {e}")
+```
+
+**Return Type Changes**:
+- `send_initialize()`: `Optional[InitializeResult]` → `InitializeResult`
+- `send_initialize_with_client_tracking()`: `Optional[InitializeResult]` → `InitializeResult`
+
+**Benefits**:
+- ✅ Automatic OAuth re-authentication in mcp-cli
+- ✅ Proper error propagation and debugging
+- ✅ Type safety (no `Optional` checks needed)
+- ✅ Full exception context with stack traces
+
+**See Also**:
+- [`EXCEPTION_HANDLING_FIX.md`](EXCEPTION_HANDLING_FIX.md) - Detailed technical documentation
+- [`examples/initialize_error_handling.py`](examples/initialize_error_handling.py) - Complete error handling examples
+- [`tests/mcp/messages/test_initialize_exceptions.py`](tests/mcp/messages/test_initialize_exceptions.py) - Test suite
 
 ---
 
@@ -720,13 +779,61 @@ A: Common exceptions and recommended actions:
 | **Method not found** | -32601 | Verify method name and server capabilities |
 | **Invalid params** | -32602 | Validate parameter types and required fields |
 | **Internal error** | -32603 | Check server logs, retry operation |
+| **Authentication error (401)** | -32603 | Re-authenticate (automatic in mcp-cli) |
 | **Request cancelled** | -32800 | Handle cancellation gracefully |
 | **Content too large** | -32801 | Reduce payload size or use streaming |
 | **Connection/Transport** | varies | Check network, verify server is running |
 
 **Note:** When using HTTP-based transports (SSE or Streamable HTTP), transport-layer errors (network failures, TLS issues, authentication problems) will appear as HTTP status codes before reaching the MCP protocol layer. However, once the transport is established, all MCP protocol errors follow the JSON-RPC error code system shown above.
 
-All protocol errors inherit from base exception classes. See examples for error handling patterns.
+All protocol errors inherit from base exception classes and are **always raised** (never return `None`). See examples for error handling patterns.
+
+**Exception Handling Best Practices:**
+
+```python
+from chuk_mcp.protocol.types.errors import (
+    RetryableError,
+    NonRetryableError,
+    VersionMismatchError
+)
+from chuk_mcp.protocol.messages import send_initialize
+
+try:
+    # Initialize connection
+    result = await send_initialize(read, write)
+    # Success - result is guaranteed to be InitializeResult (not None)
+    print(f"Connected to {result.serverInfo.name}")
+
+except VersionMismatchError as e:
+    # Protocol version incompatibility - cannot recover
+    logging.error(f"Version mismatch: {e}")
+    # Disconnect and inform user
+
+except RetryableError as e:
+    # Retryable errors (e.g., 401 authentication failures)
+    if "401" in str(e).lower() or "unauthorized" in str(e).lower():
+        # Trigger OAuth re-authentication
+        # In mcp-cli, this happens automatically
+        logging.info("Re-authenticating...")
+    else:
+        # Other retryable errors - implement retry logic
+        logging.warning(f"Retryable error: {e}")
+
+except TimeoutError as e:
+    # Server didn't respond in time
+    logging.error(f"Timeout: {e}")
+    # Retry with longer timeout or check server status
+
+except NonRetryableError as e:
+    # Non-retryable errors - log and fail
+    logging.error(f"Fatal error: {e}")
+
+except Exception as e:
+    # Other unexpected errors
+    logging.error(f"Unexpected error: {e}")
+```
+
+See [`examples/initialize_error_handling.py`](examples/initialize_error_handling.py) for comprehensive error handling demonstrations.
 
 ---
 

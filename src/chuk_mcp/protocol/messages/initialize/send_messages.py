@@ -53,7 +53,7 @@ async def send_initialize(
     timeout: float = 5.0,
     supported_versions: Optional[List[str]] = None,
     preferred_version: Optional[str] = None,
-) -> Optional[InitializeResult]:
+) -> InitializeResult:
     """
     Send an initialization request following MCP protocol specification.
 
@@ -70,11 +70,13 @@ async def send_initialize(
         preferred_version: Specific version to prefer (for testing/compatibility)
 
     Returns:
-        InitializeResult object if successful, None otherwise
+        InitializeResult object on success
 
     Raises:
         VersionMismatchError: If server responds with an unsupported protocol version
         TimeoutError: If server doesn't respond within the timeout
+        RetryableError: For retryable JSON-RPC errors (e.g., 401 authentication failures)
+        NonRetryableError: For non-retryable JSON-RPC errors
         Exception: For other unexpected errors
     """
     # Determine supported versions
@@ -166,18 +168,16 @@ async def send_initialize(
                 # So raise a generic version mismatch error
                 raise VersionMismatchError(proposed_version, ["unknown"])
 
-        # For other errors, return None as per original behavior
-        return None
+        # Re-raise JSON-RPC errors instead of swallowing them
+        # This allows proper error handling upstream (e.g., OAuth re-authentication)
+        raise
     except Exception as e:
         # Log and handle other errors
         logging.error(f"Error during MCP initialization: {e}")
 
-        # Check if this is a timeout
-        if isinstance(e, TimeoutError):
-            raise
-
-        # For other unexpected errors, return None
-        return None
+        # Always re-raise exceptions instead of returning None
+        # This allows proper error handling and debugging upstream
+        raise
 
 
 async def send_initialized_notification(write_stream: MemoryObjectSendStream) -> None:
@@ -234,7 +234,7 @@ async def send_initialize_with_client_tracking(
     timeout: float = 5.0,
     supported_versions: Optional[List[str]] = None,
     preferred_version: Optional[str] = None,
-) -> Optional[InitializeResult]:
+) -> InitializeResult:
     """
     Send an initialization request and track the protocol version in the client.
 
@@ -250,11 +250,13 @@ async def send_initialize_with_client_tracking(
         preferred_version: Specific version to prefer (for testing/compatibility)
 
     Returns:
-        InitializeResult object if successful, None otherwise
+        InitializeResult object on success
 
     Raises:
         VersionMismatchError: If server responds with an unsupported protocol version
         TimeoutError: If server doesn't respond within the timeout
+        RetryableError: For retryable JSON-RPC errors (e.g., 401 authentication failures)
+        NonRetryableError: For non-retryable JSON-RPC errors
         Exception: For other unexpected errors
     """
     # Call the standard initialize function
@@ -266,8 +268,8 @@ async def send_initialize_with_client_tracking(
         preferred_version=preferred_version,
     )
 
-    # If successful and we have a client, set the protocol version
-    if result and client and hasattr(client, "set_protocol_version"):
+    # Set the protocol version if we have a client
+    if client and hasattr(client, "set_protocol_version"):
         client.set_protocol_version(result.protocolVersion)
         logging.debug(f"Set client protocol version to: {result.protocolVersion}")
 

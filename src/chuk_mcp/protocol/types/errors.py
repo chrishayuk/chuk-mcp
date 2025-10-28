@@ -119,7 +119,7 @@ def is_retryable_error(code: int) -> bool:
 
 def is_server_error(code: int) -> bool:
     """Check if the error code is in the server error range."""
-    return SERVER_ERROR_START <= code <= SERVER_ERROR_END
+    return SERVER_ERROR_END <= code <= SERVER_ERROR_START
 
 
 def is_standard_jsonrpc_error(code: int) -> bool:
