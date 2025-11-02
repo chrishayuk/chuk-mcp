@@ -254,7 +254,7 @@ async def try_http_with_sse_fallback(
         )
 
         # Test if HTTP transport works
-        transport_type = await detect_transport_type(url, bearer_token, timeout=5.0)
+        transport_type = await detect_transport_type(url, bearer_token, timeout=timeout)
 
         if transport_type in ["streamable_http", "both"]:
             logger.info(f"Using Streamable HTTP transport for {url}")

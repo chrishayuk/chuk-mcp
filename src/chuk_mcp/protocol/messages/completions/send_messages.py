@@ -85,7 +85,7 @@ async def send_completion_complete(
     write_stream: MemoryObjectSendStream,
     ref: Union[Dict[str, Any], Reference],
     argument: Union[Dict[str, Any], ArgumentInfo],
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> CompletionResult:
     """
     Request completion options for a partially-typed argument.
@@ -168,7 +168,7 @@ async def complete_resource_argument(
     resource_uri: str,
     argument_name: str,
     argument_value: str,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> CompletionResult:
     """
     Helper function to get completions for a resource argument.
@@ -199,7 +199,7 @@ async def complete_prompt_argument(
     prompt_name: str,
     argument_name: str,
     argument_value: str,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> CompletionResult:
     """
     Helper function to get completions for a prompt argument.

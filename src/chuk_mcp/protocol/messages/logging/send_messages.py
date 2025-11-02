@@ -21,7 +21,7 @@ async def send_logging_set_level(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     level: LogLevel,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> Dict[str, Any]:
     """
     Send a request to set the logging level on the server.

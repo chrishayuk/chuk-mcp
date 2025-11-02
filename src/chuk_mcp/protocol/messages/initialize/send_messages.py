@@ -50,7 +50,7 @@ class InitializeResult(McpPydanticBase):
 async def send_initialize(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
     supported_versions: Optional[List[str]] = None,
     preferred_version: Optional[str] = None,
 ) -> InitializeResult:
@@ -231,7 +231,7 @@ async def send_initialize_with_client_tracking(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     client: Optional[Any] = None,  # StdioClient instance
-    timeout: float = 5.0,
+    timeout: float = 60.0,
     supported_versions: Optional[List[str]] = None,
     preferred_version: Optional[str] = None,
 ) -> InitializeResult:

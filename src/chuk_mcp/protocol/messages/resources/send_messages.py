@@ -48,7 +48,7 @@ async def send_resources_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ListResourcesResult:
     """
     Send a 'resources/list' message and return typed results.
@@ -82,7 +82,7 @@ async def send_resources_read(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     uri: str,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ReadResourceResult:
     """
     Send a 'resources/read' message to retrieve resource contents.
@@ -113,7 +113,7 @@ async def send_resources_read(
 async def send_resources_templates_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ListResourceTemplatesResult:
     """
     Send a 'resources/templates/list' message to get available resource templates.
@@ -143,7 +143,7 @@ async def send_resources_subscribe(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     uri: str,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> bool:
     """
     Send a 'resources/subscribe' message to subscribe to resource changes.
@@ -180,7 +180,7 @@ async def send_resources_unsubscribe(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     uri: str,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> bool:
     """
     Send a 'resources/unsubscribe' message to unsubscribe from resource changes.

@@ -26,7 +26,7 @@ async def send_tools_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ListToolsResult:
     """
     Send a 'tools/list' message to get available tools.
@@ -61,7 +61,7 @@ async def send_tools_call(
     write_stream: MemoryObjectSendStream,
     name: str,
     arguments: Dict[str, Any],
-    timeout: float = 10.0,
+    timeout: float = 60.0,
 ) -> ToolResult:
     """
     Send a 'tools/call' message to invoke a tool.

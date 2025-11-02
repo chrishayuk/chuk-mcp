@@ -12,7 +12,7 @@ async def send_prompts_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
     cursor: Optional[str] = None,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ListPromptsResult:
     """
     Send a 'prompts/list' message to get available prompts.
@@ -47,7 +47,7 @@ async def send_prompts_get(
     write_stream: MemoryObjectSendStream,
     name: str,
     arguments: Optional[Dict[str, Any]] = None,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> GetPromptResult:
     """
     Send a 'prompts/get' message to retrieve a specific prompt by name and apply arguments.

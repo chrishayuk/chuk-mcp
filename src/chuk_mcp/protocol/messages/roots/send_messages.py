@@ -56,7 +56,7 @@ class ListRootsResult(McpPydanticBase):
 async def send_roots_list(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> ListRootsResult:
     """
     Send a 'roots/list' response when requested by the server.

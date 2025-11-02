@@ -59,7 +59,7 @@ async def send_message(
     method: str,
     params: Optional[Dict[str, Any]] = None,
     *,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
     message_id: Optional[str] = None,
     cancellation_token: Optional[CancellationToken] = None,
     progress_callback: Optional[

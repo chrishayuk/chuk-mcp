@@ -10,7 +10,7 @@ from chuk_mcp.protocol.messages.message_method import MessageMethod
 async def send_ping(
     read_stream: MemoryObjectReceiveStream,
     write_stream: MemoryObjectSendStream,
-    timeout: float = 5.0,
+    timeout: float = 60.0,
 ) -> bool:
     """
     Send a ping message to the server and return success status.
