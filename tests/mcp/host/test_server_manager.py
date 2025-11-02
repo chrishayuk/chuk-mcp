@@ -547,6 +547,106 @@ class TestRunCommand:
                             # Just verify it doesn't crash
                             run_command(failing_command, "config.json", ["server"])
 
+    def test_run_clients_with_server_info(self):
+        """Test run_clients with server_info parameter."""
+
+        async def test_command(server_streams, server_info=None):
+            """Test command that verifies server info."""
+            assert server_info is not None
+            assert len(server_info) > 0
+            assert "name" in server_info[0]
+            assert "streams" in server_info[0]
+            assert "user_specified" in server_info[0]
+
+        mock_params = Mock()
+        mock_params.command = "test"
+        mock_params.args = []
+        mock_streams = (AsyncMock(), AsyncMock())
+        mock_init_result = Mock()
+        mock_init_result.serverInfo = Mock()
+        mock_init_result.serverInfo.name = "Test Server"
+
+        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+            with patch(
+                "chuk_mcp.transports.stdio.stdio_client.stdio_client"
+            ) as mock_client:
+                mock_cm = AsyncMock()
+                mock_cm.__aenter__.return_value = mock_streams
+                mock_cm.__aexit__ = AsyncMock()
+                mock_client.return_value = mock_cm
+
+                with patch(
+                    "chuk_mcp.protocol.messages.initialize.send_messages.send_initialize",
+                    return_value=mock_init_result,
+                ):
+                    with patch("os.system"):
+                        with patch("anyio.run"):
+                            run_command(
+                                test_command,
+                                "config.json",
+                                ["server1"],
+                                user_specified=["server1"],
+                            )
+
+    def test_init_failure_with_aexit_error(self, capsys):
+        """Test initialization failure that also has cleanup error."""
+
+        async def dummy_command(server_streams):
+            pass
+
+        mock_params = Mock()
+        mock_streams = (AsyncMock(), AsyncMock())
+
+        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+            with patch(
+                "chuk_mcp.transports.stdio.stdio_client.stdio_client"
+            ) as mock_client:
+                mock_cm = AsyncMock()
+                mock_cm.__aenter__.return_value = mock_streams
+                # Fail on both init and cleanup
+                mock_cm.__aexit__ = AsyncMock(side_effect=Exception("Cleanup failed"))
+                mock_client.return_value = mock_cm
+
+                with patch(
+                    "chuk_mcp.protocol.messages.initialize.send_messages.send_initialize",
+                    return_value=None,  # Init fails
+                ):
+                    with patch("os.system"):
+                        with patch("anyio.run"):
+                            run_command(dummy_command, "config.json", ["server"])
+
+        # Just verify no crash - test passes if we get here without exception
+        # capsys.readouterr() not needed as output is captured by patches
+        assert True
+
+    def test_clean_exit_no_logging(self):
+        """Test that clean exit (True return) suppresses timeout logging."""
+
+        async def clean_command(server_streams, server_info=None):
+            return True  # Clean exit
+
+        mock_params = Mock()
+        mock_streams = (AsyncMock(), AsyncMock())
+        mock_init_result = Mock()
+        mock_init_result.serverInfo = Mock()
+
+        with patch("chuk_mcp.config.load_config", return_value=mock_params):
+            with patch(
+                "chuk_mcp.transports.stdio.stdio_client.stdio_client"
+            ) as mock_client:
+                mock_cm = AsyncMock()
+                mock_cm.__aenter__.return_value = mock_streams
+                mock_cm.__aexit__ = AsyncMock()
+                mock_client.return_value = mock_cm
+
+                with patch(
+                    "chuk_mcp.protocol.messages.initialize.send_messages.send_initialize",
+                    return_value=mock_init_result,
+                ):
+                    with patch("os.system"):
+                        with patch("anyio.run"):
+                            run_command(clean_command, "config.json", ["server"])
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

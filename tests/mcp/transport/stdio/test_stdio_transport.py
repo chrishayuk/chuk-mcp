@@ -6,7 +6,6 @@ Unit tests for the new stdio transport layer.
 import pytest
 import tempfile
 import os
-import asyncio
 from unittest.mock import Mock
 
 import anyio
@@ -143,13 +142,15 @@ class TestStdioTransport:
         assert transport.parameters == params
         assert transport._client is None
 
-    def test_get_streams_without_start(self):
-        """Test getting streams before starting transport."""
+    @pytest.mark.asyncio
+    async def test_get_streams_without_start(self):
+        """Test line 27 - getting streams before starting transport raises RuntimeError."""
         params = StdioParameters(command="python")
         transport = StdioTransport(params)
 
+        # Line 27: raise RuntimeError("Transport not started...")
         with pytest.raises(RuntimeError, match="Transport not started"):
-            asyncio.run(transport.get_streams())
+            await transport.get_streams()
 
     def test_protocol_version_setting(self):
         """Test protocol version setting on transport."""
@@ -163,6 +164,86 @@ class TestStdioTransport:
         transport._client = Mock()
         transport.set_protocol_version("2025-06-18")
         transport._client.set_protocol_version.assert_called_with("2025-06-18")
+
+    @pytest.mark.asyncio
+    async def test_aenter_creates_client(self):
+        """Test lines 31-33 - __aenter__ creates and initializes client."""
+        import tempfile
+        import os
+        import sys
+
+        # Create a simple echo server
+        server_script = """
+import sys
+import json
+line = sys.stdin.readline()
+sys.stdout.write(line)
+sys.stdout.flush()
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(server_script)
+            server_file = f.name
+
+        try:
+            params = StdioParameters(command=sys.executable, args=[server_file])
+            transport = StdioTransport(params)
+
+            assert transport._client is None
+
+            # Test lines 31-33
+            async with transport as t:
+                # Line 31: self._client = StdioClient(self.parameters)
+                # Line 32: await self._client.__aenter__()
+                # Line 33: return self
+                assert transport._client is not None
+                assert t is transport
+
+            # After exit, client should be None
+            assert transport._client is None
+        finally:
+            if os.path.exists(server_file):
+                os.unlink(server_file)
+
+    @pytest.mark.asyncio
+    async def test_aexit_with_client(self):
+        """Test lines 37-41 - __aexit__ cleans up client properly."""
+        import tempfile
+        import os
+        import sys
+
+        server_script = """
+import sys
+import time
+time.sleep(0.1)
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(server_script)
+            server_file = f.name
+
+        try:
+            params = StdioParameters(command=sys.executable, args=[server_file])
+            transport = StdioTransport(params)
+
+            async with transport:
+                assert transport._client is not None
+
+            # Lines 38-40: Exit should cleanup and set _client to None
+            assert transport._client is None
+        finally:
+            if os.path.exists(server_file):
+                os.unlink(server_file)
+
+    @pytest.mark.asyncio
+    async def test_aexit_without_client_line_41(self):
+        """Test line 41 - __aexit__ when no client exists returns False."""
+        params = StdioParameters(command="python")
+        transport = StdioTransport(params)
+
+        # Manually call __aexit__ without entering
+        result = await transport.__aexit__(None, None, None)
+
+        # Line 41: return False
+        assert result is False
 
 
 class TestBatchProcessingSupport:
@@ -312,6 +393,8 @@ except:
     @pytest.mark.asyncio
     async def test_stdio_client_context_manager(self):
         """Test the stdio_client context manager with a real subprocess."""
+        import sys
+
         # Create temporary server script
         server_script = self.create_mock_server()
 
@@ -320,7 +403,7 @@ except:
             server_file = f.name
 
         try:
-            params = StdioParameters(command="python", args=[server_file])
+            params = StdioParameters(command=sys.executable, args=[server_file])
 
             async with stdio_client(params) as (read_stream, write_stream):
                 # Test that we get valid streams

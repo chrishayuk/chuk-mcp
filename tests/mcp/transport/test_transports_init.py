@@ -434,6 +434,64 @@ class TestImportErrorHandling:
             with pytest.raises(ValueError, match="SSE transport not available"):
                 create_transport("sse", Mock())
 
+    def test_http_import_error_branch(self):
+        """Test line 15 and 16-20 - HTTP ImportError exception handling."""
+        # Test the ImportError catch for HTTP - lines 16-20
+        # When httpx is not installed, these lines set HAS_HTTP = False
+        # We can verify behavior by checking what happens when HAS_HTTP is False
+        if not HAS_HTTP:
+            from chuk_mcp.transports import HTTPTransport, HTTPParameters, http_client
+
+            # Lines 17-19 should have set these to None
+            assert HTTPTransport is None
+            assert HTTPParameters is None
+            assert http_client is None
+
+    def test_sse_import_error_branch(self):
+        """Test lines 26-30 - SSE ImportError exception handling."""
+        # Test the ImportError catch for SSE - lines 26-30
+        # When httpx is not installed, these lines set HAS_SSE = False
+        if not HAS_SSE:
+            from chuk_mcp.transports import SSETransport, SSEParameters, sse_client
+
+            # Lines 27-29 should have set these to None
+            assert SSETransport is None
+            assert SSEParameters is None
+            assert sse_client is None
+
+
+class TestFactoryErrorPaths:
+    """Test factory function error paths and edge cases."""
+
+    def test_create_transport_http_line_85_success_path(self):
+        """Test line 85 - successful HTTP transport creation after availability check."""
+        # This tests the return statement on line 85 when HAS_HTTP is True
+        if HAS_HTTP:
+            from chuk_mcp.transports.http import HTTPParameters
+
+            params = HTTPParameters(url="http://localhost/mcp")
+            transport = create_transport("http", params)
+            # Line 85 executes: return HTTPTransport(parameters)
+            from chuk_mcp.transports.http import HTTPTransport
+
+            assert isinstance(transport, HTTPTransport)
+        else:
+            pytest.skip("HTTP transport not available - cannot test line 85")
+
+    def test_create_client_http_line_116_success_path(self):
+        """Test line 116 - successful HTTP client creation after availability check."""
+        # This tests the return statement on line 116 when HAS_HTTP is True
+        if HAS_HTTP:
+            from chuk_mcp.transports.http import HTTPParameters
+
+            params = HTTPParameters(url="http://localhost/mcp")
+            client = create_client("http", params)
+            # Line 116 executes: return http_client(parameters)
+            assert hasattr(client, "__aenter__")
+            assert hasattr(client, "__aexit__")
+        else:
+            pytest.skip("HTTP transport not available - cannot test line 116")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

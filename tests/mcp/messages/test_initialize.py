@@ -348,3 +348,270 @@ async def test_initialize_with_each_supported_version(version):
 
     assert result is not None
     assert result.protocolVersion == version
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_unsupported_server_version():
+    """Test initialization when server responds with unsupported version"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    # Server responds with totally unsupported version
+    server_response = {
+        "protocolVersion": "1999-01-01",  # Unsupported version
+        "capabilities": {"logging": {}},
+        "serverInfo": {"name": "TestServer", "version": "1.0.0"},
+    }
+
+    result = None
+    exception_caught = None
+
+    async def server_task():
+        try:
+            req = await write_receive.receive()
+            response = JSONRPCMessage(id=req.id, result=server_response)
+            await read_send.send(response)
+        except Exception:
+            pass
+
+    async def client_task():
+        nonlocal result, exception_caught
+        try:
+            result = await send_initialize(
+                read_stream=read_receive, write_stream=write_send
+            )
+        except VersionMismatchError as e:
+            exception_caught = e
+        except Exception as e:
+            exception_caught = e
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+        tg.start_soon(client_task)
+
+    # Should raise VersionMismatchError - covers lines 139-143
+    assert isinstance(exception_caught, VersionMismatchError)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_timeout_error_reraise():
+    """Test that TimeoutError is re-raised correctly"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    exception_caught = None
+
+    async def server_task():
+        try:
+            _req = await write_receive.receive()
+            await anyio.sleep(10)  # Don't respond
+        except Exception:
+            pass
+
+    async def client_task():
+        nonlocal exception_caught
+        try:
+            await send_initialize(
+                read_stream=read_receive, write_stream=write_send, timeout=0.1
+            )
+        except TimeoutError as e:
+            exception_caught = e
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+        tg.start_soon(client_task)
+
+    # Covers line 154 - TimeoutError re-raise
+    assert isinstance(exception_caught, TimeoutError)
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_generic_exception():
+    """Test that generic exceptions are re-raised"""
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    exception_caught = None
+
+    async def server_task():
+        try:
+            req = await write_receive.receive()
+            # Send invalid response that will cause parsing error
+            response = JSONRPCMessage(id=req.id, result="invalid_string_not_dict")
+            await read_send.send(response)
+        except Exception:
+            pass
+
+    async def client_task():
+        nonlocal exception_caught
+        try:
+            await send_initialize(read_stream=read_receive, write_stream=write_send)
+        except Exception as e:
+            exception_caught = e
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+        tg.start_soon(client_task)
+
+    # Covers lines 174-180 - generic exception handling
+    assert exception_caught is not None
+
+
+@pytest.mark.asyncio
+async def test_send_initialized_notification_error():
+    """Test error handling in send_initialized_notification"""
+    from unittest.mock import AsyncMock
+
+    # Create a mock that raises an error
+    write_stream = AsyncMock()
+    write_stream.send.side_effect = Exception("Write failed")
+
+    exception_caught = None
+    try:
+        await send_initialized_notification(write_stream)
+    except Exception as e:
+        exception_caught = e
+
+    # Covers lines 205-207 - error handling in notification
+    assert exception_caught is not None
+    assert "Write failed" in str(exception_caught)
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_with_client_tracking():
+    """Test send_initialize_with_client_tracking sets protocol version"""
+    from chuk_mcp.protocol.messages.initialize.send_messages import (
+        send_initialize_with_client_tracking,
+    )
+
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    latest_version = get_current_version()
+
+    server_response = {
+        "protocolVersion": latest_version,
+        "capabilities": {"logging": {}},
+        "serverInfo": {"name": "TestServer", "version": "1.0.0"},
+    }
+
+    # Create a mock client with set_protocol_version method
+    class MockClient:
+        def __init__(self):
+            self.protocol_version = None
+
+        def set_protocol_version(self, version):
+            self.protocol_version = version
+
+    client = MockClient()
+
+    async def server_task():
+        try:
+            req = await write_receive.receive()
+            response = JSONRPCMessage(id=req.id, result=server_response)
+            await read_send.send(response)
+
+            notification = await write_receive.receive()
+            assert notification.method == "notifications/initialized"
+        except Exception as e:
+            pytest.fail(f"Server task failed: {e}")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+
+        result = await send_initialize_with_client_tracking(
+            read_stream=read_receive, write_stream=write_send, client=client
+        )
+
+    # Verify client's protocol version was set
+    assert result is not None
+    assert client.protocol_version == latest_version
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_with_client_tracking_no_client():
+    """Test send_initialize_with_client_tracking without client"""
+    from chuk_mcp.protocol.messages.initialize.send_messages import (
+        send_initialize_with_client_tracking,
+    )
+
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    latest_version = get_current_version()
+
+    server_response = {
+        "protocolVersion": latest_version,
+        "capabilities": {"logging": {}},
+        "serverInfo": {"name": "TestServer", "version": "1.0.0"},
+    }
+
+    async def server_task():
+        try:
+            req = await write_receive.receive()
+            response = JSONRPCMessage(id=req.id, result=server_response)
+            await read_send.send(response)
+
+            notification = await write_receive.receive()
+            assert notification.method == "notifications/initialized"
+        except Exception as e:
+            pytest.fail(f"Server task failed: {e}")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+
+        # Call without client parameter
+        result = await send_initialize_with_client_tracking(
+            read_stream=read_receive, write_stream=write_send, client=None
+        )
+
+    assert result is not None
+    assert result.protocolVersion == latest_version
+
+
+@pytest.mark.asyncio
+async def test_send_initialize_with_client_tracking_no_method():
+    """Test send_initialize_with_client_tracking with client without set_protocol_version"""
+    from chuk_mcp.protocol.messages.initialize.send_messages import (
+        send_initialize_with_client_tracking,
+    )
+
+    read_send, read_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+    write_send, write_receive = anyio.create_memory_object_stream(max_buffer_size=10)
+
+    latest_version = get_current_version()
+
+    server_response = {
+        "protocolVersion": latest_version,
+        "capabilities": {"logging": {}},
+        "serverInfo": {"name": "TestServer", "version": "1.0.0"},
+    }
+
+    # Client without set_protocol_version method
+    class MockClientNoMethod:
+        pass
+
+    client = MockClientNoMethod()
+
+    async def server_task():
+        try:
+            req = await write_receive.receive()
+            response = JSONRPCMessage(id=req.id, result=server_response)
+            await read_send.send(response)
+
+            notification = await write_receive.receive()
+            assert notification.method == "notifications/initialized"
+        except Exception as e:
+            pytest.fail(f"Server task failed: {e}")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(server_task)
+
+        # Should not fail even without the method
+        result = await send_initialize_with_client_tracking(
+            read_stream=read_receive, write_stream=write_send, client=client
+        )
+
+    assert result is not None
+    assert result.protocolVersion == latest_version
