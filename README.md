@@ -91,7 +91,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 ## Table of Contents
 
 * [Why chuk‑mcp?](#why-chuk-mcp)
-* [Performance](#performance)
+* [Protocol Performance](#protocol-performance)
 * [At a Glance](#at-a-glance)
 * [Install](#install)
 * [Quick Start](#quick-start)
@@ -107,7 +107,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * [Versioning & Compatibility](#versioning--compatibility)
 * [Comparison with Official MCP SDK](#comparison-with-official-mcp-sdk)
 * [Design Goals & Non‑Goals](#design-goals--non-goals)
-* [Performance & Scalability](#performance--scalability)
+* [Scaling & Concurrency](#scaling--concurrency)
 * [FAQ](#faq)
 * [Contributing](#contributing)
 * [Feature Showcase](#feature-showcase)
@@ -126,55 +126,43 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * **Small & focused**: No heavy orchestration or agent assumptions
 * **Clean protocol layer**: Errors fail fast without retries — bring your own error handling strategy
 * **Production-minded**: Clear errors, structured logging hooks, composable with retry/caching layers
-* **⚡ High-performance**: Optimized serialization, type caching, and optional fast JSON (4x faster with orjson)
+* **⚡ High-performance**: Protocol overhead in the 2-5ms range; optional fast JSON for 4x faster serialization. See [Protocol Performance](#protocol-performance) for detailed benchmarks
 
 ---
 
-## Performance
+## Protocol Performance
 
-**chuk-mcp is designed to be the fastest MCP implementation in Python** — and one of the fastest across any language.
+`chuk-mcp` is designed to keep MCP protocol overhead in the **2-5 ms** range, so the cost of using tools is dominated by the tools themselves, not the protocol.
 
-Built with a **protocol-first, minimal architecture**, chuk-mcp delivers **extremely low latency** compared to heavy MCP frameworks.
+**Why it's fast:**
+- Zero heavy dependencies (AnyIO core only)
+- Async-native stdio & NDJSON HTTP
+- No tool execution inside the library
+- Optional orjson fast path (`[fast-json]`)
 
-### ⚡ Speed Characteristics
+> 💡 For concurrency & capacity numbers, see [Scaling & Concurrency](#scaling--concurrency).
 
-**Protocol Overhead (typical benchmarks):**
+### ⚡ Latency Benchmarks
+
+Protocol overhead (typical measurements on modern hardware):
 - **Initialize → Tool List:** 2-3 ms
 - **Tool Call Round Trip:** < 5 ms overhead (beyond actual tool execution time)
 - **Streaming:** Near-zero overhead due to NDJSON chunk boundaries
 
-**Why so fast?**
-- Zero heavy dependencies (just AnyIO core)
-- Minimal message structures
-- Async-native transports (stdio & NDJSON HTTP streaming)
-- No tool execution inside the library
-- Optimized serialization paths
-- Type caching and smart routing
+*Benchmarks run on macOS (Darwin 24.6.0), Python 3.11 — see `benchmarks/PERFORMANCE_REPORT.md` for exact environment and commands.*
 
-### 🚀 Fast JSON Operations (Optional)
-Install with `[fast-json]` for **4x faster JSON operations**:
-- **Serialization:** 6.5x faster (2.28M ops/sec vs 347K ops/sec)
-- **Deserialization:** 2.4x faster (1.37M ops/sec vs 577K ops/sec)
-- **Round-trip:** 4x faster (832K ops/sec vs 210K ops/sec)
+### 🚀 JSON Serialization (Optional Fast Path)
+
+Install with `[fast-json]` for **~4x faster JSON operations** using orjson:
+- **Serialization:** ~6x faster
+- **Deserialization:** ~2x faster
+- **Round-trip:** ~4x faster
 
 ```bash
 pip install "chuk-mcp[fast-json]"  # Automatic with graceful fallback
 ```
 
-### 📈 Core Optimizations
-Built-in performance enhancements without any configuration:
-- **Optimized serialization paths:** 15-25% faster message sending
-- **Type validation caching:** 30-40% faster model creation (fallback mode)
-- **Smart message routing:** 10-15% faster routing with early returns
-- **Lazy stream initialization:** Handles 700+ concurrent connections
-
-### 📊 Benchmark Results
-Production-tested performance characteristics:
-- **Max Concurrent:** 700+ connections (tested limit, not capacity)
-- **Throughput:** 252+ connections/sec
-- **Memory Efficiency:** 34KB per connection with linear scaling
-- **Memory Leaks:** Zero detected over 200 iterations
-- **Overall Improvement:** 4-5x better performance for JSON-heavy workloads
+*Benchmark numbers from `benchmarks/json_performance.py` comparing orjson vs stdlib json on realistic MCP messages.*
 
 ### 🎯 Ideal Use Cases
 
@@ -184,9 +172,7 @@ This makes chuk-mcp perfect for:
 - **Streaming UIs** — near-zero NDJSON chunk overhead
 - **Tool processors** — fast enough to be transparent
 - **WASM/edge environments** — minimal footprint
-- **Production workloads** — proven at scale
-
-See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed analysis and benchmarking methodology.
+- **Production workloads** — proven at scale (see [Scaling & Concurrency](#scaling--concurrency))
 
 ---
 
@@ -525,6 +511,7 @@ Some servers can ask the client to sample text or provide completion for argumen
 
 * **Stdio** — ideal for local child-process servers
 * **Streamable HTTP** — speak to remote servers over HTTP (chunked/NDJSON)
+* **SSE (Server-Sent Events)** — for browser/IDE integrations with one-way server push
 * **Extensible** — implement your own transport by adapting the simple `(read, write)` async interface
 
 > **Note:** chuk-mcp is fully async (AnyIO). Use `anyio.run(...)` or integrate into your event loop.
@@ -797,16 +784,16 @@ except Exception as e:
 
 ---
 
-## Performance & Scalability
+## Scaling & Concurrency
 
-`chuk-mcp` is designed for production workloads with excellent performance characteristics:
+`chuk-mcp` handles hundreds of concurrent connections efficiently with minimal resource usage:
 
-### Concurrency & Resource Efficiency
+### Concurrency Benchmarks
 
-**Tested Performance** (see `benchmarks/` for full details):
+**Tested Performance** (see `benchmarks/PERFORMANCE_REPORT.md` for full details):
 - **700+ concurrent connections** tested successfully (stopped at timeout, not capacity limit)
 - **252+ connections/sec** throughput for rapid connection churn
-- **~0.034MB memory per connection** with linear scaling
+- **~34KB memory per connection** with linear scaling
 - **Zero memory leaks** verified over 200+ iterations
 
 **Production Capacity Estimates:**
@@ -1429,7 +1416,7 @@ await send_logging_set_level(write, level="debug")
 * **[chuk-mcp-server](https://github.com/chrishayuk/chuk-mcp-server)** — Real-world MCP server implementation built on chuk-mcp
 * **[chuk-mcp-cli](https://github.com/chrishayuk/chuk-mcp-cli)** — Interactive CLI and playground for testing MCP servers
 
-Each component focuses on doing one thing well and can be used independently or together.
+Each component focuses on doing one thing well and can be used independently or together. All of these build on `chuk-mcp`'s protocol layer, so they inherit the same low-latency, minimal-overhead characteristics.
 
 ---
 
