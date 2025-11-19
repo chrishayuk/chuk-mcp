@@ -77,25 +77,24 @@ class TestStdinWriterErrorHandling:
     async def test_stdin_writer_notification_logging_line_258(self):
         """Test line 258 - logging notification without id."""
         params = StdioParameters(command=sys_module.executable, args=["--version"])
-        client = StdioClient(params)
+        async with StdioClient(params) as client:
+            # Create a mock process
+            mock_process = MagicMock()
+            mock_stdin = AsyncMock()
+            mock_process.stdin = mock_stdin
+            client.process = mock_process
 
-        # Create a mock process
-        mock_process = MagicMock()
-        mock_stdin = AsyncMock()
-        mock_process.stdin = mock_stdin
-        client.process = mock_process
+            # Create notification message (no id)
+            notification = JSONRPCMessage(jsonrpc="2.0", method="test/notification")
 
-        # Create notification message (no id)
-        notification = JSONRPCMessage(jsonrpc="2.0", method="test/notification")
+            # Send notification
+            await client._outgoing_send.send(notification)
 
-        # Send notification
-        await client._outgoing_send.send(notification)
-
-        # Start stdin_writer in background
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(client._stdin_writer)
-            await anyio.sleep(0.05)  # Let it process
-            tg.cancel_scope.cancel()
+            # Start stdin_writer in background
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(client._stdin_writer)
+                await anyio.sleep(0.05)  # Let it process
+                tg.cancel_scope.cancel()
 
     @pytest.mark.asyncio
     async def test_stdin_writer_exception_lines_277_278(self):

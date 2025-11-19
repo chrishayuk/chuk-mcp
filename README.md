@@ -106,6 +106,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * [Versioning & Compatibility](#versioning--compatibility)
 * [Comparison with Official MCP SDK](#comparison-with-official-mcp-sdk)
 * [Design Goals & Non‑Goals](#design-goals--non-goals)
+* [Performance & Scalability](#performance--scalability)
 * [FAQ](#faq)
 * [Contributing](#contributing)
 * [Feature Showcase](#feature-showcase)
@@ -727,6 +728,76 @@ except Exception as e:
 * Baking in opinionated application structure or workflow engines
 * Shipping heavyweight dependencies by default
 * Providing high-level orchestration (that's your application layer)
+
+---
+
+## Performance & Scalability
+
+`chuk-mcp` is designed for production workloads with excellent performance characteristics:
+
+### Concurrency & Resource Efficiency
+
+**Tested Performance** (see `benchmarks/` for full details):
+- **700+ concurrent connections** tested successfully (stopped at timeout, not capacity limit)
+- **252+ connections/sec** throughput for rapid connection churn
+- **~0.034MB memory per connection** with linear scaling
+- **Zero memory leaks** verified over 200+ iterations
+
+**Production Capacity Estimates:**
+- Small scale (< 100 agents): 512MB RAM, 1 core
+- Medium scale (100-1,000 agents): 1-2GB RAM, 2-4 cores
+- Large scale (1,000-10,000 agents): 4-8GB RAM, 8+ cores
+- Enterprise scale (10,000+ agents): Load balancing recommended
+
+### Best Practices
+
+**Pattern: Create all → Initialize all (Sequential)**
+```python
+# RECOMMENDED: Fastest pattern for multiple agents
+agent1 = create_agent(mcp_config1)
+agent2 = create_agent(mcp_config2)
+agent3 = create_agent(mcp_config3)
+
+# Then initialize
+await agent1.initialize_tools()
+await agent2.initialize_tools()
+await agent3.initialize_tools()
+```
+
+**Pattern: Interleaved (Also Supported)**
+```python
+# WORKS: Fixed in v0.8.1 with lazy stream initialization
+agent1 = create_agent(mcp_config1)
+await agent1.initialize_tools()
+
+agent2 = create_agent(mcp_config2)
+await agent2.initialize_tools()
+
+agent3 = create_agent(mcp_config3)  # No longer hangs!
+await agent3.initialize_tools()
+```
+
+**Important:** Always use `StdioClient` as an async context manager:
+```python
+# CORRECT: Streams initialized in async context
+async with StdioClient(params) as client:
+    # Use client here
+    pass
+
+# INCORRECT: Don't access streams before __aenter__
+client = StdioClient(params)
+client.get_streams()  # ❌ Raises RuntimeError
+```
+
+### Monitoring Recommendations
+
+For production deployments, monitor these metrics:
+- **Active Connections**: Track concurrent client count
+- **Memory Growth**: Should remain flat over time (~0.034MB per connection)
+- **File Descriptors**: Monitor via `lsof` or `/proc/<pid>/fd`
+- **Connection Success Rate**: Should maintain 100%
+
+See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed performance analysis and production deployment guidelines.
 
 ---
 

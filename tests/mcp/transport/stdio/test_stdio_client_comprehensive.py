@@ -44,78 +44,85 @@ class TestMessageRouting:
     @pytest.mark.asyncio
     async def test_route_message_broken_incoming(self):
         """Test routing when incoming stream is broken."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            # Close the incoming receive stream (which causes BrokenResourceError on send)
+            await client._incoming_recv.aclose()
 
-        # Close the incoming receive stream (which causes BrokenResourceError on send)
-        await client._incoming_recv.aclose()
+            msg = JSONRPCMessage.model_validate({"jsonrpc": "2.0", "method": "test"})
 
-        msg = JSONRPCMessage.model_validate({"jsonrpc": "2.0", "method": "test"})
-
-        # Should not raise - just returns
-        await client._route_message(msg)
+            # Should not raise - just returns
+            await client._route_message(msg)
 
     @pytest.mark.asyncio
     async def test_route_notification_would_block(self):
         """Test notification routing when stream would block."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            # Fill up the notification stream
+            for _ in range(100):
+                try:
+                    client._notify_send.send_nowait(
+                        JSONRPCMessage.model_validate(
+                            {"jsonrpc": "2.0", "method": "fill"}
+                        )
+                    )
+                except anyio.WouldBlock:
+                    break
 
-        # Fill up the notification stream
-        for _ in range(100):
-            try:
-                client._notify_send.send_nowait(
-                    JSONRPCMessage.model_validate({"jsonrpc": "2.0", "method": "fill"})
-                )
-            except anyio.WouldBlock:
-                break
-
-        # Now send another notification - should not block
-        notification = JSONRPCMessage.model_validate(
-            {"jsonrpc": "2.0", "method": "test_notification"}
-        )
-        await client._route_message(notification)
+            # Now send another notification - should not block
+            notification = JSONRPCMessage.model_validate(
+                {"jsonrpc": "2.0", "method": "test_notification"}
+            )
+            await client._route_message(notification)
 
     @pytest.mark.asyncio
     async def test_route_notification_broken_stream(self):
         """Test notification routing when notification stream is broken."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            # Close notification receive stream (causes BrokenResourceError)
+            await client.notifications.aclose()
 
-        # Close notification receive stream (causes BrokenResourceError)
-        await client.notifications.aclose()
+            notification = JSONRPCMessage.model_validate(
+                {"jsonrpc": "2.0", "method": "test_notification"}
+            )
 
-        notification = JSONRPCMessage.model_validate(
-            {"jsonrpc": "2.0", "method": "test_notification"}
-        )
-
-        # Should not raise
-        await client._route_message(notification)
+            # Should not raise
+            await client._route_message(notification)
 
     @pytest.mark.asyncio
     async def test_route_response_broken_legacy_stream(self):
         """Test routing response when legacy stream is broken."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            # Create and close legacy stream (close receiver to cause BrokenResourceError)
+            recv_stream = client.new_request_stream("test123")
+            await recv_stream.aclose()
 
-        # Create and close legacy stream (close receiver to cause BrokenResourceError)
-        recv_stream = client.new_request_stream("test123")
-        await recv_stream.aclose()
+            response = JSONRPCMessage.model_validate(
+                {"jsonrpc": "2.0", "id": "test123", "result": {"status": "ok"}}
+            )
 
-        response = JSONRPCMessage.model_validate(
-            {"jsonrpc": "2.0", "id": "test123", "result": {"status": "ok"}}
-        )
-
-        # Should not raise
-        await client._route_message(response)
+            # Should not raise
+            await client._route_message(response)
 
     @pytest.mark.asyncio
     async def test_route_unknown_id(self):
         """Test routing message with unknown ID."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            response = JSONRPCMessage.model_validate(
+                {"jsonrpc": "2.0", "id": "unknown_id", "result": {}}
+            )
 
-        response = JSONRPCMessage.model_validate(
-            {"jsonrpc": "2.0", "id": "unknown_id", "result": {}}
-        )
-
-        # Should log warning but not raise
-        await client._route_message(response)
+            # Should log warning but not raise
+            await client._route_message(response)
 
 
 class TestStdoutReader:
@@ -383,147 +390,154 @@ class TestStdinWriter:
     @pytest.mark.asyncio
     async def test_stdin_writer_raw_string(self):
         """Test stdin writer with raw string message."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            # Send raw JSON string
+            json_str = json.dumps({"jsonrpc": "2.0", "method": "test"})
+            await send_stream.send(json_str)
+            await send_stream.aclose()
 
-        # Send raw JSON string
-        json_str = json.dumps({"jsonrpc": "2.0", "method": "test"})
-        await send_stream.send(json_str)
-        await send_stream.aclose()
+            await client._stdin_writer()
 
-        await client._stdin_writer()
-
-        assert mock_proc.stdin.send.called
+            assert mock_proc.stdin.send.called
 
     @pytest.mark.asyncio
     async def test_stdin_writer_pydantic_with_dump(self):
         """Test stdin writer with pydantic model (model_dump only)."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            # Mock message with only model_dump
+            mock_msg = MagicMock()
+            del mock_msg.model_dump_json  # Remove model_dump_json
+            mock_msg.model_dump.return_value = {"jsonrpc": "2.0", "method": "test"}
+            mock_msg.method = "test"
+            mock_msg.id = "123"
 
-        # Mock message with only model_dump
-        mock_msg = MagicMock()
-        del mock_msg.model_dump_json  # Remove model_dump_json
-        mock_msg.model_dump.return_value = {"jsonrpc": "2.0", "method": "test"}
-        mock_msg.method = "test"
-        mock_msg.id = "123"
+            await send_stream.send(mock_msg)
+            await send_stream.aclose()
 
-        await send_stream.send(mock_msg)
-        await send_stream.aclose()
+            await client._stdin_writer()
 
-        await client._stdin_writer()
-
-        assert mock_proc.stdin.send.called
+            assert mock_proc.stdin.send.called
 
     @pytest.mark.asyncio
     async def test_stdin_writer_plain_dict(self):
         """Test stdin writer with plain dict."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            await send_stream.send({"jsonrpc": "2.0", "method": "test"})
+            await send_stream.aclose()
 
-        await send_stream.send({"jsonrpc": "2.0", "method": "test"})
-        await send_stream.aclose()
+            await client._stdin_writer()
 
-        await client._stdin_writer()
-
-        assert mock_proc.stdin.send.called
+            assert mock_proc.stdin.send.called
 
     @pytest.mark.asyncio
     async def test_stdin_writer_other_object(self):
         """Test stdin writer with other object type."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            # Send a simple object
+            class SimpleObj:
+                pass
 
-        # Send a simple object
-        class SimpleObj:
-            pass
+            # This will fail serialization but should be handled
+            await send_stream.send(SimpleObj())
+            await send_stream.aclose()
 
-        # This will fail serialization but should be handled
-        await send_stream.send(SimpleObj())
-        await send_stream.aclose()
-
-        # Should not raise
-        await client._stdin_writer()
+            # Should not raise
+            await client._stdin_writer()
 
     @pytest.mark.asyncio
     async def test_stdin_writer_dict_with_method(self):
         """Test logging for dict with method field."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            await send_stream.send({"jsonrpc": "2.0", "method": "test", "id": "123"})
+            await send_stream.aclose()
 
-        await send_stream.send({"jsonrpc": "2.0", "method": "test", "id": "123"})
-        await send_stream.aclose()
+            await client._stdin_writer()
 
-        await client._stdin_writer()
-
-        assert mock_proc.stdin.send.called
+            assert mock_proc.stdin.send.called
 
     @pytest.mark.asyncio
     async def test_stdin_writer_general_error(self):
         """Test stdin writer handles general errors."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            mock_proc.stdin.send.side_effect = Exception("General error")
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        mock_proc.stdin.send.side_effect = Exception("General error")
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            await send_stream.send({"jsonrpc": "2.0", "method": "test"})
+            await send_stream.aclose()
 
-        await send_stream.send({"jsonrpc": "2.0", "method": "test"})
-        await send_stream.aclose()
-
-        # Should not raise
-        await client._stdin_writer()
+            # Should not raise
+            await client._stdin_writer()
 
     @pytest.mark.asyncio
     async def test_stdin_writer_closes_stdin(self):
         """Test that stdin writer closes stdin at end."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            mock_proc = MagicMock()
+            mock_proc.stdin = AsyncMock()
+            client.process = mock_proc
 
-        mock_proc = MagicMock()
-        mock_proc.stdin = AsyncMock()
-        client.process = mock_proc
+            send_stream, receive_stream = anyio.create_memory_object_stream(1)
+            client._outgoing_recv = receive_stream
 
-        send_stream, receive_stream = anyio.create_memory_object_stream(1)
-        client._outgoing_recv = receive_stream
+            await send_stream.aclose()
 
-        await send_stream.aclose()
+            await client._stdin_writer()
 
-        await client._stdin_writer()
-
-        assert mock_proc.stdin.aclose.called
+            assert mock_proc.stdin.aclose.called
 
 
 class TestSendJson:
@@ -532,15 +546,16 @@ class TestSendJson:
     @pytest.mark.asyncio
     async def test_send_json_broken_stream(self):
         """Test send_json when outgoing stream is closed."""
-        client = StdioClient(StdioParameters(command="test"))
+        async with StdioClient(
+            StdioParameters(command="echo", args=["test"])
+        ) as client:
+            # Close outgoing receive stream to cause BrokenResourceError
+            await client._outgoing_recv.aclose()
 
-        # Close outgoing receive stream to cause BrokenResourceError
-        await client._outgoing_recv.aclose()
+            msg = JSONRPCMessage.model_validate({"jsonrpc": "2.0", "method": "test"})
 
-        msg = JSONRPCMessage.model_validate({"jsonrpc": "2.0", "method": "test"})
-
-        # Should not raise - logs warning
-        await client.send_json(msg)
+            # Should not raise - logs warning
+            await client.send_json(msg)
 
 
 class TestProcessTermination:

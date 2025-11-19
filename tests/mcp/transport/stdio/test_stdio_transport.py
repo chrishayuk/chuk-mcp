@@ -121,14 +121,14 @@ class TestStdioClient:
         assert "test-id" in client._pending
         assert stream is not None
 
-    def test_get_streams(self):
+    @pytest.mark.asyncio
+    async def test_get_streams(self):
         """Test stream access."""
-        params = StdioParameters(command="python")
-        client = StdioClient(params)
-
-        read_stream, write_stream = client.get_streams()
-        assert read_stream is not None
-        assert write_stream is not None
+        params = StdioParameters(command="echo", args=["test"])
+        async with StdioClient(params) as client:
+            read_stream, write_stream = client.get_streams()
+            assert read_stream is not None
+            assert write_stream is not None
 
 
 class TestStdioTransport:
@@ -304,53 +304,51 @@ class TestStdioClientUnit:
         assert "test-id" in client._pending
         assert stream is not None
 
-    def test_get_streams(self):
+    @pytest.mark.asyncio
+    async def test_get_streams(self):
         """Test stream access."""
-        params = StdioParameters(command="python")
-        client = StdioClient(params)
-
-        read_stream, write_stream = client.get_streams()
-        assert read_stream is not None
-        assert write_stream is not None
+        params = StdioParameters(command="echo", args=["test"])
+        async with StdioClient(params) as client:
+            read_stream, write_stream = client.get_streams()
+            assert read_stream is not None
+            assert write_stream is not None
 
     @pytest.mark.asyncio
     async def test_route_message_to_main_stream(self):
         """Test routing messages to main stream."""
-        params = StdioParameters(command="python")
-        client = StdioClient(params)
+        params = StdioParameters(command="echo", args=["test"])
+        async with StdioClient(params) as client:
+            # Create test message
+            message = JSONRPCMessage(jsonrpc="2.0", id="test-123", method="ping")
 
-        # Create test message
-        message = JSONRPCMessage(jsonrpc="2.0", id="test-123", method="ping")
+            # Route the message
+            await client._route_message(message)
 
-        # Route the message
-        await client._route_message(message)
-
-        # Should be able to receive from main stream
-        try:
-            with anyio.fail_after(0.1):  # Very short timeout
-                received = await client._incoming_recv.receive()
-                assert received == message
-        except TimeoutError:
-            pytest.fail("Message was not routed to main stream")
+            # Should be able to receive from main stream
+            try:
+                with anyio.fail_after(0.1):  # Very short timeout
+                    received = await client._incoming_recv.receive()
+                    assert received == message
+            except TimeoutError:
+                pytest.fail("Message was not routed to main stream")
 
     @pytest.mark.asyncio
     async def test_route_notification(self):
         """Test routing notification messages."""
-        params = StdioParameters(command="python")
-        client = StdioClient(params)
+        params = StdioParameters(command="echo", args=["test"])
+        async with StdioClient(params) as client:
+            # Create notification (no id)
+            notification = JSONRPCMessage(jsonrpc="2.0", method="notification/test")
 
-        # Create notification (no id)
-        notification = JSONRPCMessage(jsonrpc="2.0", method="notification/test")
+            # Route the notification
+            await client._route_message(notification)
 
-        # Route the notification
-        await client._route_message(notification)
-
-        # Should be available in notifications stream
-        try:
-            received = client.notifications.receive_nowait()
-            assert received == notification
-        except anyio.WouldBlock:
-            pytest.fail("Notification was not routed to notifications stream")
+            # Should be available in notifications stream
+            try:
+                received = client.notifications.receive_nowait()
+                assert received == notification
+            except anyio.WouldBlock:
+                pytest.fail("Notification was not routed to notifications stream")
 
 
 class TestStdioClientContextManager:
@@ -469,28 +467,27 @@ class TestMessageRouting:
     @pytest.mark.asyncio
     async def test_route_to_pending_stream(self):
         """Test routing to pending request streams."""
-        params = StdioParameters(command="python")
-        client = StdioClient(params)
+        params = StdioParameters(command="echo", args=["test"])
+        async with StdioClient(params) as client:
+            # Create a pending stream for specific ID
+            request_id = "pending-123"
+            pending_stream = client.new_request_stream(request_id)
 
-        # Create a pending stream for specific ID
-        request_id = "pending-123"
-        pending_stream = client.new_request_stream(request_id)
+            # Create response message
+            response = JSONRPCMessage(
+                jsonrpc="2.0", id=request_id, result={"success": True}
+            )
 
-        # Create response message
-        response = JSONRPCMessage(
-            jsonrpc="2.0", id=request_id, result={"success": True}
-        )
+            # Route the response
+            await client._route_message(response)
 
-        # Route the response
-        await client._route_message(response)
-
-        # Should be available in the pending stream
-        try:
-            with anyio.fail_after(0.1):
-                received = await pending_stream.receive()
-                assert received == response
-        except TimeoutError:
-            pytest.fail("Response was not routed to pending stream")
+            # Should be available in the pending stream
+            try:
+                with anyio.fail_after(0.1):
+                    received = await pending_stream.receive()
+                    assert received == response
+            except TimeoutError:
+                pytest.fail("Response was not routed to pending stream")
 
 
 if __name__ == "__main__":

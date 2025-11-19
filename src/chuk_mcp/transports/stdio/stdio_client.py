@@ -42,33 +42,37 @@ class StdioClient:
 
         self.server = server
 
-        # Global broadcast stream for notifications (id == None) - use buffer to prevent deadlock
-        self._notify_send: MemoryObjectSendStream
-        self.notifications: MemoryObjectReceiveStream
-        self._notify_send, self.notifications = anyio.create_memory_object_stream(100)
+        # FIXED: Don't create streams in __init__ - defer to __aenter__
+        # These will be initialized when entering async context
+        self._notify_send: Optional[MemoryObjectSendStream] = None
+        self.notifications: Optional[MemoryObjectReceiveStream] = None
+
+        self._incoming_send: Optional[MemoryObjectSendStream] = None
+        self._incoming_recv: Optional[MemoryObjectReceiveStream] = None
+
+        self._outgoing_send: Optional[MemoryObjectSendStream] = None
+        self._outgoing_recv: Optional[MemoryObjectReceiveStream] = None
 
         # Per-request streams; key = request id - for test compatibility
         self._pending: Dict[str, MemoryObjectSendStream] = {}
 
-        # Main communication streams - use buffer to prevent deadlock
-        self._incoming_send: MemoryObjectSendStream
-        self._incoming_recv: MemoryObjectReceiveStream
-        self._incoming_send, self._incoming_recv = anyio.create_memory_object_stream(
-            100
-        )
-
-        self._outgoing_send: MemoryObjectSendStream
-        self._outgoing_recv: MemoryObjectReceiveStream
-        self._outgoing_send, self._outgoing_recv = anyio.create_memory_object_stream(
-            100
-        )
-
         self.process: Optional[anyio.abc.Process] = None
         self.tg: Optional[anyio.abc.TaskGroup] = None
 
+        self._streams_initialized: bool = False
+
         # Version-aware batch processing
         self.batch_processor = BatchProcessor()
-        logger.debug("StdioClient initialized with version-aware batching")
+        logger.debug(
+            "StdioClient initialized (streams will be created in async context)"
+        )
+
+    def _ensure_streams_initialized(self):
+        """Ensure streams are initialized before use."""
+        if not self._streams_initialized:
+            raise RuntimeError(
+                "Streams not initialized. StdioClient must be used as async context manager."
+            )
 
     def set_protocol_version(self, version: str) -> None:
         """Set the negotiated protocol version and update batching behavior."""
@@ -83,10 +87,11 @@ class StdioClient:
 
     async def _route_message(self, msg: JSONRPCMessage) -> None:
         """Fast routing with minimal overhead."""
+        self._ensure_streams_initialized()
 
         # Main stream (always)
         try:
-            await self._incoming_send.send(msg)
+            await self._incoming_send.send(msg)  # type: ignore[union-attr]
         except anyio.BrokenResourceError:
             return
 
@@ -96,7 +101,7 @@ class StdioClient:
         # Notifications
         if msg_id is None:
             try:
-                self._notify_send.send_nowait(msg)
+                self._notify_send.send_nowait(msg)  # type: ignore[union-attr]
             except (anyio.WouldBlock, anyio.BrokenResourceError):
                 pass
             return
@@ -221,11 +226,13 @@ class StdioClient:
 
     async def _stdin_writer(self) -> None:
         """Forward outgoing JSON-RPC messages to the server's stdin."""
+        self._ensure_streams_initialized()
+
         try:
             assert self.process and self.process.stdin
             logger.debug("stdin_writer started")
 
-            async for message in self._outgoing_recv:
+            async for message in self._outgoing_recv:  # type: ignore[union-attr]
                 try:
                     # CRITICAL FIX: Handle different message types properly
                     if isinstance(message, str):
@@ -296,9 +303,11 @@ class StdioClient:
         """
         Queue *msg* for transmission.
         """
+        self._ensure_streams_initialized()
+
         try:
             # Ensure the message is properly queued - no pre-serialization here
-            await self._outgoing_send.send(msg)
+            await self._outgoing_send.send(msg)  # type: ignore[union-attr]
         except anyio.BrokenResourceError:
             logger.warning("Cannot send message - outgoing stream is closed")
 
@@ -307,7 +316,8 @@ class StdioClient:
     # ------------------------------------------------------------------ #
     def get_streams(self) -> Tuple[MemoryObjectReceiveStream, MemoryObjectSendStream]:
         """Get the read and write streams for communication."""
-        return self._incoming_recv, self._outgoing_send
+        self._ensure_streams_initialized()
+        return self._incoming_recv, self._outgoing_send  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ #
     # Version information methods
@@ -335,6 +345,25 @@ class StdioClient:
     # ------------------------------------------------------------------ #
     async def __aenter__(self):
         try:
+            # FIXED: Create streams here in async context, not in __init__
+            logger.debug("Creating memory streams in async context...")
+
+            # Global broadcast stream for notifications (id == None)
+            self._notify_send, self.notifications = anyio.create_memory_object_stream(
+                100
+            )
+
+            # Main communication streams
+            self._incoming_send, self._incoming_recv = (
+                anyio.create_memory_object_stream(100)
+            )
+            self._outgoing_send, self._outgoing_recv = (
+                anyio.create_memory_object_stream(100)
+            )
+
+            self._streams_initialized = True
+            logger.debug("Memory streams created successfully")
+
             # Determine stderr handling based on LOG_LEVEL in subprocess environment
             # If LOG_LEVEL is ERROR or higher, suppress subprocess stderr
             import subprocess
@@ -378,7 +407,8 @@ class StdioClient:
         """COMPLETE FIXED VERSION: Handle shutdown without JSON or cancel scope errors."""
         try:
             # Close outgoing stream to signal stdin_writer to exit
-            await self._outgoing_send.aclose()
+            if self._outgoing_send:
+                await self._outgoing_send.aclose()
 
             if self.tg:
                 # Cancel all tasks
