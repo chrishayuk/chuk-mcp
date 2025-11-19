@@ -91,6 +91,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 ## Table of Contents
 
 * [Why chuk‑mcp?](#why-chuk-mcp)
+* [Performance](#performance)
 * [At a Glance](#at-a-glance)
 * [Install](#install)
 * [Quick Start](#quick-start)
@@ -125,6 +126,40 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * **Small & focused**: No heavy orchestration or agent assumptions
 * **Clean protocol layer**: Errors fail fast without retries — bring your own error handling strategy
 * **Production-minded**: Clear errors, structured logging hooks, composable with retry/caching layers
+* **⚡ High-performance**: Optimized serialization, type caching, and optional fast JSON (4x faster with orjson)
+
+---
+
+## Performance
+
+**chuk-mcp** is built for production workloads with multiple layers of performance optimization:
+
+### 🚀 Fast JSON Operations (Optional)
+Install with `[fast-json]` for **4x faster JSON operations**:
+- **Serialization:** 6.5x faster (2.28M ops/sec vs 347K ops/sec)
+- **Deserialization:** 2.4x faster (1.37M ops/sec vs 577K ops/sec)
+- **Round-trip:** 4x faster (832K ops/sec vs 210K ops/sec)
+
+```bash
+pip install "chuk-mcp[fast-json]"  # Automatic with graceful fallback
+```
+
+### ⚡ Core Optimizations
+Built-in performance enhancements without any configuration:
+- **Optimized serialization paths:** 15-25% faster message sending
+- **Type validation caching:** 30-40% faster model creation (fallback mode)
+- **Smart message routing:** 10-15% faster routing with early returns
+- **Lazy stream initialization:** Handles 700+ concurrent connections
+
+### 📊 Benchmark Results
+Tested performance characteristics:
+- **Max Concurrent:** 700+ connections (tested limit, not capacity)
+- **Throughput:** 252+ connections/sec
+- **Memory Efficiency:** 34KB per connection with linear scaling
+- **Memory Leaks:** Zero detected over 200 iterations
+- **Overall Improvement:** 4-5x better performance for JSON-heavy workloads
+
+See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed analysis.
 
 ---
 
@@ -230,22 +265,26 @@ anyio.run(main_secure)
 ### With `uv` (recommended)
 
 ```bash
-uv add chuk-mcp                      # core (Python 3.11+ required)
-uv add "chuk-mcp[pydantic]"          # add typed Pydantic models (Pydantic v2 only)
-uv add "chuk-mcp[http]"              # add Streamable HTTP transport extras
-uv add "chuk-mcp[pydantic,http]"     # full install with all features
+uv add chuk-mcp                           # core (Python 3.11+ required)
+uv add "chuk-mcp[pydantic]"               # add typed Pydantic models (Pydantic v2 only)
+uv add "chuk-mcp[http]"                   # add Streamable HTTP transport extras
+uv add "chuk-mcp[fast-json]"              # add fast JSON (orjson - 4x faster!)
+uv add "chuk-mcp[full]"                   # full install with all features
 ```
 
 ### With `pip`
 
 ```bash
 pip install "chuk-mcp"
-pip install "chuk-mcp[pydantic]"         # Pydantic v2 only
-pip install "chuk-mcp[http]"             # httpx>=0.28 for Streamable HTTP
-pip install "chuk-mcp[pydantic,http]"    # full install
+pip install "chuk-mcp[pydantic]"          # Pydantic v2 only
+pip install "chuk-mcp[http]"              # httpx>=0.28 for Streamable HTTP
+pip install "chuk-mcp[fast-json]"         # orjson>=3.10 for 4x faster JSON
+pip install "chuk-mcp[full]"              # all features (recommended for production)
 ```
 
-> *(Requires `pydantic>=2.11.1,<3` and `httpx>=0.28.1,<1` for `[pydantic]` and `[http]` extras.)*
+> **Performance tip:** Install `[fast-json]` for **4x faster JSON operations** (6.5x serialization, 2.4x deserialization)
+>
+> *(Requires `pydantic>=2.11.1,<3`, `httpx>=0.28.1,<1`, and `orjson>=3.10.0,<4` for extras.)*
 
 **Python versions:** Requires Python 3.11+; see badge for tested versions.
 
