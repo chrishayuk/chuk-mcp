@@ -5,7 +5,9 @@ High-level MCP server implementation.
 
 from typing import Dict, Any, Callable, Optional
 import logging
-import json
+
+# PERFORMANCE: Use fast JSON implementation (orjson if available, stdlib json fallback)
+from ..protocol import fast_json as json
 
 from ..protocol.types.info import ServerInfo
 from ..protocol.types.capabilities import ServerCapabilities

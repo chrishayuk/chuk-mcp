@@ -10,9 +10,11 @@ Universal SSE transport that handles multiple SSE server patterns:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Any, Dict, Optional, Tuple
+
+# PERFORMANCE: Use fast JSON implementation (orjson if available, stdlib json fallback)
+from chuk_mcp.protocol import fast_json as json
 
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream

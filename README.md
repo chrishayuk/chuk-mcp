@@ -91,6 +91,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 ## Table of Contents
 
 * [Why chuk‑mcp?](#why-chuk-mcp)
+* [Protocol Performance](#protocol-performance)
 * [At a Glance](#at-a-glance)
 * [Install](#install)
 * [Quick Start](#quick-start)
@@ -106,6 +107,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * [Versioning & Compatibility](#versioning--compatibility)
 * [Comparison with Official MCP SDK](#comparison-with-official-mcp-sdk)
 * [Design Goals & Non‑Goals](#design-goals--non-goals)
+* [Scaling & Concurrency](#scaling--concurrency)
 * [FAQ](#faq)
 * [Contributing](#contributing)
 * [Feature Showcase](#feature-showcase)
@@ -124,6 +126,53 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * **Small & focused**: No heavy orchestration or agent assumptions
 * **Clean protocol layer**: Errors fail fast without retries — bring your own error handling strategy
 * **Production-minded**: Clear errors, structured logging hooks, composable with retry/caching layers
+* **⚡ High-performance**: Protocol overhead in the 2-5ms range; optional fast JSON for 4x faster serialization. See [Protocol Performance](#protocol-performance) for detailed benchmarks
+
+---
+
+## Protocol Performance
+
+`chuk-mcp` is designed to keep MCP protocol overhead in the **2-5 ms** range, so the cost of using tools is dominated by the tools themselves, not the protocol.
+
+**Why it's fast:**
+- Zero heavy dependencies (AnyIO core only)
+- Async-native stdio & NDJSON HTTP
+- No tool execution inside the library
+- Optional orjson fast path (`[fast-json]`)
+
+> 💡 For concurrency & capacity numbers, see [Scaling & Concurrency](#scaling--concurrency).
+
+### ⚡ Latency Benchmarks
+
+Protocol overhead (typical measurements on modern hardware):
+- **Initialize → Tool List:** 2-3 ms
+- **Tool Call Round Trip:** < 5 ms overhead (beyond actual tool execution time)
+- **Streaming:** Near-zero overhead due to NDJSON chunk boundaries
+
+*Benchmarks run on macOS (Darwin 24.6.0), Python 3.11 — see `benchmarks/PERFORMANCE_REPORT.md` for exact environment and commands.*
+
+### 🚀 JSON Serialization (Optional Fast Path)
+
+Install with `[fast-json]` for **~4x faster JSON operations** using orjson:
+- **Serialization:** ~6x faster
+- **Deserialization:** ~2x faster
+- **Round-trip:** ~4x faster
+
+```bash
+pip install "chuk-mcp[fast-json]"  # Automatic with graceful fallback
+```
+
+*Benchmark numbers from `benchmarks/json_performance.py` comparing orjson vs stdlib json on realistic MCP messages.*
+
+### 🎯 Ideal Use Cases
+
+This makes chuk-mcp perfect for:
+- **High-frequency tool calls** — minimal overhead per request
+- **Real-time agents** — sub-5ms protocol latency
+- **Streaming UIs** — near-zero NDJSON chunk overhead
+- **Tool processors** — fast enough to be transparent
+- **WASM/edge environments** — minimal footprint
+- **Production workloads** — proven at scale (see [Scaling & Concurrency](#scaling--concurrency))
 
 ---
 
@@ -229,22 +278,26 @@ anyio.run(main_secure)
 ### With `uv` (recommended)
 
 ```bash
-uv add chuk-mcp                      # core (Python 3.11+ required)
-uv add "chuk-mcp[pydantic]"          # add typed Pydantic models (Pydantic v2 only)
-uv add "chuk-mcp[http]"              # add Streamable HTTP transport extras
-uv add "chuk-mcp[pydantic,http]"     # full install with all features
+uv add chuk-mcp                           # core (Python 3.11+ required)
+uv add "chuk-mcp[pydantic]"               # add typed Pydantic models (Pydantic v2 only)
+uv add "chuk-mcp[http]"                   # add Streamable HTTP transport extras
+uv add "chuk-mcp[fast-json]"              # add fast JSON (orjson - 4x faster!)
+uv add "chuk-mcp[full]"                   # full install with all features
 ```
 
 ### With `pip`
 
 ```bash
 pip install "chuk-mcp"
-pip install "chuk-mcp[pydantic]"         # Pydantic v2 only
-pip install "chuk-mcp[http]"             # httpx>=0.28 for Streamable HTTP
-pip install "chuk-mcp[pydantic,http]"    # full install
+pip install "chuk-mcp[pydantic]"          # Pydantic v2 only
+pip install "chuk-mcp[http]"              # httpx>=0.28 for Streamable HTTP
+pip install "chuk-mcp[fast-json]"         # orjson>=3.10 for 4x faster JSON
+pip install "chuk-mcp[full]"              # all features (recommended for production)
 ```
 
-> *(Requires `pydantic>=2.11.1,<3` and `httpx>=0.28.1,<1` for `[pydantic]` and `[http]` extras.)*
+> **Performance tip:** Install `[fast-json]` for **4x faster JSON operations** (6.5x serialization, 2.4x deserialization)
+>
+> *(Requires `pydantic>=2.11.1,<3`, `httpx>=0.28.1,<1`, and `orjson>=3.10.0,<4` for extras.)*
 
 **Python versions:** Requires Python 3.11+; see badge for tested versions.
 
@@ -458,6 +511,7 @@ Some servers can ask the client to sample text or provide completion for argumen
 
 * **Stdio** — ideal for local child-process servers
 * **Streamable HTTP** — speak to remote servers over HTTP (chunked/NDJSON)
+* **SSE (Server-Sent Events)** — for browser/IDE integrations with one-way server push
 * **Extensible** — implement your own transport by adapting the simple `(read, write)` async interface
 
 > **Note:** chuk-mcp is fully async (AnyIO). Use `anyio.run(...)` or integrate into your event loop.
@@ -727,6 +781,76 @@ except Exception as e:
 * Baking in opinionated application structure or workflow engines
 * Shipping heavyweight dependencies by default
 * Providing high-level orchestration (that's your application layer)
+
+---
+
+## Scaling & Concurrency
+
+`chuk-mcp` handles hundreds of concurrent connections efficiently with minimal resource usage:
+
+### Concurrency Benchmarks
+
+**Tested Performance** (see `benchmarks/PERFORMANCE_REPORT.md` for full details):
+- **700+ concurrent connections** tested successfully (stopped at timeout, not capacity limit)
+- **252+ connections/sec** throughput for rapid connection churn
+- **~34KB memory per connection** with linear scaling
+- **Zero memory leaks** verified over 200+ iterations
+
+**Production Capacity Estimates:**
+- Small scale (< 100 agents): 512MB RAM, 1 core
+- Medium scale (100-1,000 agents): 1-2GB RAM, 2-4 cores
+- Large scale (1,000-10,000 agents): 4-8GB RAM, 8+ cores
+- Enterprise scale (10,000+ agents): Load balancing recommended
+
+### Best Practices
+
+**Pattern: Create all → Initialize all (Sequential)**
+```python
+# RECOMMENDED: Fastest pattern for multiple agents
+agent1 = create_agent(mcp_config1)
+agent2 = create_agent(mcp_config2)
+agent3 = create_agent(mcp_config3)
+
+# Then initialize
+await agent1.initialize_tools()
+await agent2.initialize_tools()
+await agent3.initialize_tools()
+```
+
+**Pattern: Interleaved (Also Supported)**
+```python
+# WORKS: Fixed in v0.8.1 with lazy stream initialization
+agent1 = create_agent(mcp_config1)
+await agent1.initialize_tools()
+
+agent2 = create_agent(mcp_config2)
+await agent2.initialize_tools()
+
+agent3 = create_agent(mcp_config3)  # No longer hangs!
+await agent3.initialize_tools()
+```
+
+**Important:** Always use `StdioClient` as an async context manager:
+```python
+# CORRECT: Streams initialized in async context
+async with StdioClient(params) as client:
+    # Use client here
+    pass
+
+# INCORRECT: Don't access streams before __aenter__
+client = StdioClient(params)
+client.get_streams()  # ❌ Raises RuntimeError
+```
+
+### Monitoring Recommendations
+
+For production deployments, monitor these metrics:
+- **Active Connections**: Track concurrent client count
+- **Memory Growth**: Should remain flat over time (~0.034MB per connection)
+- **File Descriptors**: Monitor via `lsof` or `/proc/<pid>/fd`
+- **Connection Success Rate**: Should maintain 100%
+
+See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed performance analysis and production deployment guidelines.
 
 ---
 
@@ -1292,7 +1416,7 @@ await send_logging_set_level(write, level="debug")
 * **[chuk-mcp-server](https://github.com/chrishayuk/chuk-mcp-server)** — Real-world MCP server implementation built on chuk-mcp
 * **[chuk-mcp-cli](https://github.com/chrishayuk/chuk-mcp-cli)** — Interactive CLI and playground for testing MCP servers
 
-Each component focuses on doing one thing well and can be used independently or together.
+Each component focuses on doing one thing well and can be used independently or together. All of these build on `chuk-mcp`'s protocol layer, so they inherit the same low-latency, minimal-overhead characteristics.
 
 ---
 

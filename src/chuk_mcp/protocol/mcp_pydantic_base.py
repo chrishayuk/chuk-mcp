@@ -1,8 +1,10 @@
 # chuk_mcp/protocol/mcp_pydantic_base.py
 import os
-import json
 import inspect
 from dataclasses import dataclass
+
+# PERFORMANCE: Use fast JSON implementation (orjson if available, stdlib json fallback)
+from chuk_mcp.protocol import fast_json as json
 from typing import (
     Any,
     ClassVar,
@@ -10,6 +12,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     Union,
     get_args,
     get_origin,
@@ -189,14 +192,28 @@ else:
 
         return annotation
 
+    # PERFORMANCE: Cache for Union type checks
+    _union_type_cache: Dict[int, bool] = {}
+
     def _is_union_str_int(annotation):
-        """Check if an annotation is Union[str, int] or Union[int, str]."""
+        """Check if an annotation is Union[str, int] or Union[int, str].
+
+        PERFORMANCE OPTIMIZED: Cached result to avoid repeated get_origin/get_args calls.
+        """
+        annotation_id = id(annotation)
+        if annotation_id in _union_type_cache:
+            return _union_type_cache[annotation_id]
+
         origin = get_origin(annotation)
         if origin is Union:
             args = get_args(annotation)
             non_none_args = [arg for arg in args if arg is not type(None)]
-            return set(non_none_args) == {str, int}
-        return False
+            result = set(non_none_args) == {str, int}
+        else:
+            result = False
+
+        _union_type_cache[annotation_id] = result
+        return result
 
     def _should_be_permissive_int(annotation, field_name=None):
         """Check if an int field should be permissive (allow strings)."""
@@ -505,12 +522,25 @@ else:
 
     @dataclass
     class McpPydanticBase:  # type: ignore[no-redef]
-        """Generic fallback base class that mimics Pydantic behavior."""
+        """Generic fallback base class that mimics Pydantic behavior.
+
+        PERFORMANCE OPTIMIZED:
+        - Type resolution caching to avoid repeated module lookups
+        - Cached type hints per class to avoid repeated get_type_hints() calls
+        """
 
         # Class-level metadata
         __model_fields__: ClassVar[Dict[str, Field]] = {}  # type: ignore[valid-type]
         __model_required__: ClassVar[Set[str]] = set()
         __field_aliases__: ClassVar[Dict[str, str]] = {}
+
+        # PERFORMANCE: Type resolution cache (shared across all instances)
+        # Key: (class_name, field_name, type_id) -> resolved_type
+        __type_cache__: ClassVar[Dict[Tuple[str, str, int], Any]] = {}
+
+        # PERFORMANCE: Type hints cache per class
+        # Key: class_id -> type_hints dict
+        __hints_cache__: ClassVar[Dict[int, Dict[str, Any]]] = {}
 
         def __init_subclass__(cls, **kwargs):
             super().__init_subclass__(**kwargs)
@@ -617,13 +647,34 @@ else:
                 )
 
         def _validate_types(self, values: Dict[str, Any]):
-            """Validate field types with enhanced type alias resolution."""
+            """Validate field types with enhanced type alias resolution.
+
+            PERFORMANCE OPTIMIZED:
+            - Cached type hints lookup per class
+            - Cached type resolution to avoid repeated module scans
+            """
             try:
+                # PERFORMANCE: Cache type hints per class to avoid repeated get_type_hints() calls
+                class_id = id(self.__class__)
+                if class_id not in self.__class__.__hints_cache__:
+                    try:
+                        self.__class__.__hints_cache__[class_id] = get_type_hints(
+                            self.__class__, include_extras=True
+                        )
+                    except (NameError, AttributeError, TypeError):
+                        # Fall back to raw annotations if get_type_hints fails
+                        self.__class__.__hints_cache__[class_id] = getattr(
+                            self.__class__, "__annotations__", {}
+                        )
+
+                hints = self.__class__.__hints_cache__[class_id]
+
                 # First try to get raw annotations to preserve type aliases
                 raw_annotations = getattr(self.__class__, "__annotations__", {})
 
                 # Get the module where this class is defined for type alias resolution
                 class_module = inspect.getmodule(self.__class__)
+                class_name = self.__class__.__name__
 
                 # Process each field
                 for name, annotation in raw_annotations.items():
@@ -631,22 +682,24 @@ else:
                         continue
 
                     if name in values:
-                        # Try to resolve type hints, but fall back to raw annotation
-                        try:
-                            # Use get_type_hints for complex types but preserve aliases
-                            hints = get_type_hints(self.__class__, include_extras=True)
+                        # PERFORMANCE: Check type cache first
+                        cache_key = (class_name, name, id(annotation))
+                        if cache_key in self.__class__.__type_cache__:
+                            expected_type = self.__class__.__type_cache__[cache_key]
+                        else:
+                            # Type not cached - resolve it
                             expected_type = hints.get(name, annotation)
-                        except (NameError, AttributeError, TypeError):
-                            # Fall back to raw annotation
-                            expected_type = annotation
 
-                        # ADDITIONAL: Try to resolve the raw annotation first
-                        if expected_type == annotation:
-                            resolved_annotation = _resolve_type_alias(
-                                annotation, name, class_module
-                            )
-                            if resolved_annotation != annotation:
-                                expected_type = resolved_annotation
+                            # Try to resolve the raw annotation if it matches
+                            if expected_type == annotation:
+                                resolved_annotation = _resolve_type_alias(
+                                    annotation, name, class_module
+                                )
+                                if resolved_annotation != annotation:
+                                    expected_type = resolved_annotation
+
+                            # PERFORMANCE: Cache the resolved type for future instances
+                            self.__class__.__type_cache__[cache_key] = expected_type
 
                         # Validate with class module context for type alias resolution
                         # Pass the original annotation so we can detect Union[str, int] patterns

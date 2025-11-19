@@ -99,59 +99,60 @@ def test_parameter_validation():
 @pytest.mark.asyncio
 async def test_simple_message_routing():
     """Test simple message routing without complex coordination."""
-    client = StdioClient(StdioParameters(command="test"))
+    async with StdioClient(StdioParameters(command="echo", args=["test"])) as client:
+        # Create a simple request stream
+        recv_stream = client.new_request_stream("test")
 
-    # Create a simple request stream
-    recv_stream = client.new_request_stream("test")
+        # Create a simple message
+        msg = JSONRPCMessage.model_validate(
+            {"jsonrpc": "2.0", "id": "test", "result": {"status": "ok"}}
+        )
 
-    # Create a simple message
-    msg = JSONRPCMessage.model_validate(
-        {"jsonrpc": "2.0", "id": "test", "result": {"status": "ok"}}
-    )
+        # Route the message
+        await client._route_message(msg)
 
-    # Route the message
-    await client._route_message(msg)
+        # Receive the message with timeout
+        with anyio.fail_after(1.0):
+            result = await recv_stream.receive()
 
-    # Receive the message with timeout
-    with anyio.fail_after(1.0):
-        result = await recv_stream.receive()
-
-    assert result.id == "test"
-    assert result.result == {"status": "ok"}
+        assert result.id == "test"
+        assert result.result == {"status": "ok"}
 
 
 @pytest.mark.asyncio
 async def test_notification_routing():
     """Test notification routing."""
-    client = StdioClient(StdioParameters(command="test"))
+    async with StdioClient(StdioParameters(command="echo", args=["test"])) as client:
+        # Create a notification
+        notification = JSONRPCMessage.model_validate(
+            {
+                "jsonrpc": "2.0",
+                "method": "test_notification",
+                "params": {"data": "test"},
+            }
+        )
 
-    # Create a notification
-    notification = JSONRPCMessage.model_validate(
-        {"jsonrpc": "2.0", "method": "test_notification", "params": {"data": "test"}}
-    )
+        # Route the notification
+        await client._route_message(notification)
 
-    # Route the notification
-    await client._route_message(notification)
+        # Receive from notification stream with timeout
+        with anyio.fail_after(1.0):
+            received = await client.notifications.receive()
 
-    # Receive from notification stream with timeout
-    with anyio.fail_after(1.0):
-        received = await client.notifications.receive()
-
-    assert received.method == "test_notification"
-    assert received.params == {"data": "test"}
+        assert received.method == "test_notification"
+        assert received.params == {"data": "test"}
 
 
 @pytest.mark.asyncio
 async def test_send_json_method():
     """Test the send_json method."""
-    client = StdioClient(StdioParameters(command="test"))
+    async with StdioClient(StdioParameters(command="echo", args=["test"])) as client:
+        msg = JSONRPCMessage.model_validate(
+            {"jsonrpc": "2.0", "id": "test", "method": "ping"}
+        )
 
-    msg = JSONRPCMessage.model_validate(
-        {"jsonrpc": "2.0", "id": "test", "method": "ping"}
-    )
-
-    # This should not raise an exception
-    await client.send_json(msg)
+        # This should not raise an exception
+        await client.send_json(msg)
 
 
 @pytest.mark.asyncio
@@ -178,64 +179,62 @@ async def test_batch_processor():
 @pytest.mark.asyncio
 async def test_mocked_stdin_writer():
     """Test stdin writer with simple mocking."""
-    client = StdioClient(StdioParameters(command="test"))
+    async with StdioClient(StdioParameters(command="echo", args=["test"])) as client:
+        # Mock process
+        client.process = MagicMock()
+        client.process.stdin = AsyncMock()
 
-    # Mock process
-    client.process = MagicMock()
-    client.process.stdin = AsyncMock()
+        # Create message
+        msg = JSONRPCMessage.model_validate(
+            {"jsonrpc": "2.0", "id": "test", "method": "ping"}
+        )
 
-    # Create message
-    msg = JSONRPCMessage.model_validate(
-        {"jsonrpc": "2.0", "id": "test", "method": "ping"}
-    )
+        # Set up outgoing stream
+        send_stream, receive_stream = anyio.create_memory_object_stream(1)
+        client._outgoing_recv = receive_stream
 
-    # Set up outgoing stream
-    send_stream, receive_stream = anyio.create_memory_object_stream(1)
-    client._outgoing_recv = receive_stream
+        # Send message and close
+        await send_stream.send(msg)
+        await send_stream.aclose()
 
-    # Send message and close
-    await send_stream.send(msg)
-    await send_stream.aclose()
+        # Run stdin writer
+        await client._stdin_writer()
 
-    # Run stdin writer
-    await client._stdin_writer()
-
-    # Verify message was sent
-    assert client.process.stdin.send.called
-    sent_data = client.process.stdin.send.call_args[0][0]
-    sent_json = json.loads(sent_data.decode())
-    assert sent_json["method"] == "ping"
+        # Verify message was sent
+        assert client.process.stdin.send.called
+        sent_data = client.process.stdin.send.call_args[0][0]
+        sent_json = json.loads(sent_data.decode())
+        assert sent_json["method"] == "ping"
 
 
 @pytest.mark.asyncio
 async def test_error_logging_with_caplog(caplog):
     """Test error logging using caplog instead of patching."""
-    client = StdioClient(StdioParameters(command="test"))
+    async with StdioClient(StdioParameters(command="echo", args=["test"])) as client:
+        # Mock process that will cause an error
+        client.process = MagicMock()
+        client.process.stdin = AsyncMock()
 
-    # Mock process that will cause an error
-    client.process = MagicMock()
-    client.process.stdin = AsyncMock()
+        # Create a bad message that will cause json serialization to fail
+        bad_msg = MagicMock()
+        bad_msg.model_dump_json.side_effect = Exception("serialization error")
 
-    # Create a bad message that will cause json serialization to fail
-    bad_msg = MagicMock()
-    bad_msg.model_dump_json.side_effect = Exception("serialization error")
+        # Set up outgoing stream
+        send_stream, receive_stream = anyio.create_memory_object_stream(1)
+        client._outgoing_recv = receive_stream
 
-    # Set up outgoing stream
-    send_stream, receive_stream = anyio.create_memory_object_stream(1)
-    client._outgoing_recv = receive_stream
+        # Send bad message
+        await send_stream.send(bad_msg)
+        await send_stream.aclose()
 
-    # Send bad message
-    await send_stream.send(bad_msg)
-    await send_stream.aclose()
+        # Capture ERROR level logs
+        caplog.set_level(logging.ERROR)
 
-    # Capture ERROR level logs
-    caplog.set_level(logging.ERROR)
+        # Run stdin writer
+        await client._stdin_writer()
 
-    # Run stdin writer
-    await client._stdin_writer()
-
-    # Check that error was logged
-    assert "serialization error" in caplog.text
+        # Check that error was logged
+        assert "serialization error" in caplog.text
 
 
 def test_imports_work():

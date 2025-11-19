@@ -9,10 +9,12 @@ minimal error logging for expected conditions.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 from typing import Any, Dict, Optional, Tuple
+
+# PERFORMANCE: Use fast JSON implementation (orjson if available, stdlib json fallback)
+from chuk_mcp.protocol import fast_json as json
 
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
