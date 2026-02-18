@@ -188,7 +188,7 @@ uv run examples/quickstart.py
 # Minimal installation (for basic examples)
 uv add chuk-mcp
 
-# With Pydantic (recommended for production)
+# With Pydantic (recommended for type safety)
 uv add chuk-mcp[pydantic]
 
 # Full features

@@ -6,7 +6,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**A lean, production-minded Python implementation of the Model Context Protocol (MCP).**
+**A lean, minimal Python implementation of the Model Context Protocol (MCP).**
 
 **Brings first-class MCP protocol support to Python — lightweight, async, and spec-accurate from day one.**
 
@@ -123,7 +123,7 @@ Most users work with the **Protocol Layer** (`send_*` functions) and **Transport
 * **Async-first**: Built on AnyIO; integrate with `anyio.run(...)` or your existing loop
 * **Small & focused**: No heavy orchestration or agent assumptions
 * **Clean protocol layer**: Errors fail fast without retries — bring your own error handling strategy
-* **Production-minded**: Clear errors, structured logging hooks, composable with retry/caching layers
+* **Reliable**: Clear errors, structured logging hooks, composable with retry/caching layers
 * **⚡ High-performance**: Protocol overhead in the 2-5ms range; optional fast JSON for 4x faster serialization. See [Protocol Performance](#protocol-performance) for detailed benchmarks
 
 ---
@@ -170,7 +170,7 @@ This makes chuk-mcp perfect for:
 - **Streaming UIs** — near-zero NDJSON chunk overhead
 - **Tool processors** — fast enough to be transparent
 - **WASM/edge environments** — minimal footprint
-- **Production workloads** — proven at scale (see [Scaling & Concurrency](#scaling--concurrency))
+- **High-throughput workloads** — proven at scale (see [Scaling & Concurrency](#scaling--concurrency))
 
 ---
 
@@ -255,7 +255,7 @@ async def main():
 
 anyio.run(main)
 
-# Production (TLS)
+# TLS (secure transport)
 async def main_secure():
     params = HttpClientParameters(
         url="https://mcp.example.com/mcp",
@@ -290,7 +290,7 @@ pip install "chuk-mcp"
 pip install "chuk-mcp[pydantic]"          # Pydantic v2 only
 pip install "chuk-mcp[http]"              # httpx>=0.28 for Streamable HTTP
 pip install "chuk-mcp[fast-json]"         # orjson>=3.10 for 4x faster JSON
-pip install "chuk-mcp[full]"              # all features (recommended for production)
+pip install "chuk-mcp[full]"              # all features
 ```
 
 > **Performance tip:** Install `[fast-json]` for **4x faster JSON operations** (6.5x serialization, 2.4x deserialization)
@@ -524,7 +524,7 @@ Some servers can ask the client to sample text or provide completion for argumen
 
 > **Compression:** Enable gzip at the proxy to reduce large content streams. MCP payloads compress well.
 
-> **Protocol Layer Design:** The protocol layer is intentionally **clean and minimal** — errors are raised immediately without retries. This design keeps the protocol layer focused on message transport and compliance with the MCP specification. For production use cases requiring retry logic, error handling, rate limiting, or caching, use [chuk-tool-processor](https://pypi.org/project/chuk-tool-processor/) which provides composable wrappers for retries with exponential backoff, rate limiting, and caching. This separation of concerns allows you to choose the right retry strategy for your specific application needs.
+> **Protocol Layer Design:** The protocol layer is intentionally **clean and minimal** — errors are raised immediately without retries. This design keeps the protocol layer focused on message transport and compliance with the MCP specification. For use cases requiring retry logic, error handling, rate limiting, or caching, use [chuk-tool-processor](https://pypi.org/project/chuk-tool-processor/) which provides composable wrappers for retries with exponential backoff, rate limiting, and caching. This separation of concerns allows you to choose the right retry strategy for your specific application needs.
 
 > **Security:** When exposing Streamable HTTP, terminate TLS at a proxy and require auth (e.g., bearer tokens). For private CAs, configure your client's trust store (e.g., `SSL_CERT_FILE=/path/ca.pem`, `REQUESTS_CA_BUNDLE`, or `SSL_CERT_DIR`). The protocol layer is transport-agnostic and does not impose auth.
 
@@ -794,7 +794,7 @@ except Exception as e:
 - **~34KB memory per connection** with linear scaling
 - **Zero memory leaks** verified over 200+ iterations
 
-**Production Capacity Estimates:**
+**Capacity Estimates:**
 - Small scale (< 100 agents): 512MB RAM, 1 core
 - Medium scale (100-1,000 agents): 1-2GB RAM, 2-4 cores
 - Large scale (1,000-10,000 agents): 4-8GB RAM, 8+ cores
@@ -842,13 +842,13 @@ client.get_streams()  # ❌ Raises RuntimeError
 
 ### Monitoring Recommendations
 
-For production deployments, monitor these metrics:
+For deployments, monitor these metrics:
 - **Active Connections**: Track concurrent client count
 - **Memory Growth**: Should remain flat over time (~0.034MB per connection)
 - **File Descriptors**: Monitor via `lsof` or `/proc/<pid>/fd`
 - **Connection Success Rate**: Should maintain 100%
 
-See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed performance analysis and production deployment guidelines.
+See [`benchmarks/PERFORMANCE_REPORT.md`](benchmarks/PERFORMANCE_REPORT.md) for detailed performance analysis and deployment guidelines.
 
 ---
 
@@ -874,9 +874,9 @@ A: See the [`examples/`](examples/) directory for comprehensive demonstrations o
 
 A: Run `make test` or `uv run pytest` to run the test suite. Use `make examples` (if present) to test all E2E examples. See the [Contributing](#contributing) section for details.
 
-**Q: Is this production-ready?**
+**Q: Is this ready for use?**
 
-A: Yes. chuk-mcp is used in production environments. It includes error handling, type safety, and follows MCP protocol specifications. See the test coverage reports for confidence metrics.
+A: Yes. chuk-mcp is deployed at scale. It includes error handling, type safety, and follows MCP protocol specifications. See the test coverage reports for confidence metrics.
 
 **Q: Is it thread-safe?**
 
@@ -1008,7 +1008,7 @@ If you believe you've found a security issue, please report it by opening a secu
 
 ## Feature Showcase
 
-This section provides detailed code snippets demonstrating MCP features. All examples are production-ready with full type safety.
+This section provides detailed code snippets demonstrating MCP features. All examples include full type safety.
 
 ### 🔧 Tools — Calling Functions
 
@@ -1387,7 +1387,7 @@ print(content.text)
 
 ### Monitoring & Logging
 
-Built-in features for production environments:
+Built-in features for deployed environments:
 
 ```python
 from chuk_mcp.protocol.messages.logging import send_logging_set_level
