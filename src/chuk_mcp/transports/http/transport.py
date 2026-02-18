@@ -172,9 +172,12 @@ class StreamableHTTPTransport(Transport):
             # Add session ID if available
             if self._session_id:
                 headers["Mcp-Session-Id"] = self._session_id
+                logger.debug(f"Including session ID in request: {self._session_id}")
 
             # Create a new client for each request to avoid connection reuse issues
-            async with httpx.AsyncClient(timeout=httpx.Timeout(self.timeout)) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.timeout), follow_redirects=True
+            ) as client:
                 try:
                     response = await client.post(
                         self.endpoint_url, json=message_dict, headers=headers

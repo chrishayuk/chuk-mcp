@@ -233,5 +233,5 @@ Use these examples as templates:
 ## Need Help?
 
 - Check the main [README](../README.md)
-- Review the [documentation](https://github.com/chrishayuk/chuk-mcp)
-- Open an [issue](https://github.com/chrishayuk/chuk-mcp/issues)
+- Review the [documentation](../README.md)
+- Open an issue on the GitHub repository

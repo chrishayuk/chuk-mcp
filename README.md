@@ -3,10 +3,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/chuk-mcp.svg)](https://pypi.org/project/chuk-mcp)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/chuk-mcp)](https://pypi.org/project/chuk-mcp)
 [![Python Version](https://img.shields.io/pypi/pyversions/chuk-mcp.svg)](https://pypi.org/project/chuk-mcp)
-[![CI](https://github.com/chrishayuk/chuk-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/chrishayuk/chuk-mcp/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/chrishayuk/chuk-mcp)](https://codecov.io/gh/chrishayuk/chuk-mcp)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **A lean, production-minded Python implementation of the Model Context Protocol (MCP).**
 
@@ -526,7 +524,7 @@ Some servers can ask the client to sample text or provide completion for argumen
 
 > **Compression:** Enable gzip at the proxy to reduce large content streams. MCP payloads compress well.
 
-> **Protocol Layer Design:** The protocol layer is intentionally **clean and minimal** — errors are raised immediately without retries. This design keeps the protocol layer focused on message transport and compliance with the MCP specification. For production use cases requiring retry logic, error handling, rate limiting, or caching, use [chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor) which provides composable wrappers for retries with exponential backoff, rate limiting, and caching. This separation of concerns allows you to choose the right retry strategy for your specific application needs.
+> **Protocol Layer Design:** The protocol layer is intentionally **clean and minimal** — errors are raised immediately without retries. This design keeps the protocol layer focused on message transport and compliance with the MCP specification. For production use cases requiring retry logic, error handling, rate limiting, or caching, use [chuk-tool-processor](https://pypi.org/project/chuk-tool-processor/) which provides composable wrappers for retries with exponential backoff, rate limiting, and caching. This separation of concerns allows you to choose the right retry strategy for your specific application needs.
 
 > **Security:** When exposing Streamable HTTP, terminate TLS at a proxy and require auth (e.g., bearer tokens). For private CAs, configure your client's trust store (e.g., `SSL_CERT_FILE=/path/ca.pem`, `REQUESTS_CA_BUNDLE`, or `SSL_CERT_DIR`). The protocol layer is transport-agnostic and does not impose auth.
 
@@ -756,7 +754,7 @@ except Exception as e:
 - Running in constrained environments (WASM, edge functions)
 - Need to integrate MCP into existing applications
 
-> **Real-world example:** [chuk-mcp-server](https://github.com/chrishayuk/chuk-mcp-server) uses chuk-mcp as its protocol compliance layer
+> **Real-world example:** [chuk-mcp-server](https://pypi.org/project/chuk-mcp-server/) uses chuk-mcp as its protocol compliance layer
 
 **When to choose official SDK:**
 - Building full MCP servers quickly with opinionated patterns
@@ -870,7 +868,7 @@ A: Use **stdio** for local dev and child processes. Use **Streamable HTTP** for 
 
 **Q: Where can I find more examples?**
 
-A: See the [`examples/`](examples/) directory for comprehensive demonstrations of all MCP features, including both quick-start examples and full end-to-end client-server pairs. For a real-world server implementation, see [chuk-mcp-server](https://github.com/chrishayuk/chuk-mcp-server) which uses chuk-mcp as its protocol library.
+A: See the [`examples/`](examples/) directory for comprehensive demonstrations of all MCP features, including both quick-start examples and full end-to-end client-server pairs. For a real-world server implementation, see [chuk-mcp-server](https://pypi.org/project/chuk-mcp-server/) which uses chuk-mcp as its protocol library.
 
 **Q: How do I test my implementation?**
 
@@ -890,7 +888,7 @@ A: Auth, TLS termination, persistence, and orchestration are app concerns—brin
 
 **Q: How do I add retry logic and rate limiting?**
 
-A: Use [chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor) which provides composable wrappers for retries (with exponential backoff), rate limiting, and caching. chuk-mcp focuses on protocol compliance; chuk-tool-processor handles execution concerns.
+A: Use [chuk-tool-processor](https://pypi.org/project/chuk-tool-processor/) which provides composable wrappers for retries (with exponential backoff), rate limiting, and caching. chuk-mcp focuses on protocol compliance; chuk-tool-processor handles execution concerns.
 
 **Q: What are common errors and how do I handle them?**
 
@@ -974,7 +972,8 @@ PRs welcome! Please:
 
 ```bash
 # Clone and setup
-git clone https://github.com/chrishayuk/chuk-mcp
+git clone <repository-url>
+# or install from PyPI: pip install chuk-mcp
 cd chuk-mcp
 uv sync
 
@@ -1003,7 +1002,7 @@ make examples
 
 ### Security
 
-If you believe you've found a security issue, please report it by opening a security advisory in the [GitHub repository](https://github.com/chrishayuk/chuk-mcp/security/advisories) rather than opening a public issue.
+If you believe you've found a security issue, please report it by opening a security advisory in the GitHub repository rather than opening a public issue.
 
 ---
 
@@ -1412,9 +1411,9 @@ await send_logging_set_level(write, level="debug")
 
 `chuk-mcp` is part of a modular suite of Python MCP tools:
 
-* **[chuk-tool-processor](https://github.com/chrishayuk/chuk-tool-processor)** — Reliable tool call execution with retries, caching, and exponential backoff
-* **[chuk-mcp-server](https://github.com/chrishayuk/chuk-mcp-server)** — Real-world MCP server implementation built on chuk-mcp
-* **[chuk-mcp-cli](https://github.com/chrishayuk/chuk-mcp-cli)** — Interactive CLI and playground for testing MCP servers
+* **[chuk-tool-processor](https://pypi.org/project/chuk-tool-processor/)** — Reliable tool call execution with retries, caching, and exponential backoff
+* **[chuk-mcp-server](https://pypi.org/project/chuk-mcp-server/)** — Real-world MCP server implementation built on chuk-mcp
+* **[chuk-mcp-cli](https://pypi.org/project/chuk-mcp-cli/)** — Interactive CLI and playground for testing MCP servers
 
 Each component focuses on doing one thing well and can be used independently or together. All of these build on `chuk-mcp`'s protocol layer, so they inherit the same low-latency, minimal-overhead characteristics.
 
@@ -1422,4 +1421,4 @@ Each component focuses on doing one thing well and can be used independently or 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](LICENSE).
