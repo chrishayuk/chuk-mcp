@@ -361,56 +361,46 @@ class TestModuleImports:
 
         assert InMemorySessionManager is not None
 
-    def test_inline_inmemory_import(self):
-        """Test that InMemorySessionManager is available from base.py."""
-        # This tests lines 130-203 in base.py which contains InMemorySessionManager
-        from chuk_mcp.server.session.base import InMemorySessionManager
+    def test_inmemory_session_manager(self):
+        """Test that InMemorySessionManager works correctly."""
+        from chuk_mcp.server.session.memory import InMemorySessionManager
 
         assert InMemorySessionManager is not None
 
-        # Actually use it to ensure all code paths are hit
         manager = InMemorySessionManager()
         assert manager is not None
         assert isinstance(manager.sessions, dict)
 
-        # Test all methods to cover lines in base.py
         session_id = manager.create_session(
             client_info={"name": "inline-test"}, protocol_version="2025-06-18"
         )
         assert session_id is not None
 
-        # Test get_session (line 160)
         session = manager.get_session(session_id)
         assert session is not None
 
-        # Test update_activity (lines 164-167)
         result = manager.update_activity(session_id)
         assert result is True
 
         result = manager.update_activity("nonexistent")
         assert result is False
 
-        # Test cleanup_expired (lines 171-181)
         removed = manager.cleanup_expired(max_age=3600)
         assert removed >= 0
 
-        # Test list_sessions (line 185)
         sessions = manager.list_sessions()
         assert isinstance(sessions, dict)
         assert session_id in sessions
 
-        # Test delete_session (lines 189-192)
         result = manager.delete_session(session_id)
         assert result is True
 
         result = manager.delete_session("nonexistent")
         assert result is False
 
-        # Test get_session_count (line 196)
         count = manager.get_session_count()
         assert count >= 0
 
-        # Test clear_all_sessions (lines 200-202)
         manager.create_session({"name": "test"}, "2025-06-18")
         cleared = manager.clear_all_sessions()
         assert cleared >= 0
@@ -433,8 +423,7 @@ class TestModuleImports:
 
     def test_session_manager_alias(self):
         """Test SessionManager backward compatibility alias."""
-        # Import directly from base.py to trigger line 212
-        from chuk_mcp.server.session.base import SessionManager
+        from chuk_mcp.server.session.memory import SessionManager
 
         assert SessionManager is not None
 
@@ -446,13 +435,13 @@ class TestModuleImports:
         session_id = manager.create_session({"name": "alias-test"}, "2025-06-18")
         assert session_id is not None
 
-    def test_module_all_exports(self):
-        """Test __all__ exports from base module."""
-        import chuk_mcp.server.session.base as base_module
+    def test_package_all_exports(self):
+        """Test __all__ exports from session package."""
+        import chuk_mcp.server.session as session_module
 
         # Test that __all__ exists and contains expected items
-        assert hasattr(base_module, "__all__")
-        all_exports = base_module.__all__
+        assert hasattr(session_module, "__all__")
+        all_exports = session_module.__all__
 
         expected_exports = [
             "SessionInfo",
@@ -466,8 +455,8 @@ class TestModuleImports:
 
         # Test that all exported items are actually importable
         for export_name in all_exports:
-            assert hasattr(base_module, export_name)
-            export_obj = getattr(base_module, export_name)
+            assert hasattr(session_module, export_name)
+            export_obj = getattr(session_module, export_name)
             assert export_obj is not None
 
 

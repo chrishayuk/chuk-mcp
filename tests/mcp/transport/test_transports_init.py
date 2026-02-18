@@ -404,11 +404,11 @@ class TestImportErrorHandling:
             with patch.dict(sys.modules, {"chuk_mcp.transports.http": None}):
                 with patch(
                     "builtins.__import__",
-                    side_effect=lambda name, *args, **kwargs: (_ for _ in ()).throw(
-                        ImportError()
-                    )
-                    if "http" in name and "chuk_mcp.transports.http" in name
-                    else __import__(name, *args, **kwargs),
+                    side_effect=lambda name, *args, **kwargs: (
+                        (_ for _ in ()).throw(ImportError())
+                        if "http" in name and "chuk_mcp.transports.http" in name
+                        else __import__(name, *args, **kwargs)
+                    ),
                 ):
                     # The module would set HAS_HTTP = False in this case
                     # We can't easily test this without reloading the module
