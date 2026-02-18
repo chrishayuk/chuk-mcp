@@ -7,10 +7,7 @@ name = "chuk-mcp"
 version = "0.9.1"
 description = "Model Context Protocol client and server library with optional Pydantic support"
 readme = "README.md"
-license = {text = "MIT"}
-authors = [
-    {name = "Chris Hay", email = "chrishayuk@somejunkmailbox.com"}
-]
+license = {text = "Apache-2.0"}
 
 requires-python = ">=3.11"
 
@@ -26,7 +23,7 @@ keywords = ["llm", "openai", "claude", "mcp", "client", "protocol"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -41,11 +38,6 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
 ]
-
-[project.urls]
-Homepage = "https://github.com/chrishayuk/chuk-mcp"
-Repository = "https://github.com/chrishayuk/chuk-mcp"
-"Bug Tracker" = "https://github.com/chrishayuk/chuk-mcp/issues"
 
 [project.scripts]
 chuk-mcp = "chuk_mcp.__main__:run"
