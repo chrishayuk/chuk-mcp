@@ -30,7 +30,7 @@ async def main():
 
         Sent by client to request cancellation of a long-running operation.
         """
-        # Extract cancellation info (not used in this demo, but would be in production)
+        # Extract cancellation info (not used in this demo, but would be in a real server)
         # params = message.params if hasattr(message, "params") else {}
         # request_id = params.get("requestId") if isinstance(params, dict) else None
         # reason = params.get("reason", "No reason provided") if isinstance(params, dict) else "No reason provided"

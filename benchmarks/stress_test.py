@@ -447,7 +447,7 @@ class StressTest:
     async def test_resource_limits(self) -> StressTestResult:
         """
         Test system resource limits (file descriptors, memory limits).
-        Provides recommendations for production deployment.
+        Provides recommendations for deployment sizing.
         """
         self.log(f"\n{'=' * 70}")
         self.log("Test: System Resource Limits")
