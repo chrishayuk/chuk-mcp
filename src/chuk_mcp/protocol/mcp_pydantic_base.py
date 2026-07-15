@@ -422,7 +422,10 @@ else:
                     return value
                 else:
                     try:
-                        return expected(value)
+                        # expected is Any narrowed via hasattr(..., "__bases__")
+                        # to type[object] by mypy; the real class always
+                        # accepts a single value argument here.
+                        return expected(value)  # type: ignore[call-arg]
                     except Exception:
                         raise ValidationError(
                             f"value is not a valid {expected.__name__}",

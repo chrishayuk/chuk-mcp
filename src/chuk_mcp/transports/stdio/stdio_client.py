@@ -504,7 +504,7 @@ class StdioClient:
 # ---------------------------------------------------------------------- #
 
 
-def _is_benign_shutdown_exc(exc: Exception, context: str) -> bool:
+def _is_benign_shutdown_exc(exc: BaseException, context: str) -> bool:
     """Return True (and log at DEBUG) if *exc* is an expected shutdown artifact.
 
     Returns False and logs at ERROR for real errors; callers should re-raise.
