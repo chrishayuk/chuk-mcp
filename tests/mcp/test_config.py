@@ -9,7 +9,7 @@ import logging
 from unittest.mock import mock_open, patch
 
 from chuk_mcp.config import load_config
-from chuk_mcp.transports.stdio.parameters import StdioParameters
+from chuk_mcp import StdioParameters
 
 
 class TestLoadConfig:

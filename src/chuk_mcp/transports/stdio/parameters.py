@@ -1,12 +1,11 @@
 # chuk_mcp/transports/stdio/parameters.py
-from typing import List, Optional, Dict
-from ..base import TransportParameters
-from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase
+"""Stdio transport parameters — Rust-backed via chuk_mcp_rs.
 
+Kept as an import path for backward compatibility with downstream consumers
+(e.g. chuk-tool-processor) that import
+``chuk_mcp.transports.stdio.parameters.StdioParameters``.
+"""
 
-class StdioParameters(TransportParameters, McpPydanticBase):
-    """Parameters for stdio transport."""
+from ..._rust import StdioParameters
 
-    command: str
-    args: List[str] = []
-    env: Optional[Dict[str, str]] = None
+__all__ = ["StdioParameters"]

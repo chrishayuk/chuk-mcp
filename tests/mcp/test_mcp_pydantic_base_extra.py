@@ -10,9 +10,15 @@ from chuk_mcp.protocol.mcp_pydantic_base import (
     PYDANTIC_AVAILABLE,
 )
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
-from chuk_mcp.mcp_client.transport.stdio.stdio_server_parameters import (
-    StdioServerParameters,
-)
+
+
+# The legacy StdioServerParameters McpPydanticBase model was removed when the
+# transport layer moved to Rust. Define an equivalent sample model here purely
+# to exercise the retained McpPydanticBase machinery.
+class StdioServerParameters(McpPydanticBase):
+    command: str
+    args: List[str] = Field(default_factory=list)
+    env: Optional[dict] = None
 
 ###############################################################################
 # 1. default_factory should give each instance its own object

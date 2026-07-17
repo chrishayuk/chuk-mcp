@@ -139,7 +139,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_success(self, capsys):
         """Test successful server test."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         # Mock server parameters
         mock_params = StdioParameters(command="test-server", args=["--test"])
@@ -169,9 +169,9 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         result = await server_test_func(
                             "config.json", "test-server", verbose=False
                         )
@@ -184,7 +184,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_verbose(self, capsys):
         """Test server test with verbose output."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -210,9 +210,9 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         result = await server_test_func(
                             "config.json", "test-server", verbose=True
                         )
@@ -224,7 +224,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_init_failed(self, capsys):
         """Test when server initialization fails."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
         mock_read = AsyncMock()
@@ -237,7 +237,7 @@ class TestTestServer:
                 mock_cm.__aexit__.return_value = None
                 mock_client.return_value = mock_cm
 
-                with patch("chuk_mcp.__main__.send_initialize", return_value=None):
+                with patch("chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=None):
                     result = await server_test_func("config.json", "test-server")
 
         assert result is False
@@ -247,7 +247,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_ping_failed(self, capsys):
         """Test when ping fails."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -273,9 +273,9 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=False):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=False):
                         result = await server_test_func("config.json", "test-server")
 
         assert result is True  # Still succeeds, just shows ping failed
@@ -285,7 +285,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_tools(self, capsys):
         """Test server with tools capability."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -300,12 +300,12 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = None
 
-        from chuk_mcp.protocol.messages.tools import Tool, ListToolsResult
+        from types import SimpleNamespace
 
-        mock_tools_response = ListToolsResult(
+        mock_tools_response = SimpleNamespace(
             tools=[
-                Tool(name="echo", description="Echo a message", inputSchema={}),
-                Tool(name="calc", description="Calculate", inputSchema={}),
+                SimpleNamespace(name="echo", description="Echo a message", inputSchema={}),
+                SimpleNamespace(name="calc", description="Calculate", inputSchema={}),
             ]
         )
 
@@ -320,11 +320,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_tools_list",
+                            "chuk_mcp.__main__.send_tools_list", new_callable=AsyncMock,
                             return_value=mock_tools_response,
                         ):
                             result = await server_test_func(
@@ -338,7 +338,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_tools_verbose(self, capsys):
         """Test server with tools and verbose output."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -353,14 +353,14 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = None
 
-        from chuk_mcp.protocol.messages.tools import Tool, ListToolsResult
+        from types import SimpleNamespace
 
-        mock_tools_response = ListToolsResult(
+        mock_tools_response = SimpleNamespace(
             tools=[
-                Tool(name="echo", description="Echo a message", inputSchema={}),
-                Tool(name="calc", description="Calculate", inputSchema={}),
-                Tool(name="search", description="Search", inputSchema={}),
-                Tool(name="translate", description="Translate", inputSchema={}),
+                SimpleNamespace(name="echo", description="Echo a message", inputSchema={}),
+                SimpleNamespace(name="calc", description="Calculate", inputSchema={}),
+                SimpleNamespace(name="search", description="Search", inputSchema={}),
+                SimpleNamespace(name="translate", description="Translate", inputSchema={}),
             ]
         )
 
@@ -375,11 +375,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_tools_list",
+                            "chuk_mcp.__main__.send_tools_list", new_callable=AsyncMock,
                             return_value=mock_tools_response,
                         ):
                             result = await server_test_func(
@@ -394,7 +394,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_tools_error(self, capsys):
         """Test when tools listing fails."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -420,11 +420,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_tools_list",
+                            "chuk_mcp.__main__.send_tools_list", new_callable=AsyncMock,
                             side_effect=Exception("Tools error"),
                         ):
                             result = await server_test_func(
@@ -438,7 +438,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_resources(self, capsys):
         """Test server with resources capability."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -453,11 +453,11 @@ class TestTestServer:
         mock_init_result.capabilities.resources = {"subscribe": True}
         mock_init_result.capabilities.prompts = None
 
-        from chuk_mcp.protocol.messages.resources import Resource, ListResourcesResult
+        from types import SimpleNamespace
 
-        mock_resources_response = ListResourcesResult(
+        mock_resources_response = SimpleNamespace(
             resources=[
-                Resource(uri="file://file1", name="file1", description="File 1"),
+                SimpleNamespace(uri="file://file1", name="file1", description="File 1"),
             ]
         )
 
@@ -472,11 +472,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_resources_list",
+                            "chuk_mcp.__main__.send_resources_list", new_callable=AsyncMock,
                             return_value=mock_resources_response,
                         ):
                             result = await server_test_func(
@@ -490,7 +490,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_resources_verbose(self, capsys):
         """Test server with resources and verbose output."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -505,14 +505,14 @@ class TestTestServer:
         mock_init_result.capabilities.resources = {"subscribe": True}
         mock_init_result.capabilities.prompts = None
 
-        from chuk_mcp.protocol.messages.resources import Resource, ListResourcesResult
+        from types import SimpleNamespace
 
-        mock_resources_response = ListResourcesResult(
+        mock_resources_response = SimpleNamespace(
             resources=[
-                Resource(uri="file://file1", name="file1", description="File 1"),
-                Resource(uri="file://file2", name="file2", description="File 2"),
-                Resource(uri="file://file3", name="file3", description="File 3"),
-                Resource(uri="file://file4", name="file4", description="File 4"),
+                SimpleNamespace(uri="file://file1", name="file1", description="File 1"),
+                SimpleNamespace(uri="file://file2", name="file2", description="File 2"),
+                SimpleNamespace(uri="file://file3", name="file3", description="File 3"),
+                SimpleNamespace(uri="file://file4", name="file4", description="File 4"),
             ]
         )
 
@@ -527,11 +527,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_resources_list",
+                            "chuk_mcp.__main__.send_resources_list", new_callable=AsyncMock,
                             return_value=mock_resources_response,
                         ):
                             result = await server_test_func(
@@ -546,7 +546,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_resources_error(self, capsys):
         """Test when resources listing fails."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -572,11 +572,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_resources_list",
+                            "chuk_mcp.__main__.send_resources_list", new_callable=AsyncMock,
                             side_effect=Exception("Resources error"),
                         ):
                             result = await server_test_func(
@@ -590,7 +590,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_prompts(self, capsys):
         """Test server with prompts capability."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -605,11 +605,11 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = {"listChanged": True}
 
-        from chuk_mcp.protocol.messages.prompts import Prompt, ListPromptsResult
+        from types import SimpleNamespace
 
-        mock_prompts_response = ListPromptsResult(
+        mock_prompts_response = SimpleNamespace(
             prompts=[
-                Prompt(name="summarize", description="Summarize text"),
+                SimpleNamespace(name="summarize", description="Summarize text"),
             ]
         )
 
@@ -624,11 +624,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_prompts_list",
+                            "chuk_mcp.__main__.send_prompts_list", new_callable=AsyncMock,
                             return_value=mock_prompts_response,
                         ):
                             result = await server_test_func(
@@ -642,7 +642,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_with_prompts_verbose(self, capsys):
         """Test server with prompts and verbose output."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -657,14 +657,14 @@ class TestTestServer:
         mock_init_result.capabilities.resources = None
         mock_init_result.capabilities.prompts = {"listChanged": True}
 
-        from chuk_mcp.protocol.messages.prompts import Prompt, ListPromptsResult
+        from types import SimpleNamespace
 
-        mock_prompts_response = ListPromptsResult(
+        mock_prompts_response = SimpleNamespace(
             prompts=[
-                Prompt(name="summarize", description="Summarize text"),
-                Prompt(name="analyze", description="Analyze"),
-                Prompt(name="translate", description="Translate"),
-                Prompt(name="review", description="Review"),
+                SimpleNamespace(name="summarize", description="Summarize text"),
+                SimpleNamespace(name="analyze", description="Analyze"),
+                SimpleNamespace(name="translate", description="Translate"),
+                SimpleNamespace(name="review", description="Review"),
             ]
         )
 
@@ -679,11 +679,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_prompts_list",
+                            "chuk_mcp.__main__.send_prompts_list", new_callable=AsyncMock,
                             return_value=mock_prompts_response,
                         ):
                             result = await server_test_func(
@@ -698,7 +698,7 @@ class TestTestServer:
     @pytest.mark.asyncio
     async def test_test_server_prompts_error(self, capsys):
         """Test when prompts listing fails."""
-        from chuk_mcp.transports.stdio.parameters import StdioParameters
+        from chuk_mcp import StdioParameters
 
         mock_params = StdioParameters(command="test-server", args=[])
 
@@ -724,11 +724,11 @@ class TestTestServer:
                 mock_client.return_value = mock_cm
 
                 with patch(
-                    "chuk_mcp.__main__.send_initialize", return_value=mock_init_result
+                    "chuk_mcp.__main__.send_initialize", new_callable=AsyncMock, return_value=mock_init_result
                 ):
-                    with patch("chuk_mcp.__main__.send_ping", return_value=True):
+                    with patch("chuk_mcp.__main__.send_ping", new_callable=AsyncMock, return_value=True):
                         with patch(
-                            "chuk_mcp.__main__.send_prompts_list",
+                            "chuk_mcp.__main__.send_prompts_list", new_callable=AsyncMock,
                             side_effect=Exception("Prompts error"),
                         ):
                             result = await server_test_func(

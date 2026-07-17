@@ -23,6 +23,10 @@ StdioServerParameters = _rs.StdioParameters
 # --- Transport context managers ------------------------------------------
 stdio_client = _rs.stdio_client
 
+# --- Streamable HTTP transport -------------------------------------------
+StreamableHTTPParameters = _rs.StreamableHTTPParameters
+StreamableHTTPTransport = _rs.StreamableHTTPTransport
+
 # --- High-level client / server ------------------------------------------
 MCPClient = _rs.MCPClient
 connect_to_server = _rs.connect_to_server
@@ -73,6 +77,8 @@ __all__ = [
     "StdioParameters",
     "StdioServerParameters",
     "stdio_client",
+    "StreamableHTTPParameters",
+    "StreamableHTTPTransport",
     "MCPClient",
     "connect_to_server",
     "MCPServer",

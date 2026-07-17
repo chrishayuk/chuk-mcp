@@ -3,8 +3,8 @@ import json
 import logging
 from typing import Optional, Tuple
 
-# mcp_client imports
-from chuk_mcp.transports.stdio.parameters import StdioParameters
+# Rust-backed StdioParameters (via chuk_mcp_rs).
+from ._rust import StdioParameters
 
 
 async def load_config(
