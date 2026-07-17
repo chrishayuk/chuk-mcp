@@ -4,15 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chuk-mcp"
-version = "0.9.1"
-description = "Model Context Protocol client and server library with optional Pydantic support"
+version = "0.10.0"
+description = "Model Context Protocol client and server library, powered by a Rust core (chuk-mcp-rs)"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 
 requires-python = ">=3.11"
 
-# Core dependencies only - Pydantic is optional!
+# The behavioural core is implemented in Rust and provided by chuk-mcp-rs
+# (the chuk_mcp_rs extension module). The remaining Python-side dependencies
+# support the pure-data model layer and legacy helpers.
 dependencies = [
+    "chuk-mcp-rs>=0.1.0",
     "anyio>=4.9.0",
     "httpx>=0.28.1",
     "typing-extensions>=4.7.1,<5.0.0",

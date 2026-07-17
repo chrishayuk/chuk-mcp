@@ -1,117 +1,38 @@
 # chuk_mcp/protocol/messages/__init__.py
 """
-Messages module for the Model Context Protocol client.
+Messages module for the Model Context Protocol — Rust-backed via chuk_mcp_rs.
 
-This module provides the messaging layer for MCP communication, implementing
-MCP features and protocol operations. The messaging layer handles JSON-RPC
-message construction and protocol-specific operations.
+The ``send_*`` protocol operations and the initialization handshake are
+implemented in the Rust core and operate on the Rust stream handles returned by
+``stdio_client``. The JSON-RPC data model (``JSONRPCMessage``) and the method
+enumeration (``MessageMethod``) remain pure-Python value types.
 """
 
-# Core infrastructure
-from .json_rpc_message import JSONRPCMessage
-from .send_message import send_message
-from .message_method import MessageMethod
-
-# Error types from the protocol types layer
-from ..types.errors import (
+# Rust-backed operations and result types.
+from ..._rust import (
+    send_message,
+    send_initialize,
+    send_initialized_notification,
+    send_tools_list,
+    send_tools_call,
+    send_resources_list,
+    send_resources_read,
+    send_prompts_list,
+    send_prompts_get,
+    send_ping,
+    InitializeResult,
+    Tool,
+    ToolResult,
+    Resource,
+    ResourceContent,
     RetryableError,
     NonRetryableError,
     VersionMismatchError,
 )
 
-# Initialization
-from .initialize import (
-    send_initialize,
-    send_initialized_notification,
-    InitializeResult,
-)
-
-# Core operations
-from .tools import (
-    send_tools_list,
-    send_tools_call,
-    Tool,
-    ToolResult,
-)
-
-from .resources import (
-    send_resources_list,
-    send_resources_read,
-    Resource,
-    ResourceContent,
-)
-
-from .prompts import (
-    send_prompts_list,
-    send_prompts_get,
-)
-
-from .ping import (
-    send_ping,
-)
-
-# Optional features (import with try/except for compatibility)
-_optional_exports = []
-
-try:
-    from .sampling import (  # noqa: F401
-        send_sampling_create_message,  # noqa: F401
-        SamplingMessage,  # noqa: F401
-        CreateMessageResult,  # noqa: F401
-    )
-
-    _optional_exports.extend(
-        [
-            "send_sampling_create_message",
-            "SamplingMessage",
-            "CreateMessageResult",
-        ]
-    )
-except ImportError:
-    pass
-
-try:
-    from .completions import (  # noqa: F401
-        send_completion_complete,  # noqa: F401
-        CompletionResult,  # noqa: F401
-    )
-
-    _optional_exports.extend(
-        [
-            "send_completion_complete",
-            "CompletionResult",
-        ]
-    )
-except ImportError:
-    pass
-
-try:
-    from .roots import (  # noqa: F401
-        send_roots_list,  # noqa: F401
-        Root,  # noqa: F401
-    )
-
-    _optional_exports.extend(
-        [
-            "send_roots_list",
-            "Root",
-        ]
-    )
-except ImportError:
-    pass
-
-try:
-    from .logging import (  # noqa: F401  # type: ignore
-        send_logging_set_level,  # noqa: F401
-    )
-
-    _optional_exports.extend(
-        [
-            "send_logging_set_level",
-        ]
-    )
-except ImportError:
-    pass
+# Pure-Python data model layer.
+from .json_rpc_message import JSONRPCMessage
+from .message_method import MessageMethod
 
 __all__ = [
     # Core infrastructure
@@ -138,4 +59,4 @@ __all__ = [
     "send_prompts_list",
     "send_prompts_get",
     "send_ping",
-] + _optional_exports
+]

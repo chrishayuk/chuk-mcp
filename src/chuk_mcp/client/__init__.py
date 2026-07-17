@@ -1,17 +1,11 @@
 # chuk_mcp/client/__init__.py
 """
-MCP Client - Connect to and communicate with MCP servers.
+MCP Client — Rust-backed via chuk_mcp_rs.
+
+Connect to and communicate with MCP servers. Both the high-level ``MCPClient``
+and the ``connect_to_server`` convenience are implemented in the Rust core.
 """
 
-from .client import MCPClient
-from .connection import connect_to_server
+from .._rust import MCPClient, StdioParameters, connect_to_server, stdio_client
 
-# Import transports for convenience
-from ..transports import stdio_client, StdioParameters
-
-__all__ = [
-    "MCPClient",
-    "connect_to_server",
-    "stdio_client",
-    "StdioParameters",
-]
+__all__ = ["MCPClient", "connect_to_server", "stdio_client", "StdioParameters"]

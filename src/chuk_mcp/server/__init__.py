@@ -1,13 +1,11 @@
 # chuk_mcp/server/__init__.py
 """
-MCP Server - Implement MCP servers that clients can connect to.
+MCP Server — Rust-backed via chuk_mcp_rs.
 
-This module provides server-side functionality for implementing MCP servers
-that can handle client connections via various transports.
+``MCPServer`` (tool/resource registration, protocol handling, sessions, and the
+stdio serve loop via ``run_stdio()``) is implemented in the Rust core.
 """
 
-from .server import MCPServer
-from .protocol_handler import ProtocolHandler
-from .session.memory import SessionManager
+from .._rust import MCPServer
 
-__all__ = ["MCPServer", "ProtocolHandler", "SessionManager"]
+__all__ = ["MCPServer"]

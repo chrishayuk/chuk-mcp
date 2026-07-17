@@ -1,6 +1,6 @@
 # chuk_mcp/transports/stdio/__init__.py
-from .stdio_client import stdio_client
-from .transport import StdioTransport
-from .parameters import StdioParameters
+"""Stdio transport — Rust-backed via chuk_mcp_rs."""
 
-__all__ = ["StdioTransport", "stdio_client", "StdioParameters"]
+from ..._rust import StdioParameters, StdioServerParameters, stdio_client
+
+__all__ = ["StdioParameters", "StdioServerParameters", "stdio_client"]
