@@ -43,6 +43,16 @@ send_resources_read = _rs.send_resources_read
 send_prompts_list = _rs.send_prompts_list
 send_prompts_get = _rs.send_prompts_get
 send_ping = _rs.send_ping
+send_resources_subscribe = _rs.send_resources_subscribe
+send_resources_unsubscribe = _rs.send_resources_unsubscribe
+
+# Notifications
+send_progress_notification = _rs.send_progress_notification
+send_cancelled_notification = _rs.send_cancelled_notification
+send_roots_list_changed_notification = _rs.send_roots_list_changed_notification
+
+# Roots
+send_roots_list = _rs.send_roots_list
 
 # --- Result / data types produced by the Rust layer ----------------------
 Tool = _rs.Tool
@@ -92,6 +102,12 @@ __all__ = [
     "send_prompts_list",
     "send_prompts_get",
     "send_ping",
+    "send_resources_subscribe",
+    "send_resources_unsubscribe",
+    "send_progress_notification",
+    "send_cancelled_notification",
+    "send_roots_list_changed_notification",
+    "send_roots_list",
     "Tool",
     "ToolResult",
     "Resource",

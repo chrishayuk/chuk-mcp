@@ -19,8 +19,8 @@ async def main() -> None:
         ),
     )
 
-    async def greet(args):
-        return f"Hello, {args.get('name', 'world')}!"
+    async def greet(name="world"):
+        return f"Hello, {name}!"
 
     server.register_tool(
         "greet",
@@ -33,8 +33,8 @@ async def main() -> None:
         "Greet someone by name",
     )
 
-    async def add(args):
-        return {"sum": args["a"] + args["b"]}
+    async def add(a, b):
+        return {"sum": a + b}
 
     server.register_tool(
         "add",
