@@ -44,36 +44,40 @@ jobs:
 
     - name: Get previous tag
       id: get_previous_tag
+      env:
+        TAG: ${{ steps.get_version.outputs.tag }}
       run: |
-        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -A1 "${{ steps.get_version.outputs.tag }}" | tail -1)
-        if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "${{ steps.get_version.outputs.tag }}" ]; then
+        # -Fx: match the tag line exactly, so v0.9.1 doesn't also match v0.9.10
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -Fx -A1 "${TAG}" | tail -1)
+        if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "${TAG}" ]; then
           # If no previous tag, use first commit
           PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
         fi
         echo "previous_tag=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
 
     - name: Generate changelog
-      id: changelog
+      env:
+        TAG: ${{ steps.get_version.outputs.tag }}
+        PREVIOUS_TAG: ${{ steps.get_previous_tag.outputs.previous_tag }}
       run: |
-        echo "# Changes since ${PREVIOUS_TAG}" > CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        git log ${{ steps.get_previous_tag.outputs.previous_tag }}..${{ steps.get_version.outputs.tag }} \
-          --pretty=format:"- %s (%h)" \
-          --no-merges >> CHANGELOG.md
-
-        # Read the changelog into output
+        # tformat (not format) terminates the last line, so the file always
+        # ends with a newline.
         {
-          echo 'changelog<<EOF'
-          cat CHANGELOG.md
-          echo 'EOF'
-        } >> "$GITHUB_OUTPUT"
+          echo "# Changes since ${PREVIOUS_TAG}"
+          echo ""
+          git log "${PREVIOUS_TAG}..${TAG}" --pretty=tformat:"- %s (%h)" --no-merges
+        } > "${RUNNER_TEMP}/CHANGELOG.md"
+
+        cat "${RUNNER_TEMP}/CHANGELOG.md"
 
     - name: Create Release
       uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ steps.get_version.outputs.tag }}
         name: Release ${{ steps.get_version.outputs.tag }}
-        body: ${{ steps.changelog.outputs.changelog }}
+        # body_path avoids round-tripping the changelog through GITHUB_OUTPUT,
+        # where a commit subject of "EOF" would break the heredoc delimiter.
+        body_path: ${{ runner.temp }}/CHANGELOG.md
         draft: false
         prerelease: false
       env:
