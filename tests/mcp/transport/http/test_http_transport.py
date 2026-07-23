@@ -35,6 +35,7 @@ def mock_stream(*responses):
         return MagicMock(return_value=_stream_cm(responses[0]))
     return MagicMock(side_effect=[_stream_cm(r) for r in responses])
 
+
 ###############################################################################
 # Parameter Tests
 ###############################################################################

@@ -242,7 +242,10 @@ class StreamableHTTPTransport(Transport):
                                 error_response = {
                                     "jsonrpc": "2.0",
                                     "id": message_id,
-                                    "error": {"code": PARSE_ERROR, "message": "Parse error"},
+                                    "error": {
+                                        "code": PARSE_ERROR,
+                                        "message": "Parse error",
+                                    },
                                 }
                                 await self._route_response(error_response)
 
@@ -296,7 +299,10 @@ class StreamableHTTPTransport(Transport):
                                 error_response = {
                                     "jsonrpc": "2.0",
                                     "id": message_id,
-                                    "error": {"code": INTERNAL_ERROR, "message": str(e)},
+                                    "error": {
+                                        "code": INTERNAL_ERROR,
+                                        "message": str(e),
+                                    },
                                 }
                                 await self._route_response(error_response)
 

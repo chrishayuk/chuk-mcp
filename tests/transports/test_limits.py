@@ -301,9 +301,7 @@ async def test_stdio_reader_processes_complete_lines_before_aborting(caplog):
     message = {"jsonrpc": "2.0", "id": "x", "result": {}}
     chunk = json.dumps(message).encode() + b"\n" + b"A" * 2000
 
-    client = StdioClient(
-        StdioParameters(command="echo", args=[], max_buffer_size=1000)
-    )
+    client = StdioClient(StdioParameters(command="echo", args=[], max_buffer_size=1000))
     client.process = _FakeProcess(chunk)  # type: ignore[assignment]
 
     processed = []
