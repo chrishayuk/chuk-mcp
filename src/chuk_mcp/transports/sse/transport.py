@@ -20,7 +20,14 @@ import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from ..base import Transport
-from ..limits import check_buffer_size, resolve_max_buffer_size
+from chuk_mcp.protocol.types.errors import INTERNAL_ERROR
+
+from ..limits import (
+    MessageTooLargeError,
+    check_buffer_size,
+    decode_text,
+    resolve_max_buffer_size,
+)
 from .parameters import SSEParameters
 
 logger = logging.getLogger(__name__)
@@ -250,6 +257,10 @@ class SSETransport(Transport):
 
         except asyncio.CancelledError:
             logger.info("SSE connection cancelled")
+        except MessageTooLargeError as e:
+            # Fail closed: drop the connection rather than keep buffering a
+            # stream that is withholding its delimiters.
+            logger.error(f"SSE stream exceeded buffer limit, closing connection: {e}")
         except Exception as e:
             logger.error(f"SSE connection error: {e}")
             import traceback
@@ -263,26 +274,25 @@ class SSETransport(Transport):
     async def _process_sse_stream(self):
         """Process the SSE event stream."""
         current_event = None
-        buffer = ""
+        # Buffer bytes rather than text: the size cap counts bytes, and a
+        # multi-byte character split across chunks must not be decoded until
+        # its line is complete. SSE mandates UTF-8.
+        buffer = b""
 
         if self._sse_response is None:
             raise RuntimeError(
                 "_process_sse_stream called before SSE response was established"
             )
-        async for chunk in self._sse_response.aiter_text():
+        async for chunk in self._sse_response.aiter_bytes():
             if not chunk:
                 continue
 
             buffer += chunk
 
-            # A server that never sends a newline would otherwise grow this
-            # buffer without bound - abort instead of exhausting memory.
-            check_buffer_size(buffer, self.max_buffer_size, "SSE event")
-
             # Process complete lines
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                line = line.rstrip("\r")
+            while b"\n" in buffer:
+                raw_line, buffer = buffer.split(b"\n", 1)
+                line = decode_text(raw_line).rstrip("\r")
 
                 if not line:
                     # Empty line marks end of event
@@ -316,6 +326,12 @@ class SSETransport(Transport):
                             await self._handle_message_event(data)
                         else:
                             logger.debug(f"Unknown data: {data[:100]}...")
+
+            # A server that never sends a newline would otherwise grow this
+            # buffer without bound - abort instead of exhausting memory.
+            # Checked after the complete lines above are processed, so only
+            # the undelimited remainder counts toward the cap.
+            check_buffer_size(buffer, self.max_buffer_size, "SSE event")
 
     async def _handle_endpoint_event(self, data: str) -> None:
         """Handle the endpoint event from SSE."""
@@ -513,7 +529,7 @@ class SSETransport(Transport):
                                 "jsonrpc": "2.0",
                                 "id": message_id,
                                 "error": {
-                                    "code": -32603,
+                                    "code": INTERNAL_ERROR,
                                     "message": f"HTTP {response.status_code}: {response.text[:100]}",
                                 },
                             }
@@ -525,7 +541,7 @@ class SSETransport(Transport):
                     error_response = {
                         "jsonrpc": "2.0",
                         "id": message_id,
-                        "error": {"code": -32603, "message": str(e)},
+                        "error": {"code": INTERNAL_ERROR, "message": str(e)},
                     }
                     await self._route_incoming_message(error_response)
                 finally:

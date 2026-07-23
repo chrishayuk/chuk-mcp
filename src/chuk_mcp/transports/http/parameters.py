@@ -51,7 +51,7 @@ class StreamableHTTPParameters(TransportParameters, McpPydanticBase):
     """Maximum number of concurrent requests"""
 
     max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE
-    """Maximum bytes buffered for a single response body (0 disables the cap)"""
+    """Maximum bytes buffered for a single response body (>= 0; 0 disables the cap)"""
 
     model_config = {"extra": "allow"}
 

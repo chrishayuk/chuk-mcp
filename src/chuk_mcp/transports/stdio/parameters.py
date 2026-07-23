@@ -12,4 +12,4 @@ class StdioParameters(TransportParameters, McpPydanticBase):
     args: List[str] = []
     env: Optional[Dict[str, str]] = None
     max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE
-    """Maximum bytes buffered for a single undelimited message (0 disables the cap)"""
+    """Maximum bytes buffered for a single undelimited message (>= 0; 0 disables the cap)"""

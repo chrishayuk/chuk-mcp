@@ -19,11 +19,15 @@ from chuk_mcp.protocol import fast_json as json
 import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+from chuk_mcp.protocol.types.errors import INTERNAL_ERROR, PARSE_ERROR
+
 from ..base import Transport
 from ..limits import (
+    STREAM_READ_CHUNK_SIZE,
     MessageTooLargeError,
     aread_text_bounded,
     check_buffer_size,
+    decode_text,
     resolve_max_buffer_size,
 )
 from .parameters import StreamableHTTPParameters
@@ -209,7 +213,7 @@ class StreamableHTTPTransport(Transport):
                                 "jsonrpc": "2.0",
                                 "id": message_id,
                                 "error": {
-                                    "code": -32603,
+                                    "code": INTERNAL_ERROR,
                                     "message": f"HTTP {response.status_code}: {error_text}",
                                 },
                             }
@@ -238,7 +242,7 @@ class StreamableHTTPTransport(Transport):
                                 error_response = {
                                     "jsonrpc": "2.0",
                                     "id": message_id,
-                                    "error": {"code": -32700, "message": "Parse error"},
+                                    "error": {"code": PARSE_ERROR, "message": "Parse error"},
                                 }
                                 await self._route_response(error_response)
 
@@ -292,7 +296,7 @@ class StreamableHTTPTransport(Transport):
                                 error_response = {
                                     "jsonrpc": "2.0",
                                     "id": message_id,
-                                    "error": {"code": -32603, "message": str(e)},
+                                    "error": {"code": INTERNAL_ERROR, "message": str(e)},
                                 }
                                 await self._route_response(error_response)
 
@@ -301,7 +305,7 @@ class StreamableHTTPTransport(Transport):
                     error_response = {
                         "jsonrpc": "2.0",
                         "id": message_id,
-                        "error": {"code": -32603, "message": str(e)},
+                        "error": {"code": INTERNAL_ERROR, "message": str(e)},
                     }
                     await self._route_response(error_response)
 
@@ -329,7 +333,7 @@ class StreamableHTTPTransport(Transport):
                     error_response = {
                         "jsonrpc": "2.0",
                         "id": message_id,
-                        "error": {"code": -32603, "message": str(e)},
+                        "error": {"code": INTERNAL_ERROR, "message": str(e)},
                     }
                     await self._route_response(error_response)
 
@@ -356,7 +360,10 @@ class StreamableHTTPTransport(Transport):
     ) -> None:
         """Process SSE streaming response."""
         try:
-            buffer = ""
+            # Buffer bytes rather than text: the size cap counts bytes, and a
+            # multi-byte character split across chunks must not be decoded
+            # until its line is complete. SSE mandates UTF-8.
+            buffer = b""
             current_event = None
             event_data: list[str] = []
 
@@ -373,20 +380,16 @@ class StreamableHTTPTransport(Transport):
                 return
 
             # Process streaming response
-            async for chunk in response.aiter_text(chunk_size=1024):
+            async for chunk in response.aiter_bytes(chunk_size=STREAM_READ_CHUNK_SIZE):
                 if not chunk:
                     continue
 
                 buffer += chunk
 
-                # A server that never sends a newline would otherwise grow this
-                # buffer without bound - abort instead of exhausting memory.
-                check_buffer_size(buffer, self.max_buffer_size, "SSE event")
-
                 # Process complete lines
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.rstrip("\r")
+                while b"\n" in buffer:
+                    raw_line, buffer = buffer.split(b"\n", 1)
+                    line = decode_text(raw_line).rstrip("\r")
 
                     if not line:
                         # Empty line marks end of event
@@ -405,6 +408,12 @@ class StreamableHTTPTransport(Transport):
                         data = line[6:]  # Keep formatting
                         event_data.append(data)
 
+                # A server that never sends a newline would otherwise grow this
+                # buffer without bound - abort instead of exhausting memory.
+                # Checked after the complete lines above are processed, so only
+                # the undelimited remainder counts toward the cap.
+                check_buffer_size(buffer, self.max_buffer_size, "SSE event")
+
             # Process any remaining event
             if current_event and event_data:
                 await self._process_sse_event(current_event, event_data, message_id)
@@ -414,7 +423,7 @@ class StreamableHTTPTransport(Transport):
             error_response = {
                 "jsonrpc": "2.0",
                 "id": message_id,
-                "error": {"code": -32603, "message": str(e)},
+                "error": {"code": INTERNAL_ERROR, "message": str(e)},
             }
             await self._route_response(error_response)
 

@@ -21,7 +21,12 @@ except (ImportError, AttributeError):
 from chuk_mcp.protocol.features.batching import BatchProcessor, supports_batching
 from chuk_mcp.mcp_client.host.environment import get_default_environment
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage, parse_message
-from ..limits import check_buffer_size, resolve_max_buffer_size
+from ..limits import (
+    TEXT_ENCODING,
+    check_buffer_size,
+    decode_text,
+    resolve_max_buffer_size,
+)
 from .parameters import StdioParameters
 
 __all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
@@ -154,27 +159,25 @@ class StdioClient:
             if not (self.process and self.process.stdout):
                 raise RuntimeError("_stdout_reader called before process was started")
 
-            buffer = ""
+            # Buffer bytes rather than text: the size cap counts bytes, and a
+            # multi-byte character split across chunks must not be decoded
+            # until its line is complete.
+            buffer = b""
             logger.debug("stdout_reader started")
 
             async for chunk in self.process.stdout:
                 # Handle both bytes and string chunks
                 if isinstance(chunk, bytes):
-                    buffer += chunk.decode("utf-8")
-                else:
                     buffer += chunk
+                else:
+                    buffer += chunk.encode(TEXT_ENCODING)
 
                 # Split on newlines
-                lines = buffer.split("\n")
+                lines = buffer.split(b"\n")
                 buffer = lines[-1]
 
-                # A server process that never terminates a line would otherwise
-                # grow this buffer without bound - abort instead of exhausting
-                # memory.
-                check_buffer_size(buffer, self.max_buffer_size, "stdio message")
-
-                for line in lines[:-1]:
-                    line = line.strip()
+                for raw_line in lines[:-1]:
+                    line = decode_text(raw_line).strip()
                     if not line:
                         continue
                     try:
@@ -186,6 +189,12 @@ class StdioClient:
                     except Exception as exc:
                         logger.error("Error processing message: %s", exc)
                         logger.debug("Traceback:\n%s", traceback.format_exc())
+
+                # A server process that never terminates a line would otherwise
+                # grow this buffer without bound - abort instead of exhausting
+                # memory. Checked after the complete lines above are processed,
+                # so only the undelimited remainder counts toward the cap.
+                check_buffer_size(buffer, self.max_buffer_size, "stdio message")
 
             logger.debug("stdout_reader exiting")
         except Exception as e:
