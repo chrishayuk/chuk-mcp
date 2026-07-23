@@ -15,6 +15,21 @@ pytest.importorskip("httpx")
 pytest.importorskip("chuk_mcp.transports.http")
 
 
+def _stream_cm(response):
+    """Wrap a mock response in an async context manager, like client.stream()."""
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=response)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+def mock_stream(*responses):
+    """Build a client.stream(...) double yielding the given responses in order."""
+    if len(responses) == 1:
+        return MagicMock(return_value=_stream_cm(responses[0]))
+    return MagicMock(side_effect=[_stream_cm(r) for r in responses])
+
+
 def assert_is_jsonrpc_message(obj, expected_values=None):
     """Helper function to test if object is a JSONRPCMessage with expected values."""
     # Check structure
@@ -94,7 +109,7 @@ async def test_http_client_message_exchange():
         mock_response.text = (
             '{"jsonrpc":"2.0","id":"test-123","result":{"status":"ready"}}'
         )
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -121,7 +136,7 @@ async def test_http_client_message_exchange():
             )
 
             # Verify HTTP request was made
-            assert mock_client.post.called
+            assert mock_client.stream.called
 
 
 @pytest.mark.asyncio
@@ -166,7 +181,7 @@ async def test_http_client_with_auth():
             "result": {},
         }
         mock_response.text = '{"jsonrpc":"2.0","id":"auth-test","result":{}}'
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -179,8 +194,8 @@ async def test_http_client_with_auth():
             await asyncio.sleep(0.1)
 
             # Verify the post was called with auth headers
-            mock_client.post.assert_called()
-            call_args = mock_client.post.call_args
+            mock_client.stream.assert_called()
+            call_args = mock_client.stream.call_args
             headers = call_args[1]["headers"]
             assert "Bearer secret-token-123" in headers.get("Authorization", "")
 
@@ -206,7 +221,7 @@ async def test_http_client_streaming_enabled():
             'data: {"jsonrpc":"2.0","id":"stream-test","result":{"streaming":true}}\n'
             "\n"
         )
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -309,7 +324,7 @@ async def test_http_client_multiple_messages():
             }
             response.text = f'{{"jsonrpc":"2.0","id":"msg-{response_index}","result":{{"index":{response_index}}}}}'
 
-            mock_client.post = AsyncMock(return_value=response)
+            mock_client.stream = mock_stream(response)
             clients_created.append(mock_client)
             return mock_client
 
@@ -380,7 +395,7 @@ async def test_http_client_with_realistic_protocol_flow():
         }
         init_response.text = '{"jsonrpc":"2.0","id":"init-1","result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"prompts":{"listChanged":true}},"serverInfo":{"name":"streamable-http-test-server","version":"1.0.0"}}}'
 
-        mock_client.post = AsyncMock(return_value=init_response)
+        mock_client.stream = mock_stream(init_response)
         mock_client_class.return_value = mock_client
 
         async with http_client(params) as (read_stream, write_stream):
@@ -442,7 +457,7 @@ async def test_http_client_session_management():
             '{"jsonrpc":"2.0","id":"session-test","result":{"sessionEstablished":true}}'
         )
 
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.stream = mock_stream(mock_response)
         mock_client_class.return_value = mock_client
 
         async with http_client(params) as (read_stream, write_stream):
@@ -509,7 +524,7 @@ async def test_http_client_concurrent_requests():
             }
             response.text = f'{{"jsonrpc":"2.0","id":"concurrent-{call_index}","result":{{"call":{call_index}}}}}'
 
-            mock_client.post = AsyncMock(return_value=response)
+            mock_client.stream = mock_stream(response)
             concurrent_clients.append(mock_client)
             return mock_client
 
@@ -564,7 +579,7 @@ async def test_http_client_streaming_with_completion():
             "\n"
         )
 
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.stream = mock_stream(mock_response)
         mock_client_class.return_value = mock_client
 
         async with http_client(params) as (read_stream, write_stream):

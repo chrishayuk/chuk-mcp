@@ -20,6 +20,21 @@ from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage
 pytest.importorskip("httpx")
 pytest.importorskip("chuk_mcp.transports.http")
 
+
+def _stream_cm(response):
+    """Wrap a mock response in an async context manager, like client.stream()."""
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=response)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+def mock_stream(*responses):
+    """Build a client.stream(...) double yielding the given responses in order."""
+    if len(responses) == 1:
+        return MagicMock(return_value=_stream_cm(responses[0]))
+    return MagicMock(side_effect=[_stream_cm(r) for r in responses])
+
 ###############################################################################
 # Parameter Tests
 ###############################################################################
@@ -165,15 +180,15 @@ async def test_streamable_http_transport_env_bearer_token():
                     "result": {},
                 }
                 mock_response.text = '{"jsonrpc": "2.0", "id": "test", "result": {}}'
-                mock_client.post.return_value = mock_response
+                mock_client.stream = mock_stream(mock_response)
 
                 read_stream, write_stream = await transport.get_streams()
                 await write_stream.send(message)
                 await asyncio.sleep(0.1)
 
-                # Check that the post was called with the right headers
-                mock_client.post.assert_called()
-                call_args = mock_client.post.call_args
+                # Check that the request was made with the right headers
+                mock_client.stream.assert_called()
+                call_args = mock_client.stream.call_args
                 headers = call_args[1]["headers"]
                 # The bearer token from env should be in the headers
                 assert "Bearer env-token-456" in headers.get("Authorization", "")
@@ -259,7 +274,7 @@ async def test_streamable_http_message_flow():
             "result": {"status": "ok"},
         }
         mock_response.text = json.dumps(mock_response.json.return_value)
-        mock_client.post.return_value = mock_response
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -288,7 +303,7 @@ async def test_streamable_http_message_flow():
 
             # Verify the client was created and used
             assert mock_client_class.called
-            assert mock_client.post.called
+            assert mock_client.stream.called
 
 
 @pytest.mark.asyncio
@@ -314,7 +329,7 @@ async def test_streamable_http_sse_flow():
             "\n"
         )
 
-        mock_client.post.return_value = mock_response
+        mock_client.stream = mock_stream(mock_response)
         mock_client_class.return_value = mock_client
 
         transport = StreamableHTTPTransport(params)
@@ -362,7 +377,7 @@ async def test_streamable_http_connection_error():
             mock_client.__aexit__ = AsyncMock(return_value=False)
 
             # Mock connection error
-            mock_client.post.side_effect = Exception("Connection refused")
+            mock_client.stream = MagicMock(side_effect=Exception("Connection refused"))
             mock_client_class.return_value = mock_client
 
             test_message = JSONRPCMessage.model_validate(
@@ -392,7 +407,7 @@ async def test_streamable_http_http_error_status():
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
-        mock_client.post.return_value = mock_response
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -447,7 +462,7 @@ async def test_streamable_http_session_management():
             "result": {"status": "initialized"},
         }
         mock_response.text = json.dumps(mock_response.json.return_value)
-        mock_client.post.return_value = mock_response
+        mock_client.stream = mock_stream(mock_response)
 
         mock_client_class.return_value = mock_client
 
@@ -562,7 +577,7 @@ async def test_streamable_http_full_integration():
             ),
         ]
 
-        mock_client.post.side_effect = responses
+        mock_client.stream = mock_stream(*responses)
         mock_client_class.return_value = mock_client
 
         async with http_client(params) as (read_stream, write_stream):
@@ -601,4 +616,4 @@ async def test_streamable_http_full_integration():
             assert len(responses_received) >= 1
 
             # Verify HTTP requests were made
-            assert mock_client.post.call_count >= 1
+            assert mock_client.stream.call_count >= 1

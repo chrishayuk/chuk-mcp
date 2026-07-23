@@ -21,6 +21,7 @@ except (ImportError, AttributeError):
 from chuk_mcp.protocol.features.batching import BatchProcessor, supports_batching
 from chuk_mcp.mcp_client.host.environment import get_default_environment
 from chuk_mcp.protocol.messages.json_rpc_message import JSONRPCMessage, parse_message
+from ..limits import check_buffer_size, resolve_max_buffer_size
 from .parameters import StdioParameters
 
 __all__ = ["StdioClient", "stdio_client", "stdio_client_with_initialize"]
@@ -43,6 +44,7 @@ class StdioClient:
             raise ValueError("Server arguments must be a list or tuple.")
 
         self.server = server
+        self.max_buffer_size = resolve_max_buffer_size(server)
 
         # FIXED: Don't create streams in __init__ - defer to __aenter__
         # These will be initialized when entering async context
@@ -165,6 +167,11 @@ class StdioClient:
                 # Split on newlines
                 lines = buffer.split("\n")
                 buffer = lines[-1]
+
+                # A server process that never terminates a line would otherwise
+                # grow this buffer without bound - abort instead of exhausting
+                # memory.
+                check_buffer_size(buffer, self.max_buffer_size, "stdio message")
 
                 for line in lines[:-1]:
                     line = line.strip()

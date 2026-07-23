@@ -20,6 +20,12 @@ import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from ..base import Transport
+from ..limits import (
+    MessageTooLargeError,
+    aread_text_bounded,
+    check_buffer_size,
+    resolve_max_buffer_size,
+)
 from .parameters import StreamableHTTPParameters
 
 logger = logging.getLogger(__name__)
@@ -39,6 +45,7 @@ class StreamableHTTPTransport(Transport):
         self.timeout = parameters.timeout
         self.enable_streaming = parameters.enable_streaming
         self.max_concurrent_requests = parameters.max_concurrent_requests
+        self.max_buffer_size = resolve_max_buffer_size(parameters)
 
         # Session management
         self._session_id: Optional[str] = parameters.session_id
@@ -179,103 +186,124 @@ class StreamableHTTPTransport(Transport):
                 timeout=httpx.Timeout(self.timeout), follow_redirects=True
             ) as client:
                 try:
-                    response = await client.post(
-                        self.endpoint_url, json=message_dict, headers=headers
-                    )
+                    # Stream the response rather than using post(): httpx's
+                    # non-streaming path buffers the entire body into memory with
+                    # no size limit, which a hostile server could exploit. The
+                    # Accept header above allows text/event-stream, so the body
+                    # may legitimately be a stream of unknown length.
+                    async with client.stream(
+                        "POST", self.endpoint_url, json=message_dict, headers=headers
+                    ) as response:
+                        logger.debug(f"HTTP response status: {response.status_code}")
+                        logger.debug(f"HTTP response headers: {dict(response.headers)}")
 
-                    logger.debug(f"HTTP response status: {response.status_code}")
-                    logger.debug(f"HTTP response headers: {dict(response.headers)}")
-
-                    # Handle error status codes
-                    if response.status_code >= 400:
-                        error_text = response.text
-                        logger.debug(
-                            f"Server error for {message_id}: HTTP {response.status_code}: {error_text}"
-                        )
-
-                        # Send error response
-                        error_response = {
-                            "jsonrpc": "2.0",
-                            "id": message_id,
-                            "error": {
-                                "code": -32603,
-                                "message": f"HTTP {response.status_code}: {error_text}",
-                            },
-                        }
-                        await self._route_response(error_response)
-                        return
-
-                    # Extract session ID from response if provided
-                    if "mcp-session-id" in response.headers:
-                        self._session_id = response.headers["mcp-session-id"]
-                        logger.debug(f"Updated session ID: {self._session_id}")
-
-                    content_type = response.headers.get("content-type", "")
-
-                    if "application/json" in content_type:
-                        # Immediate JSON response
-                        try:
-                            response_data = response.json()
+                        # Handle error status codes
+                        if response.status_code >= 400:
+                            error_text = await self._read_text_bounded(response)
                             logger.debug(
-                                f"Got immediate JSON response for {message_id}"
+                                f"Server error for {message_id}: HTTP {response.status_code}: {error_text}"
                             )
-                            await self._route_response(response_data)
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse JSON response: {e}")
+
+                            # Send error response
                             error_response = {
                                 "jsonrpc": "2.0",
                                 "id": message_id,
-                                "error": {"code": -32700, "message": "Parse error"},
+                                "error": {
+                                    "code": -32603,
+                                    "message": f"HTTP {response.status_code}: {error_text}",
+                                },
                             }
                             await self._route_response(error_response)
+                            return
 
-                    elif "text/event-stream" in content_type:
-                        # SSE streaming response
-                        logger.debug(f"Processing SSE response for {message_id}")
-                        await self._process_sse_response(response, message_id)
-                    else:
-                        # Unexpected content type - try to parse as JSON anyway
-                        logger.debug(f"Unexpected content type: {content_type}")
-                        try:
-                            # Try to read the response body
-                            response_text = response.text
+                        # Extract session ID from response if provided
+                        if "mcp-session-id" in response.headers:
+                            self._session_id = response.headers["mcp-session-id"]
+                            logger.debug(f"Updated session ID: {self._session_id}")
 
-                            # Empty response (like 202 Accepted with no body)
-                            if not response_text:
-                                logger.debug(f"Empty response body for {message_id}")
-                                # For notifications, this is fine
-                                if not message_id:
-                                    return
-                                # For requests, send an empty success response
-                                success_response = {
+                        content_type = response.headers.get("content-type", "")
+
+                        if "application/json" in content_type:
+                            # Immediate JSON response
+                            try:
+                                response_data = json.loads(
+                                    await self._read_text_bounded(response)
+                                )
+                                logger.debug(
+                                    f"Got immediate JSON response for {message_id}"
+                                )
+                                await self._route_response(response_data)
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse JSON response: {e}")
+                                error_response = {
                                     "jsonrpc": "2.0",
                                     "id": message_id,
-                                    "result": {},
+                                    "error": {"code": -32700, "message": "Parse error"},
                                 }
-                                await self._route_response(success_response)
-                                return
+                                await self._route_response(error_response)
 
-                            # If it looks like SSE, process it as SSE
-                            if response_text.startswith(
-                                "event:"
-                            ) or response_text.startswith("data:"):
-                                await self._process_sse_text(response_text, message_id)
-                            else:
-                                # Try JSON parsing
-                                response_data = json.loads(response_text)
-                                await self._route_response(response_data)
-                        except Exception as e:
-                            logger.debug(f"Could not parse response: {e}")
-                            # For empty 202 responses, don't treat as error
-                            if response.status_code == 202:
-                                logger.debug(f"202 Accepted for {message_id}")
-                                return
-                            error_response = {
-                                "jsonrpc": "2.0",
-                                "id": message_id,
-                                "error": {"code": -32603, "message": str(e)},
-                            }
-                            await self._route_response(error_response)
+                        elif "text/event-stream" in content_type:
+                            # SSE streaming response
+                            logger.debug(f"Processing SSE response for {message_id}")
+                            await self._process_sse_response(response, message_id)
+                        else:
+                            # Unexpected content type - try to parse as JSON anyway
+                            logger.debug(f"Unexpected content type: {content_type}")
+                            try:
+                                # Try to read the response body
+                                response_text = await self._read_text_bounded(response)
+
+                                # Empty response (like 202 Accepted with no body)
+                                if not response_text:
+                                    logger.debug(
+                                        f"Empty response body for {message_id}"
+                                    )
+                                    # For notifications, this is fine
+                                    if not message_id:
+                                        return
+                                    # For requests, send an empty success response
+                                    success_response = {
+                                        "jsonrpc": "2.0",
+                                        "id": message_id,
+                                        "result": {},
+                                    }
+                                    await self._route_response(success_response)
+                                    return
+
+                                # If it looks like SSE, process it as SSE
+                                if response_text.startswith(
+                                    "event:"
+                                ) or response_text.startswith("data:"):
+                                    await self._process_sse_text(
+                                        response_text, message_id
+                                    )
+                                else:
+                                    # Try JSON parsing
+                                    response_data = json.loads(response_text)
+                                    await self._route_response(response_data)
+                            except MessageTooLargeError:
+                                raise
+                            except Exception as e:
+                                logger.debug(f"Could not parse response: {e}")
+                                # For empty 202 responses, don't treat as error
+                                if response.status_code == 202:
+                                    logger.debug(f"202 Accepted for {message_id}")
+                                    return
+                                error_response = {
+                                    "jsonrpc": "2.0",
+                                    "id": message_id,
+                                    "error": {"code": -32603, "message": str(e)},
+                                }
+                                await self._route_response(error_response)
+
+                except MessageTooLargeError as e:
+                    logger.error(f"Oversized response for {message_id}: {e}")
+                    error_response = {
+                        "jsonrpc": "2.0",
+                        "id": message_id,
+                        "error": {"code": -32603, "message": str(e)},
+                    }
+                    await self._route_response(error_response)
 
                 except asyncio.TimeoutError:
                     logger.error(f"Timeout for {message_id}")
@@ -311,6 +339,18 @@ class StreamableHTTPTransport(Transport):
 
             traceback.print_exc()
 
+    async def _read_text_bounded(self, response: httpx.Response) -> str:
+        """Read a response body as text, enforcing the configured size cap.
+
+        Bodies that are already buffered (non-streaming responses) are returned
+        directly; a body still on the wire is consumed incrementally so an
+        oversized one is rejected rather than accumulated.
+        """
+        try:
+            return response.text
+        except httpx.ResponseNotRead:
+            return await aread_text_bounded(response, self.max_buffer_size)
+
     async def _process_sse_response(
         self, response: httpx.Response, message_id: str
     ) -> None:
@@ -320,10 +360,15 @@ class StreamableHTTPTransport(Transport):
             current_event = None
             event_data: list[str] = []
 
-            # Read the full response if not streaming
-            if hasattr(response, "text"):
-                # Response is already fully loaded
+            # If the body is already buffered, parse it directly. A streaming
+            # response raises ResponseNotRead here and falls through to the
+            # incremental, size-capped loop below.
+            try:
                 text = response.text
+            except httpx.ResponseNotRead:
+                text = None
+
+            if text is not None:
                 await self._process_sse_text(text, message_id)
                 return
 
@@ -333,6 +378,10 @@ class StreamableHTTPTransport(Transport):
                     continue
 
                 buffer += chunk
+
+                # A server that never sends a newline would otherwise grow this
+                # buffer without bound - abort instead of exhausting memory.
+                check_buffer_size(buffer, self.max_buffer_size, "SSE event")
 
                 # Process complete lines
                 while "\n" in buffer:

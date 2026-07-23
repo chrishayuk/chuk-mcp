@@ -7,6 +7,7 @@ try:
 except ImportError:
     from chuk_mcp.protocol.mcp_pydantic_base import ValidationError
 
+from chuk_mcp.transports.limits import DEFAULT_MAX_BUFFER_SIZE
 from chuk_mcp.transports.stdio.parameters import StdioParameters
 
 
@@ -78,10 +79,11 @@ def test_stdio_server_parameters_model_dump():
         "command": "python",
         "args": ["-m", "mcp.server"],
         "env": {"TEST_ENV": "value"},
+        "max_buffer_size": DEFAULT_MAX_BUFFER_SIZE,
     }
 
     # Check model_dump with exclude
-    dump = params.model_dump(exclude={"env"})
+    dump = params.model_dump(exclude={"env", "max_buffer_size"})
     assert dump == {"command": "python", "args": ["-m", "mcp.server"]}
 
     # Check model_dump_json

@@ -20,6 +20,7 @@ import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from ..base import Transport
+from ..limits import check_buffer_size, resolve_max_buffer_size
 from .parameters import SSEParameters
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class SSETransport(Transport):
         self.headers = parameters.headers or {}
         self.timeout = parameters.timeout
         self.bearer_token = parameters.bearer_token
+        self.max_buffer_size = resolve_max_buffer_size(parameters)
 
         # HTTP clients
         self._stream_client: Optional[httpx.AsyncClient] = None
@@ -272,6 +274,10 @@ class SSETransport(Transport):
                 continue
 
             buffer += chunk
+
+            # A server that never sends a newline would otherwise grow this
+            # buffer without bound - abort instead of exhausting memory.
+            check_buffer_size(buffer, self.max_buffer_size, "SSE event")
 
             # Process complete lines
             while "\n" in buffer:

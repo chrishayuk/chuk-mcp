@@ -8,6 +8,7 @@ This implements the new MCP specification (2025-03-26) that replaces SSE transpo
 from typing import Optional, Dict
 from pydantic import field_validator, model_validator
 from ..base import TransportParameters
+from ..limits import DEFAULT_MAX_BUFFER_SIZE
 from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase
 
 
@@ -48,6 +49,9 @@ class StreamableHTTPParameters(TransportParameters, McpPydanticBase):
 
     max_concurrent_requests: int = 10
     """Maximum number of concurrent requests"""
+
+    max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE
+    """Maximum bytes buffered for a single response body (0 disables the cap)"""
 
     model_config = {"extra": "allow"}
 

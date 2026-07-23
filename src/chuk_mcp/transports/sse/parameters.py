@@ -2,6 +2,7 @@
 from typing import Optional, Dict
 from pydantic import field_validator, model_validator
 from ..base import TransportParameters
+from ..limits import DEFAULT_MAX_BUFFER_SIZE
 from chuk_mcp.protocol.mcp_pydantic_base import McpPydanticBase
 
 
@@ -45,6 +46,9 @@ class SSEParameters(TransportParameters, McpPydanticBase):
 
     keep_alive_interval: float = 30.0
     """Keep-alive ping interval in seconds"""
+
+    max_buffer_size: int = DEFAULT_MAX_BUFFER_SIZE
+    """Maximum bytes buffered for a single undelimited message (0 disables the cap)"""
 
     model_config = {"extra": "allow"}
 
