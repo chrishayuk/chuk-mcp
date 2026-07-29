@@ -10,7 +10,7 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `1dc20e0` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `4b3c06f` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `e8ea630` |
 
 **Nothing is merged to `main` in either repo yet.** `chuk-mcp-rs/main` is still
 at `f4c2fca`. Every phase below implies a `chuk-mcp-rs` release and wheel before
@@ -29,7 +29,7 @@ at `f4c2fca`. Every phase below implies a `chuk-mcp-rs` release and wheel before
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Core crate: 106 tests, **97.38%** line coverage, every file ≥90% per file.
+Core crate: 116 tests, **97.46%** line coverage, every file ≥90% per file.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
 
@@ -67,7 +67,7 @@ Two things worth remembering:
   would classify a *timeout* as legacy and cache it, pinning an endpoint to the
   wrong era after one network hiccup. `EraCache::record` refuses to store it.
 
-## Phase 2 — in progress (`chuk-mcp-rs` `4b3c06f`)
+## Phase 2 — in progress (`chuk-mcp-rs` `4b3c06f`, `e8ea630`)
 
 Done:
 
@@ -80,6 +80,16 @@ Done:
 - `ServerProfile::from_discover` corrected to the real `DiscoverResult` schema
   (see Corrections below).
 - `server/discover` and `subscriptions/listen` method constants.
+- **Status-aware HTTP era detection.** `classify_http_response` takes the status
+  code, because the status changes what the body means: `-32601` on a `400` says
+  nothing about era, but on a `404` it means "modern server, no such method",
+  while a bare `404` means a legacy server with no modern endpoint. Auth and
+  `5xx` statuses are `Undetermined` rather than Legacy, so a sick server is not
+  mistaken for an old one and cached as such.
+- **Version renegotiation after `-32022`.** `renegotiate` picks a mutually
+  supported version from the server's `data.supported`, preferring our own order
+  over the server's. Only an empty intersection is fatal.
+- `McpError::data()`, so protocol errors' recoverable detail is reachable.
 
 Remaining before any modern request can go on the wire:
 
@@ -93,9 +103,9 @@ Remaining before any modern request can go on the wire:
 - [ ] New-request-ID retry on a broken response stream. `Last-Event-ID`
       resumability is gone; a dropped stream loses the request and it **MUST**
       be re-issued under a new id.
-- [ ] Status-aware HTTP detection (see Known gaps).
 
-Gate: no `Mcp-Session-Id` on any modern request; header/body mismatch rejected.
+Gate: no `Mcp-Session-Id` on any modern request; header/body mismatch rejected;
+no server response of any kind causes a hard failure against a legacy peer.
 
 ## Phases 3–5 — not started
 
@@ -159,12 +169,6 @@ Worth keeping because each was wrong in a way that would have failed silently.
 
 ## Known gaps and open questions
 
-- [ ] **HTTP era detection is 400-only.** `classify_http_error_body` is
-      documented and tested for `400`, but a modern server answers an unknown
-      method with `404` + `-32601`, and the HTTP+SSE fallback path also keys off
-      `404`/`405`. `-32601` is currently classified as legacy, which is correct
-      on a `400` and wrong on a `404`. Needs a status-aware entry point before
-      the transport is wired.
 - [ ] **Legacy error codes must not be emitted under the modern era.** The spec
       says new implementations **SHOULD NOT** use `-32000`..`-32019` at all, and
       that receivers **MUST NOT** assume meaning for them apart from `-32002`.
@@ -183,9 +187,9 @@ Worth keeping because each was wrong in a way that would have failed silently.
 
 ### Housekeeping
 
-- [ ] **`chuk-mcp-rs` has moved to `IBM/chuk-mcp-rs`.** Pushes still redirect
-      from `chrishayuk/chuk-mcp-rs`, but the remote should be updated before
-      that stops working.
+- [x] **Remotes repointed at the `IBM` org.** Both repos moved
+      (`IBM/chuk-mcp`, `IBM/chuk-mcp-rs`); pushes were redirecting from
+      `chrishayuk/`. Both `origin` URLs updated and verified.
 
 ---
 
