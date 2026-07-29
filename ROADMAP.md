@@ -1,6 +1,6 @@
 # Roadmap — MCP 2026-07-28 support
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 Tracks the migration to MCP revision `2026-07-28` across the two repositories
 that make up this package. Design decisions and the compatibility contract live
@@ -10,11 +10,12 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `1dc20e0` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `e8ea630` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `06b8543` |
 
-**Nothing is merged to `main` in either repo yet.** `chuk-mcp-rs/main` is still
-at `f4c2fca`. Every phase below implies a `chuk-mcp-rs` release and wheel before
-`chuk-mcp` can pin it (see §6 of the design note).
+The migration branches are not yet merged. `chuk-mcp-rs/main` is at `1df1510`,
+which now carries the PyO3 security upgrade. Every phase below implies a
+`chuk-mcp-rs` release and wheel before `chuk-mcp` can pin it (see §6 of the
+design note).
 
 ---
 
@@ -24,12 +25,12 @@ at `f4c2fca`. Every phase below implies a `chuk-mcp-rs` release and wheel before
 | --- | --- | --- |
 | 0 | Boundary decisions + compatibility contract | **Done** |
 | 1 | Versioning, `ProtocolEra`, error codes, detection, era cache | **Done** |
-| 2 | Modern driver, envelope builder, stateless path | **In progress** |
+| 2 | Modern driver, envelope builder, stateless path | **Done** |
 | 3 | Typed results, `resultType`, upward normalisation, `.value` | Not started |
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Core crate: 116 tests, **97.46%** line coverage, every file ≥90% per file.
+Core crate: 199 tests, **97.59%** line coverage, every file ≥90% per file.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
 
@@ -67,7 +68,7 @@ Two things worth remembering:
   would classify a *timeout* as legacy and cache it, pinning an endpoint to the
   wrong era after one network hiccup. `EraCache::record` refuses to store it.
 
-## Phase 2 — in progress (`chuk-mcp-rs` `4b3c06f`, `e8ea630`)
+## Phase 2 — done (`chuk-mcp-rs` `4b3c06f`, `e8ea630`, `4bed6ce`, `06b8543`)
 
 Done:
 
@@ -91,21 +92,43 @@ Done:
   over the server's. Only an empty intersection is fatal.
 - `McpError::data()`, so protocol errors' recoverable detail is reachable.
 
-Remaining before any modern request can go on the wire:
+- **`x-mcp-header` promotion** (`protocol::header_params`). Names must be RFC
+  9110 `tchar` tokens, which excludes CR/LF by construction so a name cannot
+  inject a header break. `number` is refused because its text form is not
+  canonical and client and server could disagree on `1.0` versus `1`.
+  Annotations reached through `items`, a composition or conditional keyword,
+  `$ref` or `$defs` are *rejected rather than ignored* — silently skipping one
+  would leave the client sending no header while the server expects one. A
+  violation invalidates only that tool, so the caller drops it from
+  `tools/list` rather than failing the listing.
+- **Stateless transport** (`transports::http_modern`), alongside the frozen
+  legacy one. No session id is ever sent, and one supplied in configuration is
+  dropped rather than forwarded. `_meta` and mirrored headers are injected by
+  the transport, so no caller can omit them. A server's own JSON-RPC error is
+  routed through intact rather than flattened into "HTTP 400", so a `-32022`
+  still carries the `supported` list `renegotiate` needs.
+- **New-request-ID retry.** A dead response stream loses its request and it must
+  be re-issued under a *new* id — but the caller is waiting on the id it wrote,
+  so the transport keeps the mapping and rewrites the response back. Bounded,
+  with the exhausted case reported rather than hung.
 
-- [ ] `x-mcp-header` parameter promotion — `Mcp-Param-{Name}` extraction, the
-      validation constraints (non-empty, tchar syntax, case-insensitive
-      uniqueness, primitive types excluding `number`, statically reachable via
-      `properties` chains only), and the rule that a client **MUST** exclude an
-      invalid tool definition from `tools/list` rather than failing the whole list.
-- [ ] Transport wiring for the stateless path — no `Mcp-Session-Id`, `Accept`
-      listing both `application/json` and `text/event-stream`, per-request POST.
-- [ ] New-request-ID retry on a broken response stream. `Last-Event-ID`
-      resumability is gone; a dropped stream loses the request and it **MUST**
-      be re-issued under a new id.
+Gate met: no `Mcp-Session-Id` on any modern request; header and body agree by
+construction; and no server response of any kind causes a hard failure against a
+legacy peer. Twelve e2e tests drive a raw-socket server that records what it
+actually received, including a stream deliberately closed without a response.
 
-Gate: no `Mcp-Session-Id` on any modern request; header/body mismatch rejected;
-no server response of any kind causes a hard failure against a legacy peer.
+## Next: the dual-era switch
+
+Both drivers now exist and detection works, but nothing yet *chooses* between
+them at run time. That seam is deliberately not a pre-flight selector: on HTTP
+the first real request **is** the probe, so era cannot be known before sending
+something. The switch therefore belongs inside a dual-era transport that starts
+modern and falls back on the first response, feeding
+[`classify_http_response`] and the era cache. stdio is the easier half — it can
+probe with `server/discover` before anything else.
+
+Until that lands, callers pick a transport explicitly, which is why `EraMode`
+pinning already exists.
 
 ## Phases 3–5 — not started
 
@@ -114,14 +137,12 @@ permanently-red job that goes green through phases 2–4.
 
 ---
 
-## Side work — complete, awaiting merge
+## Side work
 
-Both are independent of the migration and mergeable on their own.
-
-| Branch | Head | What |
+| Branch | Head | State |
 | --- | --- | --- |
-| `deps/pyo3-0.29` | `ea0192f` | PyO3 `0.23 → 0.29`, clears all 6 Dependabot alerts |
-| `ci/per-file-coverage-gate` | `75d770c` | Enforces the 90% floor per file, not in aggregate |
+| `deps/pyo3-0.29` | `ea0192f` | **Merged** to `main` as `1df1510`; all 6 alerts now report `fixed` |
+| `ci/per-file-coverage-gate` | `75d770c` | Complete, awaiting merge |
 
 **`deps/pyo3-0.29`** closes GHSA-36hh-v3qg-5jq4 (high), GHSA-chgr-c6px-7xpp
 (moderate) and GHSA-pph8-gcv7-4qj5 (low) — six alerts that were three
