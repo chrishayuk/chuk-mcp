@@ -54,13 +54,13 @@ exposed through Python.**
 
 | Component | Notes |
 |---|---|
-| Version registry | `SUPPORTED_VERSIONS` gains `2026-07-28` |
-| `ProtocolEra` + configured mode | `auto` (default) / `legacy` / `2026-07-28` |
-| Era detection state machine | Two *separate* paths — see §7 |
-| Era cache | Keyed `(endpoint, credential context)`, TTL'd, invalidated on `-32022` |
-| Envelope builder | `_meta` + `Mcp-Method`/`Mcp-Name`/`MCP-Protocol-Version` from **one** function |
-| Modern driver | Stateless; new request ID on stream failure |
-| Legacy driver | `2025-11-25` … `2024-11-05`; `Mcp-Session-Id`, `initialize`, `ping` |
+| Version registry | `protocol::versioning` — `SUPPORTED_VERSIONS` gains `2026-07-28`, `LEGACY_VERSIONS` split out |
+| `ProtocolEra` + configured mode | `protocol::era` — `auto` (default) / `legacy` / `2026-07-28` |
+| Era detection state machine | `protocol::era::detect` — two *separate* paths, see §7 |
+| Era cache | `protocol::era::cache` — keyed `(endpoint, credential context)`, TTL'd |
+| Envelope builder | `protocol::envelope` + `protocol::meta` — `_meta` and every mirrored header from **one** function; `protocol::header_params` for `x-mcp-header` |
+| Modern driver | `transports::http_modern`; `transports::http_dual` selects between eras |
+| Legacy driver | `transports::http` — frozen; `Mcp-Session-Id`, `initialize`, `ping` |
 | ResultNormaliser | Upward-only (D4) |
 | MRTR mechanics | Including the legacy pushed-`elicitation/create` bridge |
 | Catalogue cache | `ttlMs` / `cacheScope`, keyed by principal |
@@ -208,19 +208,43 @@ The two transports do **not** share an algorithm. The spec is explicit that
 **stdio** — probe with `server/discover`. Any error that is not a recognised
 modern error means legacy; fall back to `initialize`.
 
-**Streamable HTTP** — never probe. Issue the first real request in modern form.
-On `400`, parse the body: a recognised modern JSON-RPC error identifies a
-modern server; anything else means legacy, and the call is retried under the
-legacy driver. The first real call *is* the probe, so HTTP never pays a round
-trip for detection.
+**Streamable HTTP** — never probe. Issue the first real request in modern form
+and classify the response. The **status code changes what the body means**, so
+classifying on the body alone gets legacy servers wrong:
+
+| Response | Verdict |
+| --- | --- |
+| `2xx` | modern |
+| `400` carrying a recognised modern error | modern |
+| `400` otherwise | legacy — re-send under the legacy driver |
+| `404`/`405` with a JSON-RPC error body | modern (unknown method on a modern endpoint) |
+| `404`/`405` with a bare or non-JSON body | legacy — nothing modern is hosted here |
+| anything else (`401`, `429`, `5xx`) | **undetermined** |
+
+`-32601` shows why the status matters: on a `400` it says nothing about era, but
+on a `404` it is a modern server reporting an unknown method — the same body,
+the opposite conclusion. The first real call *is* the probe, so HTTP never pays
+a round trip for detection.
+
+Two rules keep detection honest in both directions:
+
+- An **undetermined** verdict is never cached and never read as legacy. A server
+  that is unhealthy or wants credentials has not said which protocol it speaks.
+- An *answered* request only proves a **modern** peer when the answer is a
+  success or a recognised modern error. Treating any answered request as proof
+  would pin an endpoint on the strength of a `401`.
+
+Re-sending after a legacy verdict is safe rather than a double-execution risk:
+every response that yields it means the request was rejected *before* the server
+processed it. The re-send carries the caller's original params, not the modern
+envelope, so a legacy server never sees `_meta` it would reject.
 
 Recognised modern errors: `-32022` `UnsupportedProtocolVersion`, `-32020`
 `HeaderMismatch`, `-32021` `MissingRequiredClientCapability`.
 
 Era is a property of `(endpoint, credential context)` — not of the client and
-not of the transport. Cached with a TTL, invalidated on any `-32022` or on a
-`400` whose body parses as a modern error, because a server can be upgraded
-underneath a running client.
+not of the transport. Cached with a TTL and invalidated on any `-32022`, because
+a server can be upgraded underneath a running client.
 
 ---
 

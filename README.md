@@ -627,17 +627,30 @@ See [`examples/README.md`](examples/README.md) for detailed documentation of all
 * Newer features are **capability-gated** and degrade gracefully with older servers.
 * Optional typing/validation uses **Pydantic if available**, otherwise a lightweight fallback.
 
-### 📋 Supported Protocol Versions (as of v0.1.x)
+### 📋 Supported Protocol Versions (as of v0.10.x)
 
 | Version | Status | Support Policy |
 |---------|--------|----------------|
-| `2025-06-18` | Latest | Primary support, all features |
+| `2026-07-28` | In progress | Not yet in a release — see [ROADMAP.md](ROADMAP.md) |
+| `2025-06-18` | Latest shipped | Primary support, all features |
 | `2025-03-26` | Stable | Full compatibility, maintained |
 | `2024-11-05` | Legacy | Backward compatibility, deprecation TBD |
 
 **Tested Platforms:** Linux, macOS, Windows (Python 3.11+)
 
-> **Support Policy:** Latest and Stable versions receive full support. Legacy version support will be maintained until 2026-Q2, after which it may be deprecated. See [changelog](CHANGELOG.md) for migration guidance.
+> **Support Policy:** Latest and Stable versions receive full support. Legacy
+> versions are retained for at least the twelve-month window the MCP
+> [feature lifecycle policy](https://modelcontextprotocol.io/community/feature-lifecycle)
+> defines. See [changelog](CHANGELOG.md) for migration guidance.
+
+> **`2026-07-28`** is a breaking revision of MCP — stateless requests, no
+> `initialize` handshake, no protocol sessions, multi round-trip results. Support
+> is being built in the Rust core (`chuk-mcp-rs`) and is **not** in a published
+> release yet; nothing in this README describes it. When it lands, legacy servers
+> keep working with no configuration change: era is detected per endpoint and the
+> default is `auto`. [ROADMAP.md](ROADMAP.md) tracks progress and
+> [docs/design/mcp-2026-migration.md](docs/design/mcp-2026-migration.md) records
+> the compatibility contract.
 
 ### 📊 Client Feature Support Matrix
 
