@@ -10,7 +10,7 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `1dc20e0` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `06b8543` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `36f9010` |
 
 The migration branches are not yet merged. `chuk-mcp-rs/main` is at `1df1510`,
 which now carries the PyO3 security upgrade. Every phase below implies a
@@ -30,7 +30,7 @@ design note).
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Core crate: 199 tests, **97.59%** line coverage, every file ≥90% per file.
+Core crate: 212 tests, **97.62%** line coverage, every file ≥90% per file.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
 
@@ -68,7 +68,7 @@ Two things worth remembering:
   would classify a *timeout* as legacy and cache it, pinning an endpoint to the
   wrong era after one network hiccup. `EraCache::record` refuses to store it.
 
-## Phase 2 — done (`chuk-mcp-rs` `4b3c06f`, `e8ea630`, `4bed6ce`, `06b8543`)
+## Phase 2 — done (`chuk-mcp-rs` `4b3c06f`, `e8ea630`, `4bed6ce`, `06b8543`, `36f9010`)
 
 Done:
 
@@ -117,18 +117,21 @@ construction; and no server response of any kind causes a hard failure against a
 legacy peer. Twelve e2e tests drive a raw-socket server that records what it
 actually received, including a stream deliberately closed without a response.
 
-## Next: the dual-era switch
+### The dual-era switch (`transports::http_dual`)
 
-Both drivers now exist and detection works, but nothing yet *chooses* between
-them at run time. That seam is deliberately not a pre-flight selector: on HTTP
-the first real request **is** the probe, so era cannot be known before sending
-something. The switch therefore belongs inside a dual-era transport that starts
-modern and falls back on the first response, feeding
-[`classify_http_response`] and the era cache. stdio is the easier half — it can
-probe with `server/discover` before anything else.
+Not a pre-flight selector: on HTTP the first real call **is** the probe, so the
+transport starts modern with the era unknown and classifies the first response.
+A legacy verdict re-sends the request — safe, because every response yielding
+that verdict means the server rejected it before processing. The re-send carries
+the caller's *original* params, so a legacy server never sees modern `_meta`.
 
-Until that lands, callers pick a transport explicitly, which is why `EraMode`
-pinning already exists.
+Caching Modern on any answered request would have pinned an endpoint on the
+strength of a `401` or a `502`, so `Dispatched` distinguishes a positively
+modern answer from one that proves nothing. An unhealthy server is mistaken for
+neither era.
+
+Still to do for stdio: the equivalent switch there is easier, since
+`server/discover` can be probed before anything else.
 
 ## Phases 3–5 — not started
 
