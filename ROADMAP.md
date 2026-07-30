@@ -69,7 +69,7 @@ Two things worth remembering:
   would classify a *timeout* as legacy and cache it, pinning an endpoint to the
   wrong era after one network hiccup. `EraCache::record` refuses to store it.
 
-## Phase 2 — done (`chuk-mcp-rs` `4b3c06f`, `e8ea630`, `4bed6ce`, `06b8543`, `36f9010`)
+## Phase 2 — done (`chuk-mcp-rs` `4b3c06f` … `6944157`)
 
 Done:
 
@@ -131,6 +131,15 @@ strength of a `401` or a `502`, so `Dispatched` distinguishes a positively
 modern answer from one that proves nothing. An unhealthy server is mistaken for
 neither era.
 
+### Bounded buffers on the new transports
+
+Both new transports take `TransportLimits` via `start_with_limits`, matching the
+legacy transport. The SSE loop checks the bound per chunk and ends the stream
+with `LOCAL_MALFORMED_RESPONSE`; non-streaming reads go through
+`read_body_bounded` rather than an unbounded `response.text()`.
+
+This came out of a merge, not a review — see Corrections.
+
 ### The dual-era switch on stdio (`transports::stdio_dual`)
 
 The easier half: stdio has a legitimate pre-flight, so `server/discover` is
@@ -152,6 +161,29 @@ confusing handshake failure instead of the real problem.
 
 See §8 of the design note for scope and gates. Conformance CI is wired as a
 permanently-red job that goes green through phases 2–4.
+
+---
+
+## What's next, in order
+
+1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** This is the real blocker,
+   not a formality: nothing in the 2026 work has been exercised from Python. The
+   only Python testing so far proved the PyO3 upgrade did not regress the
+   *existing* suite. Until a wheel exists and `chuk-mcp` pins it, all of this is
+   Rust-side theory as far as downstream consumers are concerned.
+2. **Phase 3 — typed results.** `resultType` (absent → `"complete"`),
+   `structuredContent`, `_meta`, `server_identity`, and `.value` for the 0.9-era
+   shape. D4 says normalise upward so era never reaches a public type; until that
+   lands, every downstream caller either branches on era or waits, and era-aware
+   code written now has to be unpicked later.
+3. **Wire the official conformance suite.** Everything so far is validated against
+   *our reading* of the spec and test servers we wrote. That reading has already
+   been wrong once — `from_discover` used guessed field names — and a silent
+   mismatch in the envelope, the header rules or detection would look exactly
+   like passing tests. This is the only independent check available.
+
+If de-risking matters more than momentum, swap 2 and 3: conformance first would
+catch a systematic misreading before more code is built on it.
 
 ---
 
@@ -182,6 +214,22 @@ as long as the rest carried the average. Enabling real enforcement exposed
 
 Worth keeping because each was wrong in a way that would have failed silently.
 
+- **An unbounded SSE buffer, found by a merge rather than a review.** Merging
+  `main` produced a *semantic* conflict git could not see: `send_via_http` had
+  gained a `max_buffer_size`, and the reason it had applied equally to the new
+  code — the modern transport's SSE loop accumulated into an unbounded `String`,
+  so a peer that simply withholds the event boundary could grow it until the
+  process died. The text merged cleanly and said nothing. Worth remembering that
+  a clean merge of a security fix does not mean the fix reached new code written
+  in parallel.
+- **A `401` was proof of nothing, and was being read as proof of everything.**
+  The first draft of the dual-era HTTP switch cached `Modern` on any answered
+  request, so an auth failure or a `502` would pin an endpoint on the strength of
+  an error that says nothing about the protocol. Caught by writing the test, not
+  by reading the code.
+- **Coverage can fall silently.** After the buffer work `http_modern.rs` dropped
+  to 91.86% and still passed, because the aggregate gate was what `main` had at
+  the time. The per-file gate is now merged, which is the point of it.
 - **`server/discover` result schema.** Phase 1 built `from_discover` on guessed
   field names. The real `DiscoverResult` uses **`supportedVersions`**, not
   `protocolVersions`, and puts identity in
@@ -242,7 +290,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
-# Per-file coverage (script lives on ci/per-file-coverage-gate)
+# Per-file coverage (enforced in CI; script on main)
 cargo llvm-cov --package chuk-mcp --ignore-filename-regex 'bin/' \
   --json --output-path coverage.json
 python3 scripts/coverage-gate.py coverage.json --min-lines 90
