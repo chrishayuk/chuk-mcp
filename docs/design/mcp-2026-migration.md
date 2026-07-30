@@ -14,7 +14,10 @@ across two repositories.
 
 **D1 — Legacy target is every version `chuk-mcp` supports today**: `2025-06-18`,
 `2025-03-26`, `2024-11-05`. All three keep working unchanged and `2026-07-28` is
-added alongside them. `2025-11-25` is deliberately **not** added — see §4.
+added alongside them. `2025-11-25` is **negotiable but not fully implemented** —
+it is offered so a `2025-11-25`-capable server negotiates to it instead of being
+downgraded, but it is driven by the legacy lifecycle and its net-new features are
+not consumed — see §4.
 
 **D2 — The downstream compatibility contract in §5 is binding** for the whole
 `1.x` line of `chuk-mcp`.
@@ -100,26 +103,32 @@ Phase 1 makes this:
 
 ```rust
 pub const SUPPORTED_VERSIONS: &[&str] =
-    &["2026-07-28", "2025-06-18", "2025-03-26", "2024-11-05"];
+    &["2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 ```
 
-`2025-11-25` is **not** added (D1). Adding it would have meant a full revision
-of new feature work inside the driver we intend to freeze — icons metadata,
-reworked `ElicitResult`/`EnumSchema`, URL-mode elicitation, OIDC discovery,
-incremental scope consent, RFC 9728 alignment, JSON Schema 2020-12 — for a
-revision with a nine-month active life that is itself now legacy.
+`2025-11-25` is **negotiable but not fully implemented**. It is offered by the
+legacy `initialize` handshake (`LEGACY_VERSIONS`) and driven by the legacy
+stateful lifecycle. We do **not** implement its net-new additive features —
+icons metadata, reworked `ElicitResult`/`EnumSchema`, URL-mode elicitation, OIDC
+discovery, incremental scope consent, RFC 9728 alignment, JSON Schema 2020-12 —
+which stay out of the driver we intend to freeze.
 
-The practical cost is small. A `2025-11-25` server negotiates down through the
-legacy `initialize` handshake to `2025-06-18`, which we do support, so those
-servers keep working. What we give up is the ability to *claim* 2025-11-25
-conformance, and the ability to consume its additive features (icons, URL-mode
-elicitation) from servers that offer them.
+Why negotiate it at all: without it, a server whose newest legacy revision is
+`2025-11-25` (notably the reference `mcp` 2.x SDK, whose `initialize` caps at
+`2025-11-25`) negotiates **down** to `2025-06-18` — a needless downgrade against
+a perfectly capable modern server. Offering `2025-11-25` lets the handshake meet
+at the server's actual best legacy version. Its additive features being wire-
+compatible optionals, ignoring them is safe: tools, resources, and prompts work
+unchanged. What we give up is only the ability to *claim* full `2025-11-25`
+conformance or to consume those additive features.
 
 Consequences:
 
 - The conformance gate is `2026-07-28` only, alongside the existing legacy tests.
-- The legacy driver is genuinely frozen — no new feature work, deleted when the
-  twelve-month deprecation window closes.
+- The legacy driver is frozen for *features*: `2025-11-25` is negotiated and
+  handled with the shared legacy lifecycle, with no revision-specific feature
+  work; the whole legacy driver is deleted when the twelve-month deprecation
+  window closes.
 
 ---
 

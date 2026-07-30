@@ -42,7 +42,9 @@ enforced, not just measured.
 Recorded four decisions:
 
 - **D1** Legacy target is the three versions already supported —
-  `2025-06-18`, `2025-03-26`, `2024-11-05`. `2025-11-25` deliberately excluded.
+  `2025-06-18`, `2025-03-26`, `2024-11-05`. `2025-11-25` is negotiable but not
+  fully implemented (offered so a `2025-11-25`-capable server isn't downgraded;
+  driven by the legacy lifecycle, its additive features not consumed — see §4).
 - **D2** The §5 compatibility contract is binding for all of `chuk-mcp` 1.x.
 - **D3** Anything touching the wire lives in Rust; Python exposes types.
 - **D4** Normalise legacy upward into the modern shape, never downward.
@@ -164,13 +166,34 @@ permanently-red job that goes green through phases 2–4.
 
 ---
 
+## Exercised from Python (2026-07-30)
+
+The 2026 work is no longer Rust-side-only theory. Built a maturin wheel from
+`mcp-2026`, installed it under the `chuk-mcp` (`rust-backend`) facade, and drove
+real servers:
+
+- **Legacy path works end-to-end from Python** over both stdio and Streamable
+  HTTP — `initialize`, `tools/list`, `tools/call`, session ids.
+- **`2026-07-28` verified from Python.** Added `connect_dual_stdio` to the PyO3
+  bindings (era-aware: probes `server/discover`, drives the stateless modern
+  protocol for a modern peer, falls back to `initialize` for a legacy one). A
+  modern stdio server negotiates era `2026-07-28` and a modern `tools/call`
+  round-trips. The client exposes `.era` and `.protocol_version`.
+- **`2025-11-25` is now negotiable** (see D1): against the reference `mcp` 2.x
+  SDK server — whose `initialize` caps at `2025-11-25` on both stdio and HTTP —
+  the client now negotiates `2025-11-25` instead of downgrading to `2025-06-18`.
+
+Still pending: the **modern path from Python over HTTP** (only stdio dual-connect
+is exposed so far), and a **modern chuk server** — `CoreServer` has no
+`server/discover`, so the modern leg was verified against a hand-written modern
+stdio server. See the `chuk-mcp-server` gap below.
+
 ## What's next, in order
 
-1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** This is the real blocker,
-   not a formality: nothing in the 2026 work has been exercised from Python. The
-   only Python testing so far proved the PyO3 upgrade did not regress the
-   *existing* suite. Until a wheel exists and `chuk-mcp` pins it, all of this is
-   Rust-side theory as far as downstream consumers are concerned.
+1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** The wheel is what lets
+   `chuk-mcp` pin the core and downstream consumers see any of this. Python-side
+   exercising has now started (above), which de-risks the merge, but the release
+   is still the gate.
 2. **Phase 3 — typed results.** `resultType` (absent → `"complete"`),
    `structuredContent`, `_meta`, `server_identity`, and `.value` for the 0.9-era
    shape. D4 says normalise upward so era never reaches a public type; until that
