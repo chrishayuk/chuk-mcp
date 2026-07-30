@@ -10,12 +10,12 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `1dc20e0` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `36f9010` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `6944157` |
 
-The migration branches are not yet merged. `chuk-mcp-rs/main` is at `1df1510`,
-which now carries the PyO3 security upgrade. Every phase below implies a
-`chuk-mcp-rs` release and wheel before `chuk-mcp` can pin it (see §6 of the
-design note).
+`chuk-mcp-rs/main` is at `7061012` and carries the PyO3 security upgrade and the
+per-file coverage gate; `mcp-2026` is merged up to it. The migration branch itself
+is not yet merged, and every phase implies a `chuk-mcp-rs` release and wheel
+before `chuk-mcp` can pin it (see §6 of the design note).
 
 ---
 
@@ -30,7 +30,8 @@ design note).
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Core crate: 212 tests, **97.62%** line coverage, every file ≥90% per file.
+Core crate: 241 tests, **97.56%** line coverage, every file ≥90% per file — now
+enforced, not just measured.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
 
@@ -130,8 +131,22 @@ strength of a `401` or a `502`, so `Dispatched` distinguishes a positively
 modern answer from one that proves nothing. An unhealthy server is mistaken for
 neither era.
 
-Still to do for stdio: the equivalent switch there is easier, since
-`server/discover` can be probed before anything else.
+### The dual-era switch on stdio (`transports::stdio_dual`)
+
+The easier half: stdio has a legitimate pre-flight, so `server/discover` is
+probed once before any real work and detection fails deterministically rather
+than half-way through a call.
+
+Era means something different here. On HTTP it selects between transports; on
+stdio there is one pipe and era is purely message *shape*. `_meta` injection
+therefore lives in the transport's writer task, which is what makes it safe — no
+`send_*` helper can omit metadata the modern protocol requires, and none needed
+changing. The switch is set before the probe and cleared if the peer turns out
+legacy, so a legacy server never receives `_meta`.
+
+A `-32022` during the probe is renegotiated. A process that dies is
+`Undetermined`, not legacy: falling back would be a guess that surfaces a
+confusing handshake failure instead of the real problem.
 
 ## Phases 3–5 — not started
 
@@ -145,7 +160,7 @@ permanently-red job that goes green through phases 2–4.
 | Branch | Head | State |
 | --- | --- | --- |
 | `deps/pyo3-0.29` | `ea0192f` | **Merged** to `main` as `1df1510`; all 6 alerts now report `fixed` |
-| `ci/per-file-coverage-gate` | `75d770c` | Complete, awaiting merge |
+| `ci/per-file-coverage-gate` | `75d770c` | **Merged** to `main` as `7061012` |
 
 **`deps/pyo3-0.29`** closes GHSA-36hh-v3qg-5jq4 (high), GHSA-chgr-c6px-7xpp
 (moderate) and GHSA-pph8-gcv7-4qj5 (low) — six alerts that were three
@@ -193,11 +208,13 @@ Worth keeping because each was wrong in a way that would have failed silently.
 
 ## Known gaps and open questions
 
-- [ ] **Legacy error codes must not be emitted under the modern era.** The spec
-      says new implementations **SHOULD NOT** use `-32000`..`-32019` at all, and
-      that receivers **MUST NOT** assume meaning for them apart from `-32002`.
-      The crate's seven existing MCP codes live there. They are grandfathered
-      for *receiving*; the modern driver must not *emit* them.
+- [x] **Legacy error codes are no longer emitted by new code.** The modern
+      driver's own failures now use `-31001`..`-31004`, outside the JSON-RPC
+      reserved range, with `is_local_error` / `is_jsonrpc_reserved` to tell them
+      from a peer's. This also fixes something subtler than the spec rule: a
+      caller could not previously distinguish "the server rejected this" from
+      "we never got an answer". A peer's own error still passes through
+      untouched. The seven grandfathered MCP codes remain for *receiving*.
 - [ ] **`CURRENT_VERSION` becomes `2026-07-28`.** Unavoidable and visible.
       `chuk-tool-processor` was checked and does not assert on it. **`mcp-cli`
       and `chuk-llm` still need confirming** before the 1.0 tag.
