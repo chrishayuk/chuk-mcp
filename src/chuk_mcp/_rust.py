@@ -81,6 +81,7 @@ ValidationError = _rs.ValidationError
 get_default_environment = _rs.get_default_environment
 supported_versions = _rs.supported_versions
 CURRENT_VERSION = _rs.CURRENT_VERSION
+LATEST_LEGACY_VERSION = _rs.LATEST_LEGACY_VERSION
 core_version = _rs.core_version
 
 __all__ = [
@@ -130,5 +131,6 @@ __all__ = [
     "get_default_environment",
     "supported_versions",
     "CURRENT_VERSION",
+    "LATEST_LEGACY_VERSION",
     "core_version",
 ]

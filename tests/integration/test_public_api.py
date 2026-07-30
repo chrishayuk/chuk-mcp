@@ -123,7 +123,10 @@ async def test_stdio_low_level_api():
     async with stdio_client(_server_params()) as (read, write):
         init = await send_initialize(read, write)
         assert init.serverInfo.name == "integration-echo"
-        assert init.protocolVersion == chuk_mcp.CURRENT_VERSION
+        # send_initialize is the *legacy* handshake, so it negotiates the latest
+        # legacy revision, never the stateless CURRENT_VERSION (2026-07-28),
+        # which has no `initialize` step.
+        assert init.protocolVersion == chuk_mcp.LATEST_LEGACY_VERSION
 
         assert await send_ping(read, write) is True
 

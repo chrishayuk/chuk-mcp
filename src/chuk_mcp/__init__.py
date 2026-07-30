@@ -71,6 +71,7 @@ from ._rust import (
     get_default_environment,
     supported_versions,
     CURRENT_VERSION,
+    LATEST_LEGACY_VERSION,
     core_version,
 )
 
@@ -161,6 +162,7 @@ __all__ = [
     "supported_versions",
     "core_version",
     "CURRENT_VERSION",
+    "LATEST_LEGACY_VERSION",
     "PYDANTIC_AVAILABLE",
     # Metadata
     "__version__",
