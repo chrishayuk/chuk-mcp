@@ -26,7 +26,7 @@ before `chuk-mcp` can pin it (see §6 of the design note).
 | 0 | Boundary decisions + compatibility contract | **Done** |
 | 1 | Versioning, `ProtocolEra`, error codes, detection, era cache | **Done** |
 | 2 | Modern driver, envelope builder, stateless path | **Done** |
-| 3 | Typed results, `resultType`, upward normalisation, `.value` | Not started |
+| 3 | Typed results, `resultType`, upward normalisation, `.value` | **Done** (tools) |
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
@@ -159,7 +159,28 @@ A `-32022` during the probe is renegotiated. A process that dies is
 `Undetermined`, not legacy: falling back would be a guess that surfaces a
 confusing handshake failure instead of the real problem.
 
-## Phases 3–5 — not started
+## Phase 3 — done for tool results (`chuk-mcp-rs` `mcp-2026`)
+
+The `tools/call` result now carries the modern envelope, upward-normalised so
+0.9-era caller code runs unmodified (gate met):
+
+- `result_type` (`resultType`) — absent on a legacy result, normalised to
+  `"complete"` (D4). `.text`/`.content`/`.isError`/`.to_dict()` unchanged.
+- `.value` — the flattened 0.9-era accessor: a single structured block's `data`,
+  else the list, else the text, else the raw content blocks.
+- `structuredContent` and `serverIdentity` getters. `serverIdentity` reads the
+  reserved `io.modelcontextprotocol/serverInfo` `_meta` key (self-reported,
+  unverified — display/attribution only).
+
+Verified from Python against both eras: a modern structured result flattens
+`.value` to its data and surfaces `serverIdentity`, and a real legacy `sqlite`
+result normalises `resultType` to `"complete"`.
+
+Still to do for Phase 3: apply the same envelope treatment to the other result
+types (`ReadResourceResult`, `GetPromptResult`, …) — tool results were done
+first as the common case.
+
+## Phases 4–5 — not started
 
 See §8 of the design note for scope and gates. Conformance CI is wired as a
 permanently-red job that goes green through phases 2–4.

@@ -104,6 +104,11 @@ async def test_stdio_high_level_client():
         result = await client.call_tool("greet", {"name": "Integration"})
         assert result.text == "Hello, Integration!"
         assert result.isError is False
+        # Phase 3: a legacy result (no resultType on the wire) normalises upward
+        # to "complete", and .value is the flattened 0.9-era accessor, while the
+        # existing .text accessor keeps working unchanged.
+        assert result.resultType == "complete"
+        assert result.value == "Hello, Integration!"
 
         add = await client.call_tool("add", {"a": 3, "b": 4})
         assert json.loads(add.text)["sum"] == 7
