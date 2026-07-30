@@ -313,9 +313,14 @@ Worth keeping because each was wrong in a way that would have failed silently.
 - [ ] **`CURRENT_VERSION` becomes `2026-07-28`.** Unavoidable and visible.
       `chuk-tool-processor` was checked and does not assert on it. **`mcp-cli`
       and `chuk-llm` still need confirming** before the 1.0 tag.
-- [ ] **Conformance suite not yet wired.** Release gate is
-      [modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
-      for `2026-07-28`, alongside the existing legacy tests.
+- [~] **Conformance suite — client wired.** A `conformance` CI job runs the
+      official [modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
+      (`0.1.16`) **client** scenarios against a `chuk-mcp-conformance-client`
+      runner binary: `initialize` and `tools_call` pass at both `2025-06-18` and
+      `2025-11-25` (the suite independently confirms the client negotiates
+      `2025-11-25`). See `chuk-mcp-rs/scripts/run-conformance.sh`. Still open:
+      the `draft` (`2026-07-28`) **client** scenarios are auth-only (Phase 5),
+      and **server** conformance needs the modern chuk server (below).
 - [ ] **`chuk-mcp-server` needs the mirror-image work.** A dual-era server
       serves both eras from one route; the pushed-elicitation-to-MRTR
       translation runs the opposite direction. The negotiation and envelope code
