@@ -1,6 +1,6 @@
 # Roadmap — MCP 2026-07-28 support
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 Tracks the migration to MCP revision `2026-07-28` across the two repositories
 that make up this package. Design decisions and the compatibility contract live
@@ -9,8 +9,8 @@ this file records **status**.
 
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
-| `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `1dc20e0` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `6944157` |
+| `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `8343b5a` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `81ce827` |
 
 `chuk-mcp-rs/main` is at `7061012` and carries the PyO3 security upgrade and the
 per-file coverage gate; `mcp-2026` is merged up to it. The migration branch itself
@@ -30,7 +30,12 @@ before `chuk-mcp` can pin it (see §6 of the design note).
 | 4 | MRTR both eras, legacy elicitation bridge | Not started |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Core crate: 241 tests, **97.56%** line coverage, every file ≥90% per file — now
+Phase 4 is genuinely untouched — there is no `requestState` anywhere in the
+core, only the elicitation *types* from before the migration. Phase 5 likewise:
+`SUBSCRIPTIONS_LISTEN` is a method constant and nothing more, and there is no
+catalogue caching code at all.
+
+Core crate: 269 tests, **97.61%** line coverage, all 43 files ≥90% per file —
 enforced, not just measured.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
@@ -185,8 +190,49 @@ attribution case); extending it to the others is a small follow-up if wanted.
 
 ## Phases 4–5 — not started
 
-See §8 of the design note for scope and gates. Conformance CI is wired as a
-permanently-red job that goes green through phases 2–4.
+See §8 of the design note for scope and gates.
+
+The conformance job is **not** the permanently-red job originally planned. It
+runs the scenarios that pass as blocking checks and reports the ones that do not
+separately, non-blockingly, naming what each needs and telling you if one starts
+passing. A red-by-design job would have gone unread for the months phases 4–5
+take; a green job with a printed gap list is read every run. The trade is that
+nothing forces the gaps closed — see the conformance entry under Known gaps.
+
+## Interlude — developer experience and measurement (`chuk-mcp-rs` `5170155`…`81ce827`)
+
+Not a phase. Four things that were blocking adoption rather than correctness.
+
+**`connect()`.** Connecting meant naming a transport, then choosing between the
+legacy handshake and dual-era detection, then wiring the settled connection into
+a client — three decisions before the first tool call, and the era one fails at
+runtime against half the servers out there. `connect("url or command")` now
+picks the transport from the target, detects the era, completes that era's
+handshake and returns a ready client; `Connect` is the same with the knobs
+exposed. On HTTP the probe is issued deliberately before the caller's traffic,
+because the first request *is* the probe and otherwise the caller's first call
+discovers the era by accident.
+
+**The client surface is uniform.** `server_info()`, `capabilities()`, `era()`
+and `protocol_version()` are all accessors; the fields are private. All four are
+decided by the handshake and were never meaningful to assign. `from_profile`
+carries era and version through, and `from_settled` is deprecated because a
+client built with it reports `era() == None` even though the era is known.
+`connect_to_server` is deprecated for going straight to `initialize` without
+asking whether the peer is modern.
+
+**Python argument order.** `register_tool`/`register_resource` accept their
+arguments in any order. `chuk_mcp` has always put the handler second and the
+Rust core puts it last; the three values have disjoint types, so resolving by
+kind rather than by position honours both conventions and guesses at nothing.
+
+**Benchmarks.** Micro-benchmarks over the per-message hot paths, and an
+end-to-end harness running one workload through three clients against one server
+binary. On an M2 Pro, 1000 calls: `rust-native` 55.2 µs/call, `python-bindings`
+86.3 µs/call, `pure-python` (0.9.4) 500.6 µs/call — **5.8× more tool calls per
+second for a Python caller who changes nothing**. The baseline is pinned to
+0.9.4 on purpose; every later release delegates to this core, so anything newer
+measures the library against itself.
 
 ---
 
@@ -207,30 +253,48 @@ real servers:
   SDK server — whose `initialize` caps at `2025-11-25` on both stdio and HTTP —
   the client now negotiates `2025-11-25` instead of downgrading to `2025-06-18`.
 
-Still pending: the **modern path from Python over HTTP** (only stdio dual-connect
-is exposed so far), and a **modern chuk server** — `CoreServer` has no
-`server/discover`, so the modern leg was verified against a hand-written modern
-stdio server. See the `chuk-mcp-server` gap below.
+### Modern over HTTP from Python — now works (2026-07-31)
+
+Previously pending: only stdio dual-connect was exposed. `connect()` routes HTTP
+through the dual-era transport, so Python reaches the modern era over HTTP too.
+Verified against a modern Streamable HTTP server driven from Python:
+
+- era `2026-07-28`, protocol version `2026-07-28`, server identity read from the
+  reserved `_meta` key;
+- the first request on the wire is `server/discover`;
+- `MCP-Protocol-Version` mirrors `_meta`, and **no `Mcp-Session-Id` is sent**;
+- all three required `_meta` keys present (`protocolVersion`,
+  `clientCapabilities`, `clientInfo`);
+- a modern `tools/call` round-trips with `structuredContent` intact.
+
+Still pending: a **modern chuk server** — `CoreServer` has no `server/discover`,
+so every modern leg so far has been verified against hand-written modern servers.
+This is now the single blocker for both the modern server path and official
+server-side conformance. See the `chuk-mcp-server` gap below.
 
 ## What's next, in order
 
-1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** The wheel is what lets
-   `chuk-mcp` pin the core and downstream consumers see any of this. Python-side
-   exercising has now started (above), which de-risks the merge, but the release
-   is still the gate.
-2. **Phase 3 — typed results.** `resultType` (absent → `"complete"`),
-   `structuredContent`, `_meta`, `server_identity`, and `.value` for the 0.9-era
-   shape. D4 says normalise upward so era never reaches a public type; until that
-   lands, every downstream caller either branches on era or waits, and era-aware
-   code written now has to be unpicked later.
-3. **Wire the official conformance suite.** Everything so far is validated against
-   *our reading* of the spec and test servers we wrote. That reading has already
-   been wrong once — `from_discover` used guessed field names — and a silent
-   mismatch in the envelope, the header rules or detection would look exactly
-   like passing tests. This is the only independent check available.
+Items 2 and 3 of the previous list — Phase 3 typed results, and wiring the
+official conformance suite — are both done. That leaves one thing gating
+everything downstream, and then the work that unblocks conformance.
 
-If de-risking matters more than momentum, swap 2 and 3: conformance first would
-catch a systematic misreading before more code is built on it.
+1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** Still the gate: the
+   wheel is what lets `chuk-mcp` pin the core and downstream consumers see any
+   of this. The branch has grown considerably — the whole 2026 protocol path,
+   both conformance suites, `connect()`, and the benchmarks — so the merge is
+   larger than it was, but it is also far better exercised: the modern era now
+   round-trips from Python over both stdio and HTTP.
+2. **A modern `CoreServer`.** `server/discover`, the stateless request path, and
+   an HTTP serving mode. This one item unblocks three separate things: the
+   modern server leg, the official suite's server scenarios (which need a
+   `--url`), and the modern-server column that the in-repo matrix currently
+   shows as empty.
+3. **Phase 4 — MRTR and the elicitation bridge.** Also what
+   `elicitation-sep1034-client-defaults` needs, so conformance coverage and
+   phase progress are the same work here.
+
+Before the 1.0 tag: confirm `mcp-cli` and `chuk-llm` do not assert on
+`CURRENT_VERSION`, which is already `2026-07-28` in the core.
 
 ---
 
@@ -313,14 +377,38 @@ Worth keeping because each was wrong in a way that would have failed silently.
 - [ ] **`CURRENT_VERSION` becomes `2026-07-28`.** Unavoidable and visible.
       `chuk-tool-processor` was checked and does not assert on it. **`mcp-cli`
       and `chuk-llm` still need confirming** before the 1.0 tag.
-- [~] **Conformance suite — client wired.** A `conformance` CI job runs the
-      official [modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
-      (`0.1.16`) **client** scenarios against a `chuk-mcp-conformance-client`
-      runner binary: `initialize` and `tools_call` pass at both `2025-06-18` and
-      `2025-11-25` (the suite independently confirms the client negotiates
-      `2025-11-25`). See `chuk-mcp-rs/scripts/run-conformance.sh`. Still open:
-      the `draft` (`2026-07-28`) **client** scenarios are auth-only (Phase 5),
-      and **server** conformance needs the modern chuk server (below).
+- [~] **Conformance — two suites now, both blocking in CI.**
+
+      *Official.* The [modelcontextprotocol/conformance](https://github.com/modelcontextprotocol/conformance)
+      (`0.1.16`) **client** scenarios run against the
+      `chuk-mcp-conformance-client` runner: `initialize` and `tools_call` pass
+      at both `2025-06-18` and `2025-11-25` (the suite independently confirms
+      the client negotiates `2025-11-25`).
+
+      *In-repo.* Because the official suite cannot reach the modern era (its
+      draft client scenarios are auth-only) or our server (it drives servers
+      over `--url`), spec requirements are also expressed as data and run
+      against this client and this server in both eras — 31 rules, all holding:
+
+      | Era | Subject | Rules |
+      | --- | --- | --- |
+      | legacy | client | 6 |
+      | `2026-07-28` | client | 9 |
+      | legacy | server | 10 |
+      | both | protocol | 6 |
+
+      There are deliberately **no modern-server rules**. An unimplemented era
+      belongs in the matrix as an absence rather than hidden behind rules nobody
+      wrote, so the empty column is the honest signal that item 2 of *What's
+      next* has not happened.
+
+      Still open, and each blocked on phase work rather than on wiring:
+      `elicitation-sep1034-client-defaults` needs client-side
+      `elicitation/create` (Phase 4); `sse-retry` needs GET reconnection after a
+      graceful stream close; **server** scenarios need the modern chuk server
+      and an HTTP serving mode; the `draft` (`2026-07-28`) client scenarios are
+      auth-only (Phase 5). `scripts/run-conformance.sh --gaps` re-checks them
+      and reports any that start passing.
 - [ ] **`chuk-mcp-server` needs the mirror-image work.** A dual-era server
       serves both eras from one route; the pushed-elicitation-to-MRTR
       translation runs the opposite direction. The negotiation and envelope code
@@ -351,6 +439,14 @@ python3 scripts/coverage-gate.py coverage.json --min-lines 90
 maturin build --release --out /tmp/wheels
 # then, in chuk-mcp, install the wheel plus the pydantic extra and run:
 python -m pytest tests -q   # expect 563 passed, 1 skipped
+
+# Conformance — in-repo rule suite, then the official client scenarios
+./scripts/run-conformance.sh
+./scripts/run-conformance.sh --gaps   # also re-check the known gaps
+
+# Benchmarks
+cargo bench -p chuk-mcp     # per-message protocol costs
+python3 -m benchmarks       # end-to-end: Rust vs PyO3 vs pure Python
 ```
 
 Note the Python suite needs `pydantic` installed — without it 22 tests fail on
