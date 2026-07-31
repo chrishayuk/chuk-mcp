@@ -1,6 +1,6 @@
 # Roadmap — MCP 2026-07-28 support
 
-Last updated: 2026-07-31
+Last updated: 2026-07-31 (Phase 4)
 
 Tracks the migration to MCP revision `2026-07-28` across the two repositories
 that make up this package. Design decisions and the compatibility contract live
@@ -10,7 +10,7 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `8343b5a` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `81ce827` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `98da8d2` |
 
 `chuk-mcp-rs/main` is at `7061012` and carries the PyO3 security upgrade and the
 per-file coverage gate; `mcp-2026` is merged up to it. The migration branch itself
@@ -27,15 +27,13 @@ before `chuk-mcp` can pin it (see §6 of the design note).
 | 1 | Versioning, `ProtocolEra`, error codes, detection, era cache | **Done** |
 | 2 | Modern driver, envelope builder, stateless path | **Done** |
 | 3 | Typed results, `resultType`, upward normalisation, `.value` | **Done** |
-| 4 | MRTR both eras, legacy elicitation bridge | Not started |
+| 4 | MRTR both eras, legacy elicitation bridge | **Done** |
 | 5 | Catalogue caching, `subscriptions/listen`, tool definitions, auth | Not started |
 
-Phase 4 is genuinely untouched — there is no `requestState` anywhere in the
-core, only the elicitation *types* from before the migration. Phase 5 likewise:
-`SUBSCRIPTIONS_LISTEN` is a method constant and nothing more, and there is no
-catalogue caching code at all.
+Phase 5 is genuinely untouched: `SUBSCRIPTIONS_LISTEN` is a method constant and
+nothing more, and there is no catalogue caching code at all.
 
-Core crate: 269 tests, **97.61%** line coverage, all 43 files ≥90% per file —
+Core crate: 320 tests, **97.27%** line coverage, all 53 files ≥90% per file —
 enforced, not just measured.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
@@ -188,7 +186,53 @@ the list results (`ListTools/Resources/Prompts/ResourceTemplatesResult`) capture
 `resultType` too. `serverIdentity` is on the tool result (the multi-server
 attribution case); extending it to the others is a small follow-up if wanted.
 
-## Phases 4–5 — not started
+## Phase 4 — done (`chuk-mcp-rs` `6422700` … `98da8d2`)
+
+The revision removed server-initiated requests outright. A server needing
+`elicitation/create`, `sampling/createMessage` or `roots/list` answered now
+*returns* one as an `input_required` result and expects the whole call retried;
+a legacy server pushes a request mid-call and holds the original open. Gate met:
+one caller-supplied `InputHandler` answers both, and the same caller code
+completes either.
+
+- `protocol::mrtr` — `InputRequired`, the `InputRequests`/`InputResponses` maps,
+  and elicitation as *this* revision defines it (`mode`, `requestedSchema`, the
+  three-action model, URL mode) — a different shape from the pre-2026 helpers in
+  `types::elicitation`, which stay for the Python package.
+- `RequestState` has no `Display`, no `Deref`, and a `Debug` that redacts.
+  Clients MUST NOT inspect it and it is typically an AEAD blob binding the
+  principal; a debug log is exactly where that must not surface.
+- Modern driver: answer, then resend under a **new id** with `inputResponses`
+  and the exactly-echoed state. Bounded at eight rounds — a server may keep
+  asking and nothing else would stop the loop. Stale state from an earlier round
+  is dropped when the server stops sending it.
+- Legacy bridge: `send_message` dropped inbound server requests at the id
+  filter, so a pushed `elicitation/create` left the server waiting forever.
+- `AcceptDefaults` answers a form from its schema's own defaults (SEP-1034),
+  declines when a required field has none, and never consents to a URL on a
+  user's behalf.
+- Python: `connect(url, on_elicit=handler)`. The coroutine is started while
+  attached and awaited after dropping the GIL — a user may take a long time to
+  answer a form, and holding it would stall every other Python thread.
+
+### The bug the in-process tests could not see
+
+The legacy bridge passed over an in-process transport and could never have
+fired over real Streamable HTTP: a legacy server pushes on the standalone
+server-to-client **`GET`** stream, and that transport only ever spoke on POSTs.
+Nothing was listening. Found by instrumenting the conformance runner — across a
+whole elicitation scenario exactly two messages reached the client, and the
+pushed request was not among them.
+
+`transports::http_listen` now holds that stream open, reconnects on a graceful
+close, and stops for good on 404/405/501 while retrying a 503.
+
+Then a second, subtler one: a server can only send a request on a stream that
+*exists*, and the client was sending `tools/call` in the gap before the GET was
+established — losing a race it did not know it was in, and losing it
+consistently. `Transport::ready` makes it explicit; `initialize` awaits it.
+
+## Phase 5 — not started
 
 See §8 of the design note for scope and gates.
 
@@ -281,17 +325,18 @@ everything downstream, and then the work that unblocks conformance.
 1. **Merge `mcp-2026` and ship a `chuk-mcp-rs` wheel.** Still the gate: the
    wheel is what lets `chuk-mcp` pin the core and downstream consumers see any
    of this. The branch has grown considerably — the whole 2026 protocol path,
-   both conformance suites, `connect()`, and the benchmarks — so the merge is
-   larger than it was, but it is also far better exercised: the modern era now
-   round-trips from Python over both stdio and HTTP.
+   MRTR in both eras, both conformance suites, `connect()`, and the benchmarks —
+   so the merge is larger than it was, but it is also far better exercised: the
+   modern era round-trips from Python over both stdio and HTTP, and elicitation
+   is answered from Python in either era.
 2. **A modern `CoreServer`.** `server/discover`, the stateless request path, and
    an HTTP serving mode. This one item unblocks three separate things: the
    modern server leg, the official suite's server scenarios (which need a
    `--url`), and the modern-server column that the in-repo matrix currently
    shows as empty.
-3. **Phase 4 — MRTR and the elicitation bridge.** Also what
-   `elicitation-sep1034-client-defaults` needs, so conformance coverage and
-   phase progress are the same work here.
+3. **Phase 5** — catalogue caching, `subscriptions/listen`, full tool
+   definitions, auth hardening. Gate: private-cache isolation across two
+   principals.
 
 Before the 1.0 tag: confirm `mcp-cli` and `chuk-llm` do not assert on
 `CURRENT_VERSION`, which is already `2026-07-28` in the core.
@@ -402,13 +447,22 @@ Worth keeping because each was wrong in a way that would have failed silently.
       wrote, so the empty column is the honest signal that item 2 of *What's
       next* has not happened.
 
-      Still open, and each blocked on phase work rather than on wiring:
-      `elicitation-sep1034-client-defaults` needs client-side
-      `elicitation/create` (Phase 4); `sse-retry` needs GET reconnection after a
-      graceful stream close; **server** scenarios need the modern chuk server
-      and an HTTP serving mode; the `draft` (`2026-07-28`) client scenarios are
-      auth-only (Phase 5). `scripts/run-conformance.sh --gaps` re-checks them
-      and reports any that start passing.
+      Blocking now: `initialize` and `tools_call` at both versions, plus
+      **`elicitation-sep1034-client-defaults`** at `2025-11-25`, which Phase 4
+      fixed.
+
+      One gap left. **`sse-retry`** has gone from failing outright to
+      `1/2 + 1 warning`: *"Client reconnects via GET after SSE stream is closed
+      gracefully"* now **passes**. Its `retry:` field and `Last-Event-ID` are
+      parsed and carried across reconnects (unit-tested), but the remaining
+      checks are not reaching the code that uses them — instrumenting shows the
+      reference server holds its GET stream open for the full 30s rather than
+      closing it, so the reconnect path never runs. That is where to pick it up.
+
+      **Server** scenarios still need the modern chuk server and an HTTP
+      serving mode; the `draft` (`2026-07-28`) client scenarios remain auth-only
+      (Phase 5).
+
 - [ ] **`chuk-mcp-server` needs the mirror-image work.** A dual-era server
       serves both eras from one route; the pushed-elicitation-to-MRTR
       translation runs the opposite direction. The negotiation and envelope code
