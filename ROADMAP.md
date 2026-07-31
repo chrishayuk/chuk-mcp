@@ -10,7 +10,7 @@ this file records **status**.
 | Repo | Role | Branch | Head |
 | --- | --- | --- | --- |
 | `chuk-mcp` | Python facade, typed models, design docs | `rust-backend` | `8343b5a` |
-| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `98da8d2` |
+| `chuk-mcp-rs` | Rust core + PyO3 bindings — all wire behaviour | `mcp-2026` | `694f290` |
 
 `chuk-mcp-rs/main` is at `7061012` and carries the PyO3 security upgrade and the
 per-file coverage gate; `mcp-2026` is merged up to it. The migration branch itself
@@ -33,7 +33,7 @@ before `chuk-mcp` can pin it (see §6 of the design note).
 Phase 5 is genuinely untouched: `SUBSCRIPTIONS_LISTEN` is a method constant and
 nothing more, and there is no catalogue caching code at all.
 
-Core crate: 320 tests, **97.27%** line coverage, all 53 files ≥90% per file —
+Core crate: 323 tests, **97.32%** line coverage, all 53 files ≥90% per file —
 enforced, not just measured.
 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and
 `cargo test --workspace` all clean.
@@ -451,13 +451,16 @@ Worth keeping because each was wrong in a way that would have failed silently.
       **`elicitation-sep1034-client-defaults`** at `2025-11-25`, which Phase 4
       fixed.
 
-      One gap left. **`sse-retry`** has gone from failing outright to
-      `1/2 + 1 warning`: *"Client reconnects via GET after SSE stream is closed
-      gracefully"* now **passes**. Its `retry:` field and `Last-Event-ID` are
-      parsed and carried across reconnects (unit-tested), but the remaining
-      checks are not reaching the code that uses them — instrumenting shows the
-      reference server holds its GET stream open for the full 30s rather than
-      closing it, so the reconnect path never runs. That is where to pick it up.
+      **`sse-retry`** passes too, so the known-gaps list is now empty: every
+      client scenario the suite offers at a version we support passes. It was
+      one missing idea rather than three — a server may answer a POST by
+      opening a stream, sending an event id and a retry delay, then closing it
+      *without the response*, which asks to be resumed on the GET stream rather
+      than reporting a failure. Two details each cost a check: the delay must be
+      read **after** a stream ends (the `retry:` governing a reconnection
+      arrives on the stream that just closed), and the listener must race its
+      open stream against a resume request, or a server holding the GET open
+      while a POST stream dies is never reconnected.
 
       **Server** scenarios still need the modern chuk server and an HTTP
       serving mode; the `draft` (`2026-07-28`) client scenarios remain auth-only
